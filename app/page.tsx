@@ -38,6 +38,7 @@ type Unit = {
 };
 
 type Question = {
+  kind?: "choice" | "ox" | "short" | "completion" | "matching" | "combination" | "essay";
   prompt: string;
   choices: string[];
   answer: number;
@@ -46,6 +47,12 @@ type Question = {
   sourceLabel?: string;
   hints?: string[];
   competency?: "개념 이해" | "자료 해석" | "분석·추론" | "문제 해결" | "논증·표현";
+  accepted?: string[];
+  matchOptions?: string[];
+  expectedMatches?: number[];
+  correctAnswers?: number[];
+  rubricTerms?: string[][];
+  minLength?: number;
 };
 
 type ActiveGame = { unit: Unit; level: number };
@@ -96,34 +103,34 @@ const questions: Record<number, Question[]> = {
 
 const unitOneQuestionSets: Question[][] = [
   [
-    { prompt: "국가의 부당한 간섭을 받지 않고 자유롭게 생활할 권리는?", choices: ["자유권", "사회권", "청구권"], answer: 0, explanation: "자유권은 국가 권력의 간섭이나 침해를 배제하는 방어적 권리입니다.", hints: ["국가가 무엇을 해 달라는 권리보다 간섭하지 말라는 권리입니다.", "신체·거주·직업 선택의 자유를 떠올려 보세요.", "첫 번째 선택지입니다."], competency: "개념 이해" },
-    { prompt: "국가에 인간다운 생활의 보장을 요구하는 권리는?", choices: ["참정권", "평등권", "사회권"], answer: 2, explanation: "사회권은 교육, 노동, 인간다운 생활처럼 국가의 적극적 역할을 요구하는 권리입니다.", hints: ["산업 혁명 이후 사회적 약자의 요구로 강조되었습니다.", "바이마르 헌법에 처음 규정된 권리입니다.", "세 번째 선택지입니다."], competency: "개념 이해" },
-    { prompt: "침해된 기본권의 구제를 국가 기관에 요구하는 권리는?", choices: ["청구권", "자유권", "평등권"], answer: 0, explanation: "청구권에는 재판 청구권, 국가 배상 청구권 등이 포함됩니다.", hints: ["권리를 침해당한 뒤 구제를 요청하는 성격입니다.", "재판을 받을 권리가 대표 사례입니다.", "첫 번째 선택지입니다."], competency: "개념 이해" },
+    { kind: "ox", prompt: "자유권은 국가의 부당한 간섭을 받지 않고 자유롭게 생활할 권리이다.", choices: ["O", "X"], answer: 0, explanation: "자유권은 국가 권력의 간섭이나 침해를 배제하는 방어적 권리입니다.", hints: ["국가가 무엇을 해 달라는 권리보다 간섭하지 말라는 권리입니다.", "신체·거주·직업 선택의 자유를 떠올려 보세요.", "이 진술은 옳습니다."], competency: "개념 이해" },
+    { kind: "short", prompt: "국가에 인간다운 생활의 보장을 요구하는 기본권을 한 단어로 쓰세요.", choices: [], answer: 0, accepted: ["사회권"], explanation: "사회권은 교육, 노동, 인간다운 생활처럼 국가의 적극적 역할을 요구하는 권리입니다.", hints: ["산업 혁명 이후 사회적 약자의 요구로 강조되었습니다.", "바이마르 헌법에 처음 규정된 권리입니다.", "정답의 첫 글자는 ‘사’입니다."], competency: "개념 이해" },
+    { kind: "completion", prompt: "문장을 완성하세요: 침해된 기본권의 구제를 국가 기관에 요구하는 권리는 (          )이다.", choices: [], answer: 0, accepted: ["청구권"], explanation: "청구권에는 재판 청구권, 국가 배상 청구권 등이 포함됩니다.", hints: ["권리를 침해당한 뒤 구제를 요청하는 성격입니다.", "재판을 받을 권리가 대표 사례입니다.", "정답의 첫 글자는 ‘청’입니다."], competency: "개념 이해" },
   ],
   [
     { sourceLabel: "헌법 제37조 제2항 요약", source: "국민의 자유와 권리는 국가 안전 보장·질서 유지·공공복리를 위해 필요한 경우에만 법률로 제한할 수 있으며, 본질적인 내용은 침해할 수 없다.", prompt: "자료에서 확인할 수 없는 기본권 제한 요건은?", choices: ["법률에 근거할 것", "본질적 내용을 침해하지 않을 것", "행정 기관이 편리하다고 판단할 것"], answer: 2, explanation: "행정 편의는 헌법이 정한 기본권 제한 목적이나 요건이 아닙니다.", hints: ["자료에 직접 제시된 표현을 확인하세요.", "국가 안전·질서·공공복리와 법률이 핵심입니다.", "세 번째 선택지는 자료에 없습니다."], competency: "자료 해석" },
-    { sourceLabel: "권력 분립 자료", source: "국회는 법률을 만들고, 정부는 법률을 집행하며, 법원은 재판한다. 헌법재판소는 법률의 위헌 여부 등을 심판한다.", prompt: "이 제도가 인권 보장에 기여하는 방식은?", choices: ["국가 권력을 한 기관에 집중한다", "기관 간 견제로 권력 남용을 막는다", "모든 결정을 국민 투표로 한다"], answer: 1, explanation: "권력 분립은 국가 기관이 서로 견제하도록 하여 권력 남용과 기본권 침해를 예방합니다.", hints: ["각 기관의 역할이 나뉘어 있다는 점에 주목하세요.", "집중의 반대말을 떠올려 보세요.", "두 번째 선택지입니다."], competency: "자료 해석" },
-    { sourceLabel: "기본권 구제 경로", source: "법원의 재판을 거쳤지만 공권력 때문에 기본권이 침해되었다고 주장하는 시민이 헌법적 판단을 요청하려 한다.", prompt: "가장 관련 깊은 구제 제도는?", choices: ["헌법소원심판", "주민 투표", "국정 감사"], answer: 0, explanation: "공권력에 의한 기본권 침해를 헌법적으로 구제받기 위해 헌법소원심판을 청구할 수 있습니다.", hints: ["일반 정책 선호를 묻는 절차가 아닙니다.", "헌법재판소의 기본권 구제 절차입니다.", "첫 번째 선택지입니다."], competency: "자료 해석" },
+    { kind: "matching", sourceLabel: "권력 분립 자료", source: "국가 기관의 기능을 서로 연결해 권력이 한곳에 집중되지 않는 구조를 확인해 보세요.", prompt: "각 기관과 핵심 기능을 바르게 연결하세요.", choices: ["국회", "정부", "법원", "헌법재판소"], answer: 0, matchOptions: ["법률 제정", "법률 집행", "재판", "위헌 여부 심판"], expectedMatches: [0, 1, 2, 3], explanation: "국회-입법, 정부-행정, 법원-사법, 헌법재판소-위헌 심판의 연결을 통해 권력 분립과 견제가 이루어집니다.", hints: ["입법·행정·사법의 기능을 먼저 떠올리세요.", "헌법재판소는 법률이 헌법에 맞는지 판단합니다.", "위에서부터 1-2-3-4 순서입니다."], competency: "자료 해석" },
+    { kind: "short", sourceLabel: "기본권 구제 경로", source: "공권력의 행사 또는 불행사 때문에 기본권을 침해받은 시민이 헌법재판소에 구제를 요청하려 한다.", prompt: "이 권리 구제 제도의 이름을 쓰세요.", choices: [], answer: 0, accepted: ["헌법소원", "헌법소원심판", "헌법 소원 심판"], explanation: "공권력에 의한 기본권 침해를 헌법적으로 구제받기 위해 헌법소원심판을 청구할 수 있습니다.", hints: ["일반 정책 선호를 묻는 절차가 아닙니다.", "헌법재판소의 기본권 구제 절차입니다.", "‘헌법○○심판’입니다."], competency: "자료 해석" },
   ],
   [
-    { sourceLabel: "사건 카드 A", source: "학교가 학생의 동의 없이 개인 상담 기록 전체를 공개 게시판에 올렸다.", prompt: "가장 직접적으로 침해된 기본권과 판단 근거는?", choices: ["사생활의 비밀과 자유 - 공개 범위가 필요 이상으로 넓다", "참정권 - 선거에 참여하지 못했다", "사회권 - 교육 시설이 부족하다"], answer: 0, explanation: "민감한 상담 기록의 무단 공개는 사생활의 비밀과 자유를 침해할 가능성이 큽니다.", hints: ["개인 정보가 누구에게 공개되었는지 보세요.", "상담 기록은 사적인 생활 영역입니다.", "첫 번째 선택지가 권리와 근거를 모두 연결합니다."], competency: "분석·추론" },
+    { kind: "combination", sourceLabel: "사건 카드 A", source: "학교가 학생의 동의 없이 개인 상담 기록 전체를 공개 게시판에 올렸다.", prompt: "사례에서 타당한 판단을 모두 고르세요.", choices: ["ㄱ. 사생활의 비밀과 자유가 관련된다", "ㄴ. 공개 범위가 필요 이상으로 넓다", "ㄷ. 참정권 침해가 핵심이다"], answer: 0, correctAnswers: [0, 1], explanation: "민감한 상담 기록의 무단 공개는 사생활의 비밀과 자유를 침해하며, 공개 범위도 필요 이상으로 넓습니다.", hints: ["권리와 판단 근거를 각각 찾아보세요.", "선거 참여와 관련된 사건은 아닙니다.", "ㄱ과 ㄴ을 선택하세요."], competency: "분석·추론" },
     { sourceLabel: "사건 카드 B", source: "평화로운 집회를 전면 금지하면서 구체적인 위험이나 대체 장소를 제시하지 않았다.", prompt: "헌법적 판단으로 가장 타당한 것은?", choices: ["질서 유지를 말했으므로 언제나 정당하다", "표현·집회의 자유를 과도하게 제한했는지 살펴야 한다", "집회는 기본권과 관계없다"], answer: 1, explanation: "기본권 제한은 목적뿐 아니라 필요성, 최소 침해, 본질적 내용 보장도 함께 따져야 합니다.", hints: ["전면 금지와 구체적 위험 부재를 비교하세요.", "과잉 금지 원칙을 적용해 보세요.", "두 번째 선택지입니다."], competency: "분석·추론" },
     { sourceLabel: "사건 카드 C", source: "공공시설이 휠체어 이용자의 출입을 막는 계단만 설치하고 합리적인 개선 요구도 거부했다.", prompt: "이 사례의 핵심 쟁점은?", choices: ["정당한 구별", "평등권과 접근권 침해", "재산권만의 문제"], answer: 1, explanation: "합리적 편의 제공을 거부해 장애인의 동등한 이용 기회를 막는 것은 차별과 접근권 문제입니다.", hints: ["누구에게 이용 장벽이 생겼는지 살펴보세요.", "같은 대우가 실질적으로 같은 기회를 보장하는지 생각하세요.", "두 번째 선택지입니다."], competency: "분석·추론" },
   ],
   [
-    { sourceLabel: "학교 인권 예산 100", source: "상담 기록 보호 시스템 40 / 장애인 경사로 45 / 인권 교육 20 / 홍보 조형물 35. 두 가지를 선택하되 예산을 넘을 수 없다.", prompt: "권리 보호와 실현 가능성을 함께 만족하는 조합은?", choices: ["보호 시스템 + 경사로", "경사로 + 인권 교육", "보호 시스템 + 경사로 + 교육"], answer: 1, explanation: "경사로와 교육은 총 65로 예산 안에서 접근권 개선과 예방 교육을 함께 달성합니다. 세 번째 조합은 105로 예산을 초과합니다.", hints: ["각 조합의 합계를 먼저 계산하세요.", "100 이하이면서 서로 다른 문제를 다루는 조합을 찾으세요.", "두 번째 선택지입니다."], competency: "문제 해결" },
+    { kind: "combination", sourceLabel: "학교 인권 예산 100", source: "상담 기록 보호 시스템 40 / 장애인 경사로 45 / 인권 교육 20 / 홍보 조형물 35. 필요한 사업을 배합하되 예산을 넘을 수 없다.", prompt: "예산 안에서 직접적인 권리 개선 효과가 있는 사업을 모두 고르세요.", choices: ["ㄱ. 상담 기록 보호 시스템", "ㄴ. 장애인 경사로", "ㄷ. 인권 교육", "ㄹ. 홍보 조형물"], answer: 0, correctAnswers: [0, 1], explanation: "보호 시스템과 경사로는 총 85로 예산 안에서 사생활 보호와 접근권을 직접 개선합니다.", hints: ["먼저 합계가 100을 넘지 않는지 계산하세요.", "직접적인 권리 장벽을 제거하는 두 사업을 찾으세요.", "ㄱ과 ㄴ을 선택하세요."], competency: "문제 해결" },
     { sourceLabel: "정책 선택", source: "온라인 괴롭힘을 막기 위해 학교가 모든 학생의 휴대전화를 매일 무기한 검사하려 한다.", prompt: "인권과 공익의 균형을 높이는 수정안은?", choices: ["검사를 그대로 시행한다", "신고·증거가 있는 경우에 한해 절차와 기간을 정해 조사한다", "괴롭힘 문제를 무시한다"], answer: 1, explanation: "목적은 정당하지만 사생활 침해를 최소화하도록 대상·절차·기간을 제한해야 합니다.", hints: ["목적과 수단을 나누어 판단하세요.", "덜 침해적인 대안이 있는지 살펴보세요.", "두 번째 선택지입니다."], competency: "문제 해결" },
     { sourceLabel: "부작용 점검", source: "청소년 노동권 보호를 위해 야간 노동을 전면 금지했더니 생계가 필요한 청소년의 소득이 갑자기 사라졌다.", prompt: "가장 균형 잡힌 보완책은?", choices: ["금지를 즉시 철회한다", "안전 기준·시간 제한과 함께 생계 지원·상담을 제공한다", "청소년의 책임으로 돌린다"], answer: 1, explanation: "안전과 생계라는 두 권리를 함께 고려하는 보완책이 필요합니다.", hints: ["정책의 원래 목적과 새로 생긴 피해를 함께 보세요.", "한쪽 권리만 포기하지 않는 대안을 찾으세요.", "두 번째 선택지입니다."], competency: "문제 해결" },
   ],
   [
-    { sourceLabel: "지역 문제", source: "통학로에 횡단보도와 조명이 부족해 학생과 주민이 위험을 겪고 있다.", prompt: "가장 적절한 시민 참여 전략은?", choices: ["확인되지 않은 소문을 퍼뜨린다", "현장 자료를 모아 지자체 청원과 주민 캠페인을 연계한다", "시설을 임의로 설치한다"], answer: 1, explanation: "자료 수집, 청원, 캠페인을 합법적으로 연계하면 문제 규모에 맞는 참여가 됩니다.", hints: ["문제의 근거와 해결 기관을 연결하세요.", "두 가지 참여 방식을 합법적으로 연계할 수 있습니다.", "두 번째 선택지입니다."], competency: "논증·표현" },
+    { kind: "essay", sourceLabel: "지역 문제", source: "통학로에 횡단보도와 조명이 부족해 학생과 주민이 위험을 겪고 있다.", prompt: "이 문제를 해결할 시민 참여 방법 두 가지를 제안하고, 현장 자료가 왜 필요한지 2~3문장으로 서술하세요.", choices: [], answer: 0, rubricTerms: [["청원", "민원", "지방 의회"], ["캠페인", "서명", "시민 단체"], ["자료", "근거", "사고"]], minLength: 45, explanation: "좋은 답안은 합법적인 참여 방법 두 가지와 자료를 근거로 활용해야 하는 이유를 연결합니다. 표현은 달라도 이 세 요소가 드러나면 됩니다.", hints: ["참여 방법 두 가지와 자료의 역할을 나누어 적어 보세요.", "청원과 캠페인을 연계할 수 있습니다.", "‘현장 자료를 근거로 지자체에 청원하고 주민 캠페인을 진행한다’는 틀을 활용해 보세요."], competency: "논증·표현" },
     { sourceLabel: "캠페인 구성", source: "좋은 공익 캠페인은 문제 제시 → 근거 자료 → 핵심 주장 → 실천 방법의 흐름을 갖는다.", prompt: "가장 완성도 높은 문구는?", choices: ["모두 나쁘다. 당장 바꿔라!", "통학로 사고 위험 자료를 공개하고, 조명 설치 청원 참여 방법을 안내합니다", "우리 편만 이기면 됩니다"], answer: 1, explanation: "구체적 문제와 근거, 주장, 실천 방법을 포함하고 혐오나 편견을 사용하지 않았습니다.", hints: ["자료와 행동 제안이 모두 있는지 보세요.", "비난보다 근거와 참여 방법이 중요합니다.", "두 번째 선택지입니다."], competency: "논증·표현" },
     { sourceLabel: "표현 윤리", source: "차별 문제를 알리는 카드뉴스 초안에 특정 집단을 무능하다고 단정하는 문장이 포함되었다.", prompt: "가장 적절한 수정 원칙은?", choices: ["자극적이면 그대로 둔다", "고정관념을 삭제하고 출처 있는 피해 자료와 개선 행동을 제시한다", "집단 이름만 다른 이름으로 바꾼다"], answer: 1, explanation: "인권 캠페인 자체가 혐오나 편견을 강화하지 않도록 사실과 구체적 실천을 중심으로 구성해야 합니다.", hints: ["캠페인의 방법도 인권을 존중해야 합니다.", "사실 근거와 행동 제안을 함께 고려하세요.", "두 번째 선택지입니다."], competency: "논증·표현" },
   ],
   [
     { sourceLabel: "보스 사건 1 - 문제 정의", source: "한 지역의 청소년 노동자 40명 중 18명이 근로계약서를 받지 못했고, 12명은 약속한 임금보다 적게 받았다고 응답했다.", prompt: "자료에 근거한 탐구 문제 정의는?", choices: ["모든 사업주는 청소년을 차별한다", "이 지역 청소년 노동자의 계약·임금 권리 보장이 충분한가", "청소년은 일하면 안 된다"], answer: 1, explanation: "자료 범위를 넘겨 단정하지 않고 계약과 임금이라는 확인된 문제를 탐구 질문으로 제시했습니다.", hints: ["사실과 추론을 구분하세요.", "40명의 조사 결과로 모든 사업주를 단정할 수 없습니다.", "두 번째 선택지입니다."], competency: "자료 해석" },
     { sourceLabel: "보스 사건 2 - 원인 분석", source: "면담 결과: 계약 절차를 모르는 학생이 많았고, 소규모 사업장에는 노동법 안내가 거의 전달되지 않았다.", prompt: "표면적 원인과 구조적 원인을 함께 연결한 것은?", choices: ["학생 개인의 부주의만 문제다", "계약 지식 부족 + 사업장 안내·감독 체계 부족", "임금이 적다는 사실만 반복한다"], answer: 1, explanation: "개인 수준의 정보 부족과 제도 수준의 안내·감독 부족을 함께 분석했습니다.", hints: ["수행평가 기준은 서로 다른 두 측면의 원인을 요구합니다.", "개인과 제도 수준을 함께 보세요.", "두 번째 선택지입니다."], competency: "분석·추론" },
-    { sourceLabel: "보스 사건 3 - 해결 설계", source: "목표: 청소년 노동자의 계약·임금 권리를 실질적으로 보장하고, 학생이 직접 참여할 수 있어야 한다.", prompt: "가장 다각적인 해결안은?", choices: ["학생에게 조심하라고 안내만 한다", "계약 교육, 익명 상담, 사업장 안내·점검, 학생 캠페인을 연계한다", "위반 사업장 이름을 확인 없이 공개한다"], answer: 1, explanation: "개인·학교·지역사회·행정 수준의 대안을 연계하고 합법적 시민 참여까지 포함합니다.", hints: ["한 주체만 움직이는 대안인지 확인하세요.", "교육·구제·제도·참여가 함께 있는 안을 찾으세요.", "두 번째 선택지입니다."], competency: "문제 해결" },
+    { kind: "essay", sourceLabel: "보스 사건 3 - 해결 설계", source: "목표: 청소년 노동자의 계약·임금 권리를 실질적으로 보장하고, 학생이 직접 참여할 수 있어야 한다.", prompt: "자료에서 확인한 원인과 연결되는 해결 방안 두 가지를 제안하고, 기대 효과 또는 한계를 포함해 3~4문장으로 작성하세요.", choices: [], answer: 0, rubricTerms: [["계약", "임금", "노동권"], ["교육", "상담", "점검", "신고"], ["효과", "한계", "그러나", "기대"]], minLength: 70, explanation: "서술형 답안은 문제·원인과 연결된 복수의 대안, 그리고 기대 효과나 한계를 갖추어야 합니다. 특정 문장 하나만 정답으로 보지 않습니다.", hints: ["문제-원인-대안-효과/한계 순서로 써 보세요.", "학교의 계약 교육과 지역의 상담·점검을 연계할 수 있습니다.", "‘계약 교육은 정보 부족을 줄이지만, 사업장 점검이 함께 이루어져야 한다’는 틀을 활용해 보세요."], competency: "논증·표현" },
   ],
 ];
 
@@ -331,20 +338,59 @@ function GameModal({ game, onClose, onProgress }: { game: ActiveGame; onClose: (
   const gameQuestions = game.unit.id === 1 ? unitOneQuestionSets[game.level] : questions[game.unit.id];
   const [step, setStep] = useState(0);
   const [choice, setChoice] = useState<number | null>(null);
+  const [textAnswer, setTextAnswer] = useState("");
+  const [selectedMany, setSelectedMany] = useState<number[]>([]);
+  const [matches, setMatches] = useState<number[]>([]);
+  const [submitted, setSubmitted] = useState(false);
+  const [correct, setCorrect] = useState(false);
+  const [rubricMet, setRubricMet] = useState(0);
   const [score, setScore] = useState(0);
   const [penalty, setPenalty] = useState(0);
   const [hintLevel, setHintLevel] = useState(0);
   const [finished, setFinished] = useState(false);
   const question = gameQuestions[step];
-  const isCorrect = choice === question.answer;
+  const kind = question.kind ?? "choice";
+  const typeLabels = { choice: "선택형", ox: "진위형 OX", short: "단답형", completion: "완성형", matching: "연결형", combination: "배합형", essay: "서술형" };
   const finalScore = Math.max(0, Math.round((score / gameQuestions.length) * 100) - penalty);
   const expectedLevel = finalScore >= 90 ? "A" : finalScore >= 80 ? "B" : finalScore >= 70 ? "C" : finalScore >= 50 ? "D" : "E";
 
   const choose = (index: number) => {
-    if (choice !== null) return;
+    if (submitted) return;
     setChoice(index);
-    if (index === question.answer) setScore((value) => value + 1);
-    else setPenalty((value) => value + 10);
+    const result = index === question.answer;
+    setCorrect(result);
+    setSubmitted(true);
+    if (result) setScore((value) => value + 1); else setPenalty((value) => value + 10);
+  };
+
+  const submitResponse = () => {
+    let result = false;
+    if (kind === "short" || kind === "completion") {
+      const normalized = textAnswer.replace(/\s+/g, "").toLowerCase();
+      result = (question.accepted ?? []).some((answer) => answer.replace(/\s+/g, "").toLowerCase() === normalized);
+    } else if (kind === "combination") {
+      result = JSON.stringify([...selectedMany].sort()) === JSON.stringify([...(question.correctAnswers ?? [])].sort());
+    } else if (kind === "matching") {
+      result = matches.length === question.choices.length && matches.every((answer, index) => answer === question.expectedMatches?.[index]);
+    } else if (kind === "essay") {
+      const compact = textAnswer.replace(/\s+/g, " ").trim();
+      const met = (question.rubricTerms ?? []).filter((group) => group.some((term) => compact.includes(term))).length;
+      setRubricMet(met);
+      result = compact.length >= (question.minLength ?? 30) && met >= Math.ceil((question.rubricTerms?.length ?? 1) * 2 / 3);
+    }
+    setCorrect(result);
+    setSubmitted(true);
+    if (result) setScore((value) => value + 1); else setPenalty((value) => value + 10);
+  };
+
+  const resetResponse = () => {
+    setChoice(null);
+    setTextAnswer("");
+    setSelectedMany([]);
+    setMatches([]);
+    setSubmitted(false);
+    setCorrect(false);
+    setRubricMet(0);
   };
 
   const showHint = () => {
@@ -367,13 +413,13 @@ function GameModal({ game, onClose, onProgress }: { game: ActiveGame; onClose: (
       return;
     }
     setStep((value) => value + 1);
-    setChoice(null);
+    resetResponse();
     setHintLevel(0);
   };
 
   const retry = () => {
     setStep(0);
-    setChoice(null);
+    resetResponse();
     setScore(0);
     setPenalty(0);
     setHintLevel(0);
@@ -401,17 +447,21 @@ function GameModal({ game, onClose, onProgress }: { game: ActiveGame; onClose: (
         ) : (
           <div className="game-body">
             <div className="game-progress"><span>문제 {step + 1} / {gameQuestions.length}</span><i><b style={{ width: `${((step + 1) / gameQuestions.length) * 100}%` }} /></i><strong>{Math.max(0, Math.round((score / gameQuestions.length) * 100) - penalty)}점</strong></div>
-            <p className="game-kicker">{question.competency ?? "핵심 개념 탐구"}</p>
+            <p className="game-kicker">{question.competency ?? "핵심 개념 탐구"} <b>{typeLabels[kind]}</b></p>
             {question.source && <article className="source-card"><span>{question.sourceLabel ?? "탐구 자료"}</span><p>{question.source}</p></article>}
             <h3>{question.prompt}</h3>
-            <div className="answer-list">
+            {(kind === "choice" || kind === "ox") && <div className={`answer-list ${kind === "ox" ? "ox-list" : ""}`}>
               {question.choices.map((answer, index) => {
-                const state = choice === null ? "" : index === question.answer ? "correct" : index === choice ? "wrong" : "muted";
-                return <button key={answer} className={state} onClick={() => choose(index)} disabled={choice !== null}><b>{index + 1}</b><span>{answer}</span>{state === "correct" && <CheckCircle weight="fill" />}{state === "wrong" && <XCircle weight="fill" />}</button>;
+                const state = !submitted ? "" : index === question.answer ? "correct" : index === choice ? "wrong" : "muted";
+                return <button key={answer} className={state} onClick={() => choose(index)} disabled={submitted}><b>{kind === "ox" ? answer : index + 1}</b><span>{kind === "ox" ? answer === "O" ? "옳다" : "그르다" : answer}</span>{state === "correct" && <CheckCircle weight="fill" />}{state === "wrong" && <XCircle weight="fill" />}</button>;
               })}
-            </div>
-            {choice === null && question.hints && <div className="hint-box"><button onClick={showHint} disabled={hintLevel >= question.hints.length}>힌트 {Math.min(hintLevel + 1, 3)} 보기 {hintLevel === 0 ? "· 감점 없음" : hintLevel === 1 ? "· -5점" : "· -5점"}</button>{hintLevel > 0 && <p>{question.hints[hintLevel - 1]}</p>}</div>}
-            {choice !== null && <div className={`feedback ${isCorrect ? "correct" : "wrong"}`} role="status"><strong>{isCorrect ? "정답이에요!" : "틀린 이유를 확인해요."}</strong><p>{question.explanation}</p><button onClick={isCorrect ? next : () => setChoice(null)}>{isCorrect ? step === gameQuestions.length - 1 ? "결과 보기" : "다음 문제" : "다시 선택"}<ArrowRight /></button></div>}
+            </div>}
+            {(kind === "short" || kind === "completion") && <div className="written-response"><label htmlFor="short-answer">{kind === "short" ? "답" : "빈칸에 들어갈 말"}</label><input id="short-answer" value={textAnswer} onChange={(event) => setTextAnswer(event.target.value)} disabled={submitted} placeholder="정답을 입력하세요" onKeyDown={(event) => { if (event.key === "Enter" && textAnswer.trim()) submitResponse(); }} /><button onClick={submitResponse} disabled={!textAnswer.trim() || submitted}>확인</button></div>}
+            {kind === "combination" && <div className="combination-list">{question.choices.map((answer, index) => <button key={answer} className={selectedMany.includes(index) ? "selected" : ""} disabled={submitted} onClick={() => setSelectedMany((values) => values.includes(index) ? values.filter((value) => value !== index) : [...values, index])}><span>{selectedMany.includes(index) ? "✓" : ""}</span>{answer}</button>)}<button className="response-submit" onClick={submitResponse} disabled={!selectedMany.length || submitted}>선택 완료</button></div>}
+            {kind === "matching" && <div className="matching-list">{question.choices.map((left, index) => <label key={left}><span>{left}</span><select value={matches[index] ?? -1} disabled={submitted} onChange={(event) => setMatches((values) => { const nextValues = [...values]; nextValues[index] = Number(event.target.value); return nextValues; })}><option value={-1}>기능 선택</option>{question.matchOptions?.map((option, optionIndex) => <option key={option} value={optionIndex}>{option}</option>)}</select></label>)}<button className="response-submit" onClick={submitResponse} disabled={matches.filter((value) => value >= 0).length !== question.choices.length || submitted}>연결 완료</button></div>}
+            {kind === "essay" && <div className="essay-response"><div className="rubric-preview"><strong>답안 체크 기준</strong>{question.rubricTerms?.map((terms, index) => <span key={terms.join()}>✓ 요소 {index + 1}: {terms.join(" · ")} 중 하나 포함</span>)}<span>✓ {question.minLength}자 이상</span></div><textarea value={textAnswer} onChange={(event) => setTextAnswer(event.target.value)} disabled={submitted} placeholder="자료를 근거로 자신의 생각을 작성하세요." /><div><span>{textAnswer.trim().length} / {question.minLength}자</span><button onClick={submitResponse} disabled={!textAnswer.trim() || submitted}>답안 제출</button></div></div>}
+            {!submitted && question.hints && <div className="hint-box"><button onClick={showHint} disabled={hintLevel >= question.hints.length}>힌트 {Math.min(hintLevel + 1, 3)} 보기 {hintLevel === 0 ? "· 감점 없음" : hintLevel === 1 ? "· -5점" : "· -5점"}</button>{hintLevel > 0 && <p>{question.hints[hintLevel - 1]}</p>}</div>}
+            {submitted && <div className={`feedback ${correct ? "correct" : "wrong"}`} role="status"><strong>{correct ? kind === "essay" ? "평가 요소를 충족했어요!" : "정답이에요!" : kind === "essay" ? `평가 요소 ${rubricMet}/${question.rubricTerms?.length ?? 0} 충족` : "답을 다시 확인해요."}</strong><p>{question.explanation}</p><button onClick={correct ? next : () => { setSubmitted(false); setChoice(null); }}>{correct ? step === gameQuestions.length - 1 ? "결과 보기" : "다음 문제" : "답안 수정"}<ArrowRight /></button></div>}
           </div>
         )}
       </section>

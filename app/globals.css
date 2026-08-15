@@ -169,6 +169,7 @@ button:focus-visible { outline: 3px solid #57f1e7; outline-offset: 3px; }
 .game-progress i b { display: block; height: 100%; border-radius: inherit; background: var(--unit); transition: width .25s ease; }
 .game-progress strong { color: var(--unit); }
 .game-kicker { width: max-content; margin: 25px 0 8px; padding: 5px 9px; color: #fff; border-radius: 6px; background: var(--unit); font-size: 11px; font-weight: 900; }
+.game-kicker b { margin-left: 6px; padding-left: 7px; border-left: 1px solid #ffffff77; color: #ffe6a1; }
 .game-body > h3 { min-height: 59px; margin: 0 0 18px; font-size: 23px; line-height: 1.35; word-break: keep-all; }
 .source-card { margin: 15px 0 14px; padding: 14px 15px; border: 1px solid #cdb681; border-left: 5px solid var(--unit); border-radius: 11px; background: #fffdf6; box-shadow: 0 4px 11px #6e543015; }
 .source-card span { color: var(--unit); font-size: 11px; font-weight: 950; }
@@ -183,6 +184,30 @@ button:focus-visible { outline: 3px solid #57f1e7; outline-offset: 3px; }
 .answer-list button.wrong b { background: #c85b50; }
 .answer-list button.muted { opacity: .48; }
 .answer-list button svg { width: 25px; height: 25px; }
+.ox-list { grid-template-columns: 1fr 1fr; }
+.ox-list button { min-height: 76px; }
+.ox-list button b { width: 45px; height: 45px; border-radius: 50%; font-size: 23px; }
+.written-response { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+.written-response label { grid-column: 1 / -1; color: #6c5a43; font-size: 12px; font-weight: 900; }
+.written-response input { min-width: 0; height: 52px; padding: 0 14px; color: #26333d; border: 2px solid #cdb681; border-radius: 11px; background: #fffdf7; font-size: 16px; }
+.written-response > button, .response-submit, .essay-response button { min-height: 44px; padding: 0 16px; color: #fff; border: 0; border-radius: 10px; background: var(--unit); font-weight: 900; cursor: pointer; }
+.written-response > button:disabled, .response-submit:disabled, .essay-response button:disabled { opacity: .45; cursor: default; }
+.combination-list { display: grid; gap: 8px; }
+.combination-list > button:not(.response-submit) { min-height: 49px; display: grid; grid-template-columns: 30px 1fr; align-items: center; gap: 9px; padding: 9px 12px; color: #3d3328; text-align: left; border: 2px solid #d4bd8d; border-radius: 11px; background: #fffdf7; cursor: pointer; }
+.combination-list > button > span { width: 27px; height: 27px; display: grid; place-items: center; color: #fff; border: 2px solid #a99370; border-radius: 7px; }
+.combination-list > button.selected { border-color: var(--unit); background: #e9f5ed; }
+.combination-list > button.selected > span { border-color: var(--unit); background: var(--unit); }
+.response-submit { justify-self: end; margin-top: 3px; }
+.matching-list { display: grid; gap: 8px; }
+.matching-list label { display: grid; grid-template-columns: 1fr 1.2fr; align-items: center; gap: 9px; padding: 9px 11px; border: 1px solid #d4bd8d; border-radius: 10px; background: #fffdf7; }
+.matching-list label > span { font-size: 13px; font-weight: 900; }
+.matching-list select { min-width: 0; height: 39px; padding: 0 8px; color: #3b3328; border: 1px solid #bca57c; border-radius: 8px; background: #fff; }
+.essay-response { display: grid; gap: 9px; }
+.rubric-preview { display: grid; gap: 3px; padding: 10px 12px; color: #665744; border-radius: 10px; background: #eee8d8; font-size: 10px; }
+.rubric-preview strong { color: var(--unit); font-size: 11px; }
+.essay-response textarea { width: 100%; min-height: 132px; resize: vertical; padding: 13px; color: #2f2921; border: 2px solid #cdb681; border-radius: 11px; background: #fffdf7; line-height: 1.55; }
+.essay-response > div:last-child { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.essay-response > div:last-child > span { color: #7a6852; font-size: 11px; }
 .feedback { margin-top: 15px; padding: 15px; border-radius: 13px; background: #e8f6ed; }
 .feedback.wrong { background: #fff0e7; }
 .feedback > strong { color: #237651; }
@@ -285,6 +310,8 @@ button:focus-visible { outline: 3px solid #57f1e7; outline-offset: 3px; }
   .game-body { padding: 17px; }
   .game-body > h3 { min-height: 0; font-size: 20px; }
   .answer-list button { min-height: 51px; }
+  .matching-list label { grid-template-columns: 1fr; gap: 5px; }
+  .essay-response textarea { min-height: 115px; }
   .game-result { min-height: 360px; }
 }
 
