@@ -400,6 +400,7 @@ function GameModal({ game, onClose, onProgress }: { game: ActiveGame; onClose: (
   const [wordEntries, setWordEntries] = useState<string[]>([]);
   const [selectedMany, setSelectedMany] = useState<number[]>([]);
   const [matches, setMatches] = useState<number[]>([]);
+  const [activeMatch, setActiveMatch] = useState<number | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const [correct, setCorrect] = useState(false);
   const [rubricMet, setRubricMet] = useState(0);
@@ -408,10 +409,14 @@ function GameModal({ game, onClose, onProgress }: { game: ActiveGame; onClose: (
   const [hintLevel, setHintLevel] = useState(0);
   const [finished, setFinished] = useState(false);
   const [soundOn, setSoundOn] = useState(true);
+  const [streak, setStreak] = useState(0);
   const question = gameQuestions[step];
   const kind = question.kind ?? "choice";
   const typeLabels = { choice: "선택형", ox: "진위형 OX", short: "단답형", completion: "완성형", matching: "연결형", combination: "배합형", essay: "서술형", initial: "초성 퀴즈", crossword: "가로세로 용어게임", ladder: "사다리 연결게임" };
   const story = unitOneStories[game.level];
+  const interactionGuides = {
+    choice: ["🎯", "정답 카드를 터치하세요"], ox: ["⚡", "O 또는 X를 빠르게 선택하세요"], short: ["⌨️", "핵심 용어를 입력하세요"], completion: ["🧩", "빈칸을 완성하세요"], matching: ["🔗", "왼쪽과 오른쪽 카드를 차례로 터치하세요"], combination: ["🃏", "맞는 카드를 모두 모으세요"], essay: ["✍️", "생각을 근거와 함께 표현하세요"], initial: ["🔐", "초성 암호를 해독하세요"], crossword: ["🧠", "단서를 풀어 용어판을 채우세요"], ladder: ["🪜", "도착지를 정하고 사다리를 출발시키세요"],
+  } as const;
   const finalScore = Math.max(0, Math.round((score / gameQuestions.length) * 100) - penalty);
   const expectedLevel = finalScore >= 90 ? "A" : finalScore >= 80 ? "B" : finalScore >= 70 ? "C" : finalScore >= 50 ? "D" : "E";
 
@@ -443,7 +448,8 @@ function GameModal({ game, onClose, onProgress }: { game: ActiveGame; onClose: (
     setCorrect(result);
     setSubmitted(true);
     playSound(result ? "correct" : "wrong");
-    if (result) setScore((value) => value + 1); else setPenalty((value) => value + 10);
+    if (result) { setScore((value) => value + 1); setStreak((value) => value + 1); }
+    else { setPenalty((value) => value + 10); setStreak(0); }
   };
 
   const submitResponse = () => {
@@ -466,7 +472,8 @@ function GameModal({ game, onClose, onProgress }: { game: ActiveGame; onClose: (
     setCorrect(result);
     setSubmitted(true);
     playSound(result ? "correct" : "wrong");
-    if (result) setScore((value) => value + 1); else setPenalty((value) => value + 10);
+    if (result) { setScore((value) => value + 1); setStreak((value) => value + 1); }
+    else { setPenalty((value) => value + 10); setStreak(0); }
   };
 
   const resetResponse = () => {
@@ -477,6 +484,7 @@ function GameModal({ game, onClose, onProgress }: { game: ActiveGame; onClose: (
     setWordEntries([]);
     setSelectedMany([]);
     setMatches([]);
+    setActiveMatch(null);
     setSubmitted(false);
     setCorrect(false);
     setRubricMet(0);
@@ -512,6 +520,7 @@ function GameModal({ game, onClose, onProgress }: { game: ActiveGame; onClose: (
     resetResponse();
     setScore(0);
     setPenalty(0);
+    setStreak(0);
     setHintLevel(0);
     setFinished(false);
   };
@@ -536,10 +545,11 @@ function GameModal({ game, onClose, onProgress }: { game: ActiveGame; onClose: (
             <div className="result-actions"><button onClick={retry}><ArrowCounterClockwise /> 다시 도전</button><button onClick={onClose}>홈으로</button></div>
           </div>
         ) : (
-          <div className="game-body">
+          <div key={step} className={`game-body question-stage question-${kind} ${submitted ? correct ? "stage-success" : "stage-error" : ""}`}>
             {game.unit.id === 1 && <article className="story-banner"><div className="story-character"><span>🧑‍🚀</span>{unitOneStories.slice(0, game.level).map((item) => <i key={item.item}>{item.icon}</i>)}</div><div><small>STORY · {story.place}</small><strong>{story.mission}</strong></div></article>}
-            <div className="game-progress"><span>문제 {step + 1} / {gameQuestions.length}</span><i><b style={{ width: `${((step + 1) / gameQuestions.length) * 100}%` }} /></i><strong>{Math.max(0, Math.round((score / gameQuestions.length) * 100) - penalty)}점</strong></div>
+            <div className="game-progress"><span>문제 {step + 1} / {gameQuestions.length}</span><i><b style={{ width: `${((step + 1) / gameQuestions.length) * 100}%` }} /></i><strong>{Math.max(0, Math.round((score / gameQuestions.length) * 100) - penalty)}점</strong>{streak >= 2 && <em>🔥 {streak} COMBO</em>}</div>
             <p className="game-kicker">{question.competency ?? "핵심 개념 탐구"} <b>{typeLabels[kind]}</b></p>
+            <div className="interaction-guide"><span>{interactionGuides[kind][0]}</span><strong>{interactionGuides[kind][1]}</strong><i>GO!</i></div>
             {question.source && <article className="source-card"><span>{question.sourceLabel ?? "탐구 자료"}</span><p>{question.source}</p></article>}
             {question.sourceImage && <figure className="textbook-visual"><img src={question.sourceImage} alt={question.sourceAlt ?? "교과서 탐구 자료"} /><figcaption>{question.sourceLabel ?? "교과서 자료"} · 미래엔 통합사회2</figcaption></figure>}
             <h3>{question.prompt}</h3>
@@ -551,11 +561,12 @@ function GameModal({ game, onClose, onProgress }: { game: ActiveGame; onClose: (
             </div>}
             {(kind === "short" || kind === "completion" || kind === "initial") && <div className={`written-response ${kind === "initial" ? "initial-response" : ""}`}>{kind === "initial" && <strong className="initials">{question.initials}</strong>}<label htmlFor="short-answer">{kind === "short" ? "답" : kind === "initial" ? "초성 정답" : "빈칸에 들어갈 말"}</label><input id="short-answer" value={textAnswer} onChange={(event) => setTextAnswer(event.target.value)} disabled={submitted} placeholder="정답을 입력하세요" onKeyDown={(event) => { if (event.key === "Enter" && textAnswer.trim()) submitResponse(); }} /><button onClick={submitResponse} disabled={!textAnswer.trim() || submitted}>확인</button></div>}
             {kind === "combination" && <div className="combination-list">{question.choices.map((answer, index) => <button key={answer} className={selectedMany.includes(index) ? "selected" : ""} disabled={submitted} onClick={() => setSelectedMany((values) => values.includes(index) ? values.filter((value) => value !== index) : [...values, index])}><span>{selectedMany.includes(index) ? "✓" : ""}</span>{answer}</button>)}<button className="response-submit" onClick={submitResponse} disabled={!selectedMany.length || submitted}>선택 완료</button></div>}
-            {kind === "matching" && <div className="matching-list">{question.choices.map((left, index) => <label key={left}><span>{left}</span><select value={matches[index] ?? -1} disabled={submitted} onChange={(event) => setMatches((values) => { const nextValues = [...values]; nextValues[index] = Number(event.target.value); return nextValues; })}><option value={-1}>기능 선택</option>{question.matchOptions?.map((option, optionIndex) => <option key={option} value={optionIndex}>{option}</option>)}</select></label>)}<button className="response-submit" onClick={submitResponse} disabled={matches.filter((value) => value >= 0).length !== question.choices.length || submitted}>연결 완료</button></div>}
+            {kind === "matching" && <div className="matching-arena"><div className="matching-column left">{question.choices.map((left, index) => <button key={left} className={`${activeMatch === index ? "active" : ""} ${matches[index] !== undefined ? "linked" : ""}`} disabled={submitted} onClick={() => setActiveMatch(index)}><b>{index + 1}</b><span>{left}<small>{matches[index] !== undefined ? `↔ ${question.matchOptions?.[matches[index]]}` : "연결할 카드 선택"}</small></span></button>)}</div><div className="connection-core" aria-hidden="true"><span>✦</span><i /><i /><i /><i /></div><div className="matching-column right">{question.matchOptions?.map((option, optionIndex) => <button key={option} className={matches.includes(optionIndex) ? "linked" : ""} disabled={submitted || activeMatch === null} onClick={() => { if (activeMatch === null) return; setMatches((values) => { const nextValues = [...values]; const previousOwner = nextValues.findIndex((value) => value === optionIndex); if (previousOwner >= 0) nextValues[previousOwner] = -1; nextValues[activeMatch] = optionIndex; return nextValues; }); setActiveMatch(null); }}><b>{String.fromCharCode(65 + optionIndex)}</b><span>{option}</span></button>)}</div><button className="response-submit" onClick={submitResponse} disabled={matches.filter((value) => value >= 0).length !== question.choices.length || submitted}>연결 에너지 발사!</button></div>}
             {kind === "ladder" && <div className="ladder-game"><div className="ladder-rails" aria-hidden="true"><i /><i /><i /><i /></div>{question.choices.map((left, index) => <label key={left}><b>{left}</b><span>〰〰〰</span><select value={matches[index] ?? -1} disabled={submitted} onChange={(event) => setMatches((values) => { const nextValues = [...values]; nextValues[index] = Number(event.target.value); return nextValues; })}><option value={-1}>도착지 선택</option>{question.matchOptions?.map((option, optionIndex) => <option key={option} value={optionIndex}>{option}</option>)}</select></label>)}<button className="response-submit" onClick={submitResponse} disabled={matches.filter((value) => value >= 0).length !== question.choices.length || submitted}>사다리 출발!</button></div>}
             {kind === "crossword" && <div className="crossword-game"><div className="crossword-grid" aria-hidden="true">{["자","유","권","평","등","권","사","회","권"].map((letter, index) => <span key={`${letter}-${index}`}>{submitted && correct ? letter : index % 4 === 0 ? index / 4 + 1 : ""}</span>)}</div><div className="crossword-clues">{question.choices.map((clue, index) => <label key={clue}><span>{clue}</span><input value={wordEntries[index] ?? ""} disabled={submitted} onChange={(event) => setWordEntries((values) => { const nextValues = [...values]; nextValues[index] = event.target.value; return nextValues; })} placeholder={`${index + 1}번 정답`} /></label>)}<button className="response-submit" onClick={submitResponse} disabled={wordEntries.filter(Boolean).length !== question.choices.length || submitted}>용어판 완성</button></div></div>}
             {kind === "essay" && <div className="essay-response"><div className="rubric-preview"><strong>답안 체크 기준</strong>{question.rubricTerms?.map((terms, index) => <span key={terms.join()}>✓ 요소 {index + 1}: {terms.join(" · ")} 중 하나 포함</span>)}<span>✓ {question.minLength}자 이상</span></div>{question.sentenceStem && <p className="sentence-stem">문장 어간: {question.sentenceStem}</p>}{question.writingMode === "claim-evidence" ? <div className="claim-evidence"><label><strong>나의 주장</strong><textarea value={claimAnswer} onChange={(event) => setClaimAnswer(event.target.value)} disabled={submitted} placeholder="무엇을 해야 한다고 생각하나요?" /></label><label><strong>자료 근거</strong><textarea value={evidenceAnswer} onChange={(event) => setEvidenceAnswer(event.target.value)} disabled={submitted} placeholder="자료의 수치·색·순위로 뒷받침하세요." /></label></div> : <textarea value={textAnswer} onChange={(event) => setTextAnswer(event.target.value)} disabled={submitted} placeholder={question.writingMode === "data-opinion" ? "자료에서 확인한 사실 → 나의 의견 → 근거 순서로 작성하세요." : "자료를 근거로 자신의 생각을 작성하세요."} />}<div><span>{(question.writingMode === "claim-evidence" ? claimAnswer.length + evidenceAnswer.length : textAnswer.trim().length)} / {question.minLength}자</span><button onClick={submitResponse} disabled={question.writingMode === "claim-evidence" ? !claimAnswer.trim() || !evidenceAnswer.trim() || submitted : !textAnswer.trim() || submitted}>답안 제출</button></div></div>}
             {!submitted && question.hints && <div className="hint-box"><button onClick={showHint} disabled={hintLevel >= question.hints.length}>힌트 {Math.min(hintLevel + 1, 3)} 보기 {hintLevel === 0 ? "· 감점 없음" : hintLevel === 1 ? "· -5점" : "· -5점"}</button>{hintLevel > 0 && <p>{question.hints[hintLevel - 1]}</p>}</div>}
+            {submitted && correct && <div className="success-burst" aria-hidden="true">{["✦", "★", "+XP", "✦", "★"].map((particle, index) => <span key={`${particle}-${index}`}>{particle}</span>)}</div>}
             {submitted && <div className={`feedback ${correct ? "correct" : "wrong"}`} role="status"><strong>{correct ? kind === "essay" ? "평가 요소를 충족했어요!" : "정답이에요!" : kind === "essay" ? `평가 요소 ${rubricMet}/${question.rubricTerms?.length ?? 0} 충족` : "답을 다시 확인해요."}</strong><p>{question.explanation}</p><button onClick={correct ? next : () => { setSubmitted(false); setChoice(null); }}>{correct ? step === gameQuestions.length - 1 ? "결과 보기" : "다음 문제" : "답안 수정"}<ArrowRight /></button></div>}
           </div>
         )}
