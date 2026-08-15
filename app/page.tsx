@@ -22,6 +22,9 @@ import {
   Target,
   Trophy,
   UsersThree,
+  CheckCircle,
+  XCircle,
+  ArrowCounterClockwise,
 } from "@phosphor-icons/react";
 
 type Unit = {
@@ -33,6 +36,15 @@ type Unit = {
   progress: number;
   levels: string[];
 };
+
+type Question = {
+  prompt: string;
+  choices: string[];
+  answer: number;
+  explanation: string;
+};
+
+type ActiveGame = { unit: Unit; level: number };
 
 const units: Unit[] = [
   { id: 1, title: "인권 보장과 헌법", shortTitle: "인권 보장과\n헌법", image: "/assets/unit-1-rights.jpg", color: "#2e855f", progress: 82, levels: ["기본권 카드 분류", "헌법 재판관의 선택", "인권 침해 사건 파일"] },
@@ -50,11 +62,46 @@ const themes = [
   { title: "국제사회\n갈등과 협력", Icon: Handshake, color: "#694d91" },
 ];
 
+const questions: Record<number, Question[]> = {
+  1: [
+    { prompt: "국가 권력의 간섭을 받지 않고 자유롭게 생활할 권리는?", choices: ["자유권", "사회권", "청구권"], answer: 0, explanation: "자유권은 국가 권력의 부당한 간섭을 배제하도록 요구하는 권리입니다." },
+    { prompt: "기본권 침해 여부를 최종적으로 심판하는 기관은?", choices: ["국회", "헌법재판소", "국무회의"], answer: 1, explanation: "헌법재판소는 헌법소원심판 등을 통해 기본권 침해를 구제합니다." },
+    { prompt: "기본권 제한이 지켜야 할 원칙으로 가장 적절한 것은?", choices: ["과잉 금지", "다수결 우선", "행정 편의"], answer: 0, explanation: "기본권 제한은 목적과 수단이 적절하고 침해가 최소여야 합니다." },
+  ],
+  2: [
+    { prompt: "능력과 성과에 따라 보상하는 분배 기준은?", choices: ["업적", "필요", "절대적 평등"], answer: 0, explanation: "업적에 따른 분배는 개인이 달성한 성과나 기여를 기준으로 합니다." },
+    { prompt: "사회적 약자에게 더 많은 지원을 제공하는 이유는?", choices: ["실질적 평등", "형식적 자유", "시장 확대"], answer: 0, explanation: "출발 조건의 차이를 보완해 실질적인 기회와 결과의 평등을 추구합니다." },
+    { prompt: "공정한 절차의 핵심 조건은?", choices: ["결과의 완전 동일", "일관된 기준과 참여 기회", "빠른 결정"], answer: 1, explanation: "공개되고 일관된 기준, 의견을 낼 기회가 절차적 정의의 핵심입니다." },
+  ],
+  3: [
+    { prompt: "가격이 오를 때 일반적으로 나타나는 변화는?", choices: ["수요량 증가", "수요량 감소", "공급량 감소"], answer: 1, explanation: "다른 조건이 같다면 가격 상승은 수요량을 감소시킵니다." },
+    { prompt: "소비 결정에서 기회비용이란?", choices: ["포기한 대안 중 가장 큰 가치", "상품의 표시 가격", "미래의 모든 비용"], answer: 0, explanation: "한 선택 때문에 포기한 대안 가운데 가장 가치 있는 것이 기회비용입니다." },
+    { prompt: "지속가능한 소비의 사례는?", choices: ["일회용품 늘리기", "지역·친환경 제품 선택", "필요 이상 구매"], answer: 1, explanation: "환경과 공동체에 미치는 영향을 고려하는 소비가 지속가능한 소비입니다." },
+  ],
+  4: [
+    { prompt: "국가 간 상품과 서비스 교환이 늘어나는 현상은?", choices: ["지역화", "세계화", "고립화"], answer: 1, explanation: "세계화로 국가 간 경제·문화·정보의 교류와 상호 의존이 커집니다." },
+    { prompt: "국제 갈등을 평화적으로 해결하는 방법은?", choices: ["무력 사용 우선", "협상과 국제기구 활용", "교류 전면 중단"], answer: 1, explanation: "대화와 협상, 국제기구의 조정은 대표적인 평화적 해결 방식입니다." },
+    { prompt: "공정 무역이 지향하는 가치는?", choices: ["생산자의 정당한 보상", "최저 가격만 추구", "유통 독점"], answer: 0, explanation: "공정 무역은 생산자의 노동과 삶이 정당하게 보상받도록 합니다." },
+  ],
+  5: [
+    { prompt: "현재 세대와 미래 세대의 필요를 함께 고려하는 발전은?", choices: ["압축 성장", "지속가능발전", "무제한 개발"], answer: 1, explanation: "지속가능발전은 환경·사회·경제의 균형과 세대 간 형평성을 추구합니다." },
+    { prompt: "탄소 배출을 줄이는 에너지 전환의 예는?", choices: ["석탄 발전 확대", "재생 에너지 확대", "에너지 낭비 증가"], answer: 1, explanation: "태양광·풍력 같은 재생 에너지 확대는 탄소 배출 감축에 기여합니다." },
+    { prompt: "저출생·고령화에 대응하는 태도로 적절한 것은?", choices: ["세대 간 부담 전가", "돌봄과 고용 제도의 개선", "노년층 배제"], answer: 1, explanation: "돌봄, 고용, 사회보장 제도를 함께 개선하는 통합적 접근이 필요합니다." },
+  ],
+};
+
 export default function HomePage() {
   const [mode, setMode] = useState<"units" | "themes">("units");
   const [selected, setSelected] = useState<Unit | null>(null);
   const [teacherOpen, setTeacherOpen] = useState(false);
   const [missionStarted, setMissionStarted] = useState(false);
+  const [activeGame, setActiveGame] = useState<ActiveGame | null>(null);
+
+  const startGame = (unit: Unit, level = 0) => {
+    setSelected(null);
+    setMissionStarted(true);
+    setActiveGame({ unit, level });
+  };
 
   return (
     <main className="reference-shell">
@@ -69,7 +116,7 @@ export default function HomePage() {
         <button className="hotspot statistics" aria-label="학습 통계" onClick={() => setTeacherOpen(true)} />
         <button className="hotspot unit-tab" aria-label="단원별 탐험" onClick={() => window.scrollTo({ top: 390, behavior: "smooth" })} />
         <button className="hotspot theme-tab" aria-label="공통주제 도전" onClick={() => window.scrollTo({ top: 610, behavior: "smooth" })} />
-        <button className="hotspot mission" aria-label="오늘의 추천 미션 도전하기" onClick={() => { setMissionStarted(true); setSelected(units[0]); }} />
+        <button className="hotspot mission" aria-label="오늘의 추천 미션 도전하기" onClick={() => startGame(units[0])} />
         <button className="hotspot continue" aria-label="공정 도시 만들기 이어하기" onClick={() => setSelected(units[1])} />
 
         {units.map((unit, index) => (
@@ -98,7 +145,8 @@ export default function HomePage() {
       </div>
 
       {teacherOpen && <div className="reference-overlay"><TeacherPanel onClose={() => setTeacherOpen(false)} /></div>}
-      {selected && <UnitModal unit={selected} onClose={() => setSelected(null)} />}
+      {selected && <UnitModal unit={selected} onClose={() => setSelected(null)} onStart={(level) => startGame(selected, level)} />}
+      {activeGame && <GameModal game={activeGame} onClose={() => setActiveGame(null)} />}
       {missionStarted && <span className="sr-only" aria-live="polite">추천 미션을 시작했습니다.</span>}
     </main>
   );
@@ -204,7 +252,7 @@ export default function HomePage() {
         )}
       </div>
 
-      {selected && <UnitModal unit={selected} onClose={() => setSelected(null)} />}
+      {selected && <UnitModal unit={selected} onClose={() => setSelected(null)} onStart={(level) => startGame(selected, level)} />}
     </main>
   );
 }
@@ -213,7 +261,7 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
   return <div className="section-title"><Star size={15} weight="fill" /><h2>{children}</h2><i /></div>;
 }
 
-function UnitModal({ unit, onClose }: { unit: Unit; onClose: () => void }) {
+function UnitModal({ unit, onClose, onStart }: { unit: Unit; onClose: () => void; onStart: (level: number) => void }) {
   return (
     <div className="modal-layer" role="dialog" aria-modal="true" aria-label={`${unit.title} 게임 선택`}>
       <button className="modal-dismiss" onClick={onClose} aria-label="닫기" />
@@ -221,7 +269,73 @@ function UnitModal({ unit, onClose }: { unit: Unit; onClose: () => void }) {
         <img src={unit.image} alt="" />
         <button className="close-button" onClick={onClose}>×</button>
         <span>UNIT {unit.id}</span><h2>{unit.title}</h2><p>개념 확인에서 수행평가 준비까지 단계별로 도전하세요.</p>
-        <div>{unit.levels.map((level, i) => <button key={level}><b>{i + 1}</b><span><strong>{level}</strong><small>{i === 0 ? "개념 확인" : i === 1 ? "자료 분석" : "문제 해결"}</small></span><ArrowRight /></button>)}</div>
+        <div>{unit.levels.map((level, i) => <button key={level} onClick={() => onStart(i)}><b>{i + 1}</b><span><strong>{level}</strong><small>{i === 0 ? "개념 확인" : i === 1 ? "자료 분석" : "문제 해결"}</small></span><ArrowRight /></button>)}</div>
+      </section>
+    </div>
+  );
+}
+
+function GameModal({ game, onClose }: { game: ActiveGame; onClose: () => void }) {
+  const gameQuestions = questions[game.unit.id];
+  const [step, setStep] = useState(0);
+  const [choice, setChoice] = useState<number | null>(null);
+  const [score, setScore] = useState(0);
+  const [finished, setFinished] = useState(false);
+  const question = gameQuestions[step];
+  const isCorrect = choice === question.answer;
+
+  const choose = (index: number) => {
+    if (choice !== null) return;
+    setChoice(index);
+    if (index === question.answer) setScore((value) => value + 1);
+  };
+
+  const next = () => {
+    if (step === gameQuestions.length - 1) {
+      setFinished(true);
+      return;
+    }
+    setStep((value) => value + 1);
+    setChoice(null);
+  };
+
+  const retry = () => {
+    setStep(0);
+    setChoice(null);
+    setScore(0);
+    setFinished(false);
+  };
+
+  return (
+    <div className="modal-layer game-layer" role="dialog" aria-modal="true" aria-label={`${game.unit.title} 미션`}>
+      <section className="game-modal" style={{ "--unit": game.unit.color } as React.CSSProperties}>
+        <header>
+          <div><span>UNIT {game.unit.id} · LEVEL {game.level + 1}</span><h2>{game.unit.levels[game.level]}</h2></div>
+          <button className="game-close" onClick={onClose} aria-label="미션 닫기">×</button>
+        </header>
+
+        {finished ? (
+          <div className="game-result">
+            <Trophy size={64} weight="duotone" />
+            <span>미션 완료</span>
+            <h3>{score * 100} XP 획득!</h3>
+            <p>총 {gameQuestions.length}문제 중 <strong>{score}문제</strong>를 맞혔어요.</p>
+            <div className="result-actions"><button onClick={retry}><ArrowCounterClockwise /> 다시 도전</button><button onClick={onClose}>홈으로</button></div>
+          </div>
+        ) : (
+          <div className="game-body">
+            <div className="game-progress"><span>문제 {step + 1} / {gameQuestions.length}</span><i><b style={{ width: `${((step + 1) / gameQuestions.length) * 100}%` }} /></i><strong>{score * 100} XP</strong></div>
+            <p className="game-kicker">핵심 개념 탐구</p>
+            <h3>{question.prompt}</h3>
+            <div className="answer-list">
+              {question.choices.map((answer, index) => {
+                const state = choice === null ? "" : index === question.answer ? "correct" : index === choice ? "wrong" : "muted";
+                return <button key={answer} className={state} onClick={() => choose(index)} disabled={choice !== null}><b>{index + 1}</b><span>{answer}</span>{state === "correct" && <CheckCircle weight="fill" />}{state === "wrong" && <XCircle weight="fill" />}</button>;
+              })}
+            </div>
+            {choice !== null && <div className={`feedback ${isCorrect ? "correct" : "wrong"}`} role="status"><strong>{isCorrect ? "정답이에요!" : "한 번 더 개념을 확인해요."}</strong><p>{question.explanation}</p><button onClick={next}>{step === gameQuestions.length - 1 ? "결과 보기" : "다음 문제"}<ArrowRight /></button></div>}
+          </div>
+        )}
       </section>
     </div>
   );
