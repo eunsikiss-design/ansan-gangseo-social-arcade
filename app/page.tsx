@@ -42,12 +42,16 @@ type Question = {
   choices: string[];
   answer: number;
   explanation: string;
+  source?: string;
+  sourceLabel?: string;
+  hints?: string[];
+  competency?: "개념 이해" | "자료 해석" | "분석·추론" | "문제 해결" | "논증·표현";
 };
 
 type ActiveGame = { unit: Unit; level: number };
 
 const units: Unit[] = [
-  { id: 1, title: "인권 보장과 헌법", shortTitle: "인권 보장과\n헌법", image: "/assets/unit-1-rights.jpg", color: "#2e855f", progress: 82, levels: ["기본권 카드 분류", "헌법 재판관의 선택", "인권 침해 사건 파일"] },
+  { id: 1, title: "인권 보장과 헌법", shortTitle: "인권 보장과\n헌법", image: "/assets/unit-1-rights.jpg", color: "#2e855f", progress: 82, levels: ["핵심 개념 탐색", "헌법 자료 해독", "인권 판례 챌린지", "기본권 수호대", "시민 참여 캠페인", "보스: 인권 해결 프로젝트"] },
   { id: 2, title: "사회 정의와 불평등", shortTitle: "사회 정의와\n불평등", image: "/assets/unit-2-justice.jpg", color: "#b4612f", progress: 68, levels: ["정의의 기준 찾기", "불평등 데이터 수사", "공정 도시 설계"] },
   { id: 3, title: "시장경제와 지속가능발전", shortTitle: "시장경제와\n지속가능발전", image: "/assets/unit-3-economy.jpg", color: "#23877f", progress: 51, levels: ["시장 원리 매칭", "합리적 소비 챌린지", "지속가능 기업 경영"] },
   { id: 4, title: "세계화와 평화", shortTitle: "세계화와\n평화", image: "/assets/unit-4-global.jpg", color: "#24729f", progress: 37, levels: ["세계 무역 루트", "갈등 해결 회의", "평화 협정 만들기"] },
@@ -90,12 +94,54 @@ const questions: Record<number, Question[]> = {
   ],
 };
 
+const unitOneQuestionSets: Question[][] = [
+  [
+    { prompt: "국가의 부당한 간섭을 받지 않고 자유롭게 생활할 권리는?", choices: ["자유권", "사회권", "청구권"], answer: 0, explanation: "자유권은 국가 권력의 간섭이나 침해를 배제하는 방어적 권리입니다.", hints: ["국가가 무엇을 해 달라는 권리보다 간섭하지 말라는 권리입니다.", "신체·거주·직업 선택의 자유를 떠올려 보세요.", "첫 번째 선택지입니다."], competency: "개념 이해" },
+    { prompt: "국가에 인간다운 생활의 보장을 요구하는 권리는?", choices: ["참정권", "평등권", "사회권"], answer: 2, explanation: "사회권은 교육, 노동, 인간다운 생활처럼 국가의 적극적 역할을 요구하는 권리입니다.", hints: ["산업 혁명 이후 사회적 약자의 요구로 강조되었습니다.", "바이마르 헌법에 처음 규정된 권리입니다.", "세 번째 선택지입니다."], competency: "개념 이해" },
+    { prompt: "침해된 기본권의 구제를 국가 기관에 요구하는 권리는?", choices: ["청구권", "자유권", "평등권"], answer: 0, explanation: "청구권에는 재판 청구권, 국가 배상 청구권 등이 포함됩니다.", hints: ["권리를 침해당한 뒤 구제를 요청하는 성격입니다.", "재판을 받을 권리가 대표 사례입니다.", "첫 번째 선택지입니다."], competency: "개념 이해" },
+  ],
+  [
+    { sourceLabel: "헌법 제37조 제2항 요약", source: "국민의 자유와 권리는 국가 안전 보장·질서 유지·공공복리를 위해 필요한 경우에만 법률로 제한할 수 있으며, 본질적인 내용은 침해할 수 없다.", prompt: "자료에서 확인할 수 없는 기본권 제한 요건은?", choices: ["법률에 근거할 것", "본질적 내용을 침해하지 않을 것", "행정 기관이 편리하다고 판단할 것"], answer: 2, explanation: "행정 편의는 헌법이 정한 기본권 제한 목적이나 요건이 아닙니다.", hints: ["자료에 직접 제시된 표현을 확인하세요.", "국가 안전·질서·공공복리와 법률이 핵심입니다.", "세 번째 선택지는 자료에 없습니다."], competency: "자료 해석" },
+    { sourceLabel: "권력 분립 자료", source: "국회는 법률을 만들고, 정부는 법률을 집행하며, 법원은 재판한다. 헌법재판소는 법률의 위헌 여부 등을 심판한다.", prompt: "이 제도가 인권 보장에 기여하는 방식은?", choices: ["국가 권력을 한 기관에 집중한다", "기관 간 견제로 권력 남용을 막는다", "모든 결정을 국민 투표로 한다"], answer: 1, explanation: "권력 분립은 국가 기관이 서로 견제하도록 하여 권력 남용과 기본권 침해를 예방합니다.", hints: ["각 기관의 역할이 나뉘어 있다는 점에 주목하세요.", "집중의 반대말을 떠올려 보세요.", "두 번째 선택지입니다."], competency: "자료 해석" },
+    { sourceLabel: "기본권 구제 경로", source: "법원의 재판을 거쳤지만 공권력 때문에 기본권이 침해되었다고 주장하는 시민이 헌법적 판단을 요청하려 한다.", prompt: "가장 관련 깊은 구제 제도는?", choices: ["헌법소원심판", "주민 투표", "국정 감사"], answer: 0, explanation: "공권력에 의한 기본권 침해를 헌법적으로 구제받기 위해 헌법소원심판을 청구할 수 있습니다.", hints: ["일반 정책 선호를 묻는 절차가 아닙니다.", "헌법재판소의 기본권 구제 절차입니다.", "첫 번째 선택지입니다."], competency: "자료 해석" },
+  ],
+  [
+    { sourceLabel: "사건 카드 A", source: "학교가 학생의 동의 없이 개인 상담 기록 전체를 공개 게시판에 올렸다.", prompt: "가장 직접적으로 침해된 기본권과 판단 근거는?", choices: ["사생활의 비밀과 자유 - 공개 범위가 필요 이상으로 넓다", "참정권 - 선거에 참여하지 못했다", "사회권 - 교육 시설이 부족하다"], answer: 0, explanation: "민감한 상담 기록의 무단 공개는 사생활의 비밀과 자유를 침해할 가능성이 큽니다.", hints: ["개인 정보가 누구에게 공개되었는지 보세요.", "상담 기록은 사적인 생활 영역입니다.", "첫 번째 선택지가 권리와 근거를 모두 연결합니다."], competency: "분석·추론" },
+    { sourceLabel: "사건 카드 B", source: "평화로운 집회를 전면 금지하면서 구체적인 위험이나 대체 장소를 제시하지 않았다.", prompt: "헌법적 판단으로 가장 타당한 것은?", choices: ["질서 유지를 말했으므로 언제나 정당하다", "표현·집회의 자유를 과도하게 제한했는지 살펴야 한다", "집회는 기본권과 관계없다"], answer: 1, explanation: "기본권 제한은 목적뿐 아니라 필요성, 최소 침해, 본질적 내용 보장도 함께 따져야 합니다.", hints: ["전면 금지와 구체적 위험 부재를 비교하세요.", "과잉 금지 원칙을 적용해 보세요.", "두 번째 선택지입니다."], competency: "분석·추론" },
+    { sourceLabel: "사건 카드 C", source: "공공시설이 휠체어 이용자의 출입을 막는 계단만 설치하고 합리적인 개선 요구도 거부했다.", prompt: "이 사례의 핵심 쟁점은?", choices: ["정당한 구별", "평등권과 접근권 침해", "재산권만의 문제"], answer: 1, explanation: "합리적 편의 제공을 거부해 장애인의 동등한 이용 기회를 막는 것은 차별과 접근권 문제입니다.", hints: ["누구에게 이용 장벽이 생겼는지 살펴보세요.", "같은 대우가 실질적으로 같은 기회를 보장하는지 생각하세요.", "두 번째 선택지입니다."], competency: "분석·추론" },
+  ],
+  [
+    { sourceLabel: "학교 인권 예산 100", source: "상담 기록 보호 시스템 40 / 장애인 경사로 45 / 인권 교육 20 / 홍보 조형물 35. 두 가지를 선택하되 예산을 넘을 수 없다.", prompt: "권리 보호와 실현 가능성을 함께 만족하는 조합은?", choices: ["보호 시스템 + 경사로", "경사로 + 인권 교육", "보호 시스템 + 경사로 + 교육"], answer: 1, explanation: "경사로와 교육은 총 65로 예산 안에서 접근권 개선과 예방 교육을 함께 달성합니다. 세 번째 조합은 105로 예산을 초과합니다.", hints: ["각 조합의 합계를 먼저 계산하세요.", "100 이하이면서 서로 다른 문제를 다루는 조합을 찾으세요.", "두 번째 선택지입니다."], competency: "문제 해결" },
+    { sourceLabel: "정책 선택", source: "온라인 괴롭힘을 막기 위해 학교가 모든 학생의 휴대전화를 매일 무기한 검사하려 한다.", prompt: "인권과 공익의 균형을 높이는 수정안은?", choices: ["검사를 그대로 시행한다", "신고·증거가 있는 경우에 한해 절차와 기간을 정해 조사한다", "괴롭힘 문제를 무시한다"], answer: 1, explanation: "목적은 정당하지만 사생활 침해를 최소화하도록 대상·절차·기간을 제한해야 합니다.", hints: ["목적과 수단을 나누어 판단하세요.", "덜 침해적인 대안이 있는지 살펴보세요.", "두 번째 선택지입니다."], competency: "문제 해결" },
+    { sourceLabel: "부작용 점검", source: "청소년 노동권 보호를 위해 야간 노동을 전면 금지했더니 생계가 필요한 청소년의 소득이 갑자기 사라졌다.", prompt: "가장 균형 잡힌 보완책은?", choices: ["금지를 즉시 철회한다", "안전 기준·시간 제한과 함께 생계 지원·상담을 제공한다", "청소년의 책임으로 돌린다"], answer: 1, explanation: "안전과 생계라는 두 권리를 함께 고려하는 보완책이 필요합니다.", hints: ["정책의 원래 목적과 새로 생긴 피해를 함께 보세요.", "한쪽 권리만 포기하지 않는 대안을 찾으세요.", "두 번째 선택지입니다."], competency: "문제 해결" },
+  ],
+  [
+    { sourceLabel: "지역 문제", source: "통학로에 횡단보도와 조명이 부족해 학생과 주민이 위험을 겪고 있다.", prompt: "가장 적절한 시민 참여 전략은?", choices: ["확인되지 않은 소문을 퍼뜨린다", "현장 자료를 모아 지자체 청원과 주민 캠페인을 연계한다", "시설을 임의로 설치한다"], answer: 1, explanation: "자료 수집, 청원, 캠페인을 합법적으로 연계하면 문제 규모에 맞는 참여가 됩니다.", hints: ["문제의 근거와 해결 기관을 연결하세요.", "두 가지 참여 방식을 합법적으로 연계할 수 있습니다.", "두 번째 선택지입니다."], competency: "논증·표현" },
+    { sourceLabel: "캠페인 구성", source: "좋은 공익 캠페인은 문제 제시 → 근거 자료 → 핵심 주장 → 실천 방법의 흐름을 갖는다.", prompt: "가장 완성도 높은 문구는?", choices: ["모두 나쁘다. 당장 바꿔라!", "통학로 사고 위험 자료를 공개하고, 조명 설치 청원 참여 방법을 안내합니다", "우리 편만 이기면 됩니다"], answer: 1, explanation: "구체적 문제와 근거, 주장, 실천 방법을 포함하고 혐오나 편견을 사용하지 않았습니다.", hints: ["자료와 행동 제안이 모두 있는지 보세요.", "비난보다 근거와 참여 방법이 중요합니다.", "두 번째 선택지입니다."], competency: "논증·표현" },
+    { sourceLabel: "표현 윤리", source: "차별 문제를 알리는 카드뉴스 초안에 특정 집단을 무능하다고 단정하는 문장이 포함되었다.", prompt: "가장 적절한 수정 원칙은?", choices: ["자극적이면 그대로 둔다", "고정관념을 삭제하고 출처 있는 피해 자료와 개선 행동을 제시한다", "집단 이름만 다른 이름으로 바꾼다"], answer: 1, explanation: "인권 캠페인 자체가 혐오나 편견을 강화하지 않도록 사실과 구체적 실천을 중심으로 구성해야 합니다.", hints: ["캠페인의 방법도 인권을 존중해야 합니다.", "사실 근거와 행동 제안을 함께 고려하세요.", "두 번째 선택지입니다."], competency: "논증·표현" },
+  ],
+  [
+    { sourceLabel: "보스 사건 1 - 문제 정의", source: "한 지역의 청소년 노동자 40명 중 18명이 근로계약서를 받지 못했고, 12명은 약속한 임금보다 적게 받았다고 응답했다.", prompt: "자료에 근거한 탐구 문제 정의는?", choices: ["모든 사업주는 청소년을 차별한다", "이 지역 청소년 노동자의 계약·임금 권리 보장이 충분한가", "청소년은 일하면 안 된다"], answer: 1, explanation: "자료 범위를 넘겨 단정하지 않고 계약과 임금이라는 확인된 문제를 탐구 질문으로 제시했습니다.", hints: ["사실과 추론을 구분하세요.", "40명의 조사 결과로 모든 사업주를 단정할 수 없습니다.", "두 번째 선택지입니다."], competency: "자료 해석" },
+    { sourceLabel: "보스 사건 2 - 원인 분석", source: "면담 결과: 계약 절차를 모르는 학생이 많았고, 소규모 사업장에는 노동법 안내가 거의 전달되지 않았다.", prompt: "표면적 원인과 구조적 원인을 함께 연결한 것은?", choices: ["학생 개인의 부주의만 문제다", "계약 지식 부족 + 사업장 안내·감독 체계 부족", "임금이 적다는 사실만 반복한다"], answer: 1, explanation: "개인 수준의 정보 부족과 제도 수준의 안내·감독 부족을 함께 분석했습니다.", hints: ["수행평가 기준은 서로 다른 두 측면의 원인을 요구합니다.", "개인과 제도 수준을 함께 보세요.", "두 번째 선택지입니다."], competency: "분석·추론" },
+    { sourceLabel: "보스 사건 3 - 해결 설계", source: "목표: 청소년 노동자의 계약·임금 권리를 실질적으로 보장하고, 학생이 직접 참여할 수 있어야 한다.", prompt: "가장 다각적인 해결안은?", choices: ["학생에게 조심하라고 안내만 한다", "계약 교육, 익명 상담, 사업장 안내·점검, 학생 캠페인을 연계한다", "위반 사업장 이름을 확인 없이 공개한다"], answer: 1, explanation: "개인·학교·지역사회·행정 수준의 대안을 연계하고 합법적 시민 참여까지 포함합니다.", hints: ["한 주체만 움직이는 대안인지 확인하세요.", "교육·구제·제도·참여가 함께 있는 안을 찾으세요.", "두 번째 선택지입니다."], competency: "문제 해결" },
+  ],
+];
+
+type SavedProgress = { bestScores: number[]; attempts: number[] };
+const emptyProgress = (): SavedProgress => ({ bestScores: [0, 0, 0, 0, 0, 0], attempts: [0, 0, 0, 0, 0, 0] });
+const readUnitOneProgress = () => {
+  if (typeof window === "undefined") return emptyProgress();
+  try { return { ...emptyProgress(), ...JSON.parse(localStorage.getItem("social-arcade-unit-1") ?? "{}") }; }
+  catch { return emptyProgress(); }
+};
+
 export default function HomePage() {
   const [mode, setMode] = useState<"units" | "themes">("units");
   const [selected, setSelected] = useState<Unit | null>(null);
   const [teacherOpen, setTeacherOpen] = useState(false);
   const [missionStarted, setMissionStarted] = useState(false);
   const [activeGame, setActiveGame] = useState<ActiveGame | null>(null);
+  const [progressVersion, setProgressVersion] = useState(0);
 
   const startGame = (unit: Unit, level = 0) => {
     setSelected(null);
@@ -145,8 +191,8 @@ export default function HomePage() {
       </div>
 
       {teacherOpen && <div className="reference-overlay"><TeacherPanel onClose={() => setTeacherOpen(false)} /></div>}
-      {selected && <UnitModal unit={selected} onClose={() => setSelected(null)} onStart={(level) => startGame(selected, level)} />}
-      {activeGame && <GameModal game={activeGame} onClose={() => setActiveGame(null)} />}
+      {selected && <UnitModal key={`${selected.id}-${progressVersion}`} unit={selected} onClose={() => setSelected(null)} onStart={(level) => startGame(selected, level)} />}
+      {activeGame && <GameModal game={activeGame} onClose={() => setActiveGame(null)} onProgress={() => setProgressVersion((value) => value + 1)} />}
       {missionStarted && <span className="sr-only" aria-live="polite">추천 미션을 시작했습니다.</span>}
     </main>
   );
@@ -252,7 +298,7 @@ export default function HomePage() {
         )}
       </div>
 
-      {selected && <UnitModal unit={selected} onClose={() => setSelected(null)} onStart={(level) => startGame(selected, level)} />}
+      {selected && <UnitModal key={`${selected.id}-${progressVersion}`} unit={selected} onClose={() => setSelected(null)} onStart={(level) => startGame(selected, level)} />}
     </main>
   );
 }
@@ -262,6 +308,8 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 }
 
 function UnitModal({ unit, onClose, onStart }: { unit: Unit; onClose: () => void; onStart: (level: number) => void }) {
+  const [saved] = useState<SavedProgress>(() => unit.id === 1 ? readUnitOneProgress() : emptyProgress());
+
   return (
     <div className="modal-layer" role="dialog" aria-modal="true" aria-label={`${unit.title} 게임 선택`}>
       <button className="modal-dismiss" onClick={onClose} aria-label="닫기" />
@@ -269,40 +317,66 @@ function UnitModal({ unit, onClose, onStart }: { unit: Unit; onClose: () => void
         <img src={unit.image} alt="" />
         <button className="close-button" onClick={onClose}>×</button>
         <span>UNIT {unit.id}</span><h2>{unit.title}</h2><p>개념 확인에서 수행평가 준비까지 단계별로 도전하세요.</p>
-        <div>{unit.levels.map((level, i) => <button key={level} onClick={() => onStart(i)}><b>{i + 1}</b><span><strong>{level}</strong><small>{i === 0 ? "개념 확인" : i === 1 ? "자료 분석" : "문제 해결"}</small></span><ArrowRight /></button>)}</div>
+        <div>{unit.levels.map((level, i) => {
+          const unlocked = unit.id !== 1 || i === 0 || saved.bestScores[i - 1] >= 70;
+          const labels = ["개념 이해", "자료 해석", "분석과 추론", "문제 해결", "논증과 표현", "종합 수행 과제"];
+          return <button key={level} onClick={() => onStart(i)} disabled={!unlocked} className={!unlocked ? "locked" : ""}><b>{unlocked ? i + 1 : <LockKey />}</b><span><strong>{level}</strong><small>{unlocked ? `${labels[i] ?? "문제 해결"}${unit.id === 1 && saved.bestScores[i] ? ` · 최고 ${saved.bestScores[i]}점` : ""}` : `이전 레벨 70점 이상 필요`}</small></span>{unlocked && <ArrowRight />}</button>;
+        })}</div>
       </section>
     </div>
   );
 }
 
-function GameModal({ game, onClose }: { game: ActiveGame; onClose: () => void }) {
-  const gameQuestions = questions[game.unit.id];
+function GameModal({ game, onClose, onProgress }: { game: ActiveGame; onClose: () => void; onProgress: () => void }) {
+  const gameQuestions = game.unit.id === 1 ? unitOneQuestionSets[game.level] : questions[game.unit.id];
   const [step, setStep] = useState(0);
   const [choice, setChoice] = useState<number | null>(null);
   const [score, setScore] = useState(0);
+  const [penalty, setPenalty] = useState(0);
+  const [hintLevel, setHintLevel] = useState(0);
   const [finished, setFinished] = useState(false);
   const question = gameQuestions[step];
   const isCorrect = choice === question.answer;
+  const finalScore = Math.max(0, Math.round((score / gameQuestions.length) * 100) - penalty);
+  const expectedLevel = finalScore >= 90 ? "A" : finalScore >= 80 ? "B" : finalScore >= 70 ? "C" : finalScore >= 50 ? "D" : "E";
 
   const choose = (index: number) => {
     if (choice !== null) return;
     setChoice(index);
     if (index === question.answer) setScore((value) => value + 1);
+    else setPenalty((value) => value + 10);
+  };
+
+  const showHint = () => {
+    if (!question.hints || hintLevel >= question.hints.length) return;
+    const nextLevel = hintLevel + 1;
+    setHintLevel(nextLevel);
+    if (nextLevel === 2 || nextLevel === 3) setPenalty((value) => value + 5);
   };
 
   const next = () => {
     if (step === gameQuestions.length - 1) {
+      if (game.unit.id === 1) {
+        const saved = readUnitOneProgress();
+        saved.bestScores[game.level] = Math.max(saved.bestScores[game.level] ?? 0, finalScore);
+        saved.attempts[game.level] = (saved.attempts[game.level] ?? 0) + 1;
+        localStorage.setItem("social-arcade-unit-1", JSON.stringify(saved));
+        onProgress();
+      }
       setFinished(true);
       return;
     }
     setStep((value) => value + 1);
     setChoice(null);
+    setHintLevel(0);
   };
 
   const retry = () => {
     setStep(0);
     setChoice(null);
     setScore(0);
+    setPenalty(0);
+    setHintLevel(0);
     setFinished(false);
   };
 
@@ -318,14 +392,17 @@ function GameModal({ game, onClose }: { game: ActiveGame; onClose: () => void })
           <div className="game-result">
             <Trophy size={64} weight="duotone" />
             <span>미션 완료</span>
-            <h3>{score * 100} XP 획득!</h3>
-            <p>총 {gameQuestions.length}문제 중 <strong>{score}문제</strong>를 맞혔어요.</p>
+            <h3>{finalScore}점 · 예상 {expectedLevel} 수준</h3>
+            <p>정답 {score}/{gameQuestions.length} · 감점 {penalty}점 · <strong>{finalScore} XP</strong> 획득</p>
+            <div className="competency-grid"><span>개념 정확성 <b>{Math.round(finalScore * .3)}/30</b></span><span>자료 활용 <b>{Math.round(finalScore * .25)}/25</b></span><span>근거 타당성 <b>{Math.round(finalScore * .25)}/25</b></span><span>해결·표현 <b>{Math.round(finalScore * .2)}/20</b></span></div>
+            <div className="result-note"><strong>{finalScore >= 70 ? "다음 레벨이 열렸어요!" : "70점 이상이면 다음 레벨이 열려요."}</strong><span>강점: {question.competency ?? "개념 이해"} · 추천: {finalScore >= 70 ? "다음 미션 도전" : "힌트를 활용해 다시 도전"}</span></div>
             <div className="result-actions"><button onClick={retry}><ArrowCounterClockwise /> 다시 도전</button><button onClick={onClose}>홈으로</button></div>
           </div>
         ) : (
           <div className="game-body">
-            <div className="game-progress"><span>문제 {step + 1} / {gameQuestions.length}</span><i><b style={{ width: `${((step + 1) / gameQuestions.length) * 100}%` }} /></i><strong>{score * 100} XP</strong></div>
-            <p className="game-kicker">핵심 개념 탐구</p>
+            <div className="game-progress"><span>문제 {step + 1} / {gameQuestions.length}</span><i><b style={{ width: `${((step + 1) / gameQuestions.length) * 100}%` }} /></i><strong>{Math.max(0, Math.round((score / gameQuestions.length) * 100) - penalty)}점</strong></div>
+            <p className="game-kicker">{question.competency ?? "핵심 개념 탐구"}</p>
+            {question.source && <article className="source-card"><span>{question.sourceLabel ?? "탐구 자료"}</span><p>{question.source}</p></article>}
             <h3>{question.prompt}</h3>
             <div className="answer-list">
               {question.choices.map((answer, index) => {
@@ -333,7 +410,8 @@ function GameModal({ game, onClose }: { game: ActiveGame; onClose: () => void })
                 return <button key={answer} className={state} onClick={() => choose(index)} disabled={choice !== null}><b>{index + 1}</b><span>{answer}</span>{state === "correct" && <CheckCircle weight="fill" />}{state === "wrong" && <XCircle weight="fill" />}</button>;
               })}
             </div>
-            {choice !== null && <div className={`feedback ${isCorrect ? "correct" : "wrong"}`} role="status"><strong>{isCorrect ? "정답이에요!" : "한 번 더 개념을 확인해요."}</strong><p>{question.explanation}</p><button onClick={next}>{step === gameQuestions.length - 1 ? "결과 보기" : "다음 문제"}<ArrowRight /></button></div>}
+            {choice === null && question.hints && <div className="hint-box"><button onClick={showHint} disabled={hintLevel >= question.hints.length}>힌트 {Math.min(hintLevel + 1, 3)} 보기 {hintLevel === 0 ? "· 감점 없음" : hintLevel === 1 ? "· -5점" : "· -5점"}</button>{hintLevel > 0 && <p>{question.hints[hintLevel - 1]}</p>}</div>}
+            {choice !== null && <div className={`feedback ${isCorrect ? "correct" : "wrong"}`} role="status"><strong>{isCorrect ? "정답이에요!" : "틀린 이유를 확인해요."}</strong><p>{question.explanation}</p><button onClick={isCorrect ? next : () => setChoice(null)}>{isCorrect ? step === gameQuestions.length - 1 ? "결과 보기" : "다음 문제" : "다시 선택"}<ArrowRight /></button></div>}
           </div>
         )}
       </section>

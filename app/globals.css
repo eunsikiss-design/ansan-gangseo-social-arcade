@@ -141,7 +141,7 @@ button:focus-visible { outline: 3px solid #57f1e7; outline-offset: 3px; }
 
 .modal-layer { position: fixed; z-index: 30; inset: 0; display: grid; place-items: center; padding: 18px; background: #00101add; backdrop-filter: blur(7px); }
 .modal-dismiss { position: absolute; inset: 0; width: 100%; border: 0; background: transparent; }
-.unit-modal { width: min(470px, 100%); position: relative; overflow: hidden; color: var(--ink); border: 3px solid var(--gold); border-radius: 24px; background: #fff8e4; box-shadow: 0 24px 70px #000d; }
+.unit-modal { width: min(470px, 100%); max-height: calc(100vh - 36px); position: relative; overflow-x: hidden; overflow-y: auto; color: var(--ink); border: 3px solid var(--gold); border-radius: 24px; background: #fff8e4; box-shadow: 0 24px 70px #000d; }
 .unit-modal > img { width: 100%; height: 165px; object-fit: cover; }
 .close-button { position: absolute; right: 14px; top: 14px; width: 38px; height: 38px; color: #fff; border: 1px solid #fff8; border-radius: 50%; background: #001b2dbb; font-size: 25px; cursor: pointer; }
 .unit-modal > span, .unit-modal > h2, .unit-modal > p, .unit-modal > div { margin-left: 24px; margin-right: 24px; }
@@ -150,7 +150,10 @@ button:focus-visible { outline: 3px solid #57f1e7; outline-offset: 3px; }
 .unit-modal > p { color: #725d49; font-size: 13px; }
 .unit-modal > div { display: grid; gap: 9px; margin-top: 18px; margin-bottom: 24px; }
 .unit-modal > div button { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 11px; padding: 12px; color: #26333d; text-align: left; border: 1px solid #d4bd8d; border-radius: 13px; background: #fffdf5; cursor: pointer; }
+.unit-modal > div button.locked { color: #9c8e7d; border-style: dashed; background: #eee7d9; cursor: not-allowed; }
 .unit-modal > div button > b { width: 33px; height: 33px; display: grid; place-items: center; color: #fff; border-radius: 9px; background: var(--unit); }
+.unit-modal > div button.locked > b { background: #9b9183; }
+.unit-modal > div button > b svg { width: 16px; }
 .unit-modal > div strong, .unit-modal > div small { display: block; }
 .unit-modal > div small { margin-top: 2px; color: #927a62; }
 
@@ -167,6 +170,9 @@ button:focus-visible { outline: 3px solid #57f1e7; outline-offset: 3px; }
 .game-progress strong { color: var(--unit); }
 .game-kicker { width: max-content; margin: 25px 0 8px; padding: 5px 9px; color: #fff; border-radius: 6px; background: var(--unit); font-size: 11px; font-weight: 900; }
 .game-body > h3 { min-height: 59px; margin: 0 0 18px; font-size: 23px; line-height: 1.35; word-break: keep-all; }
+.source-card { margin: 15px 0 14px; padding: 14px 15px; border: 1px solid #cdb681; border-left: 5px solid var(--unit); border-radius: 11px; background: #fffdf6; box-shadow: 0 4px 11px #6e543015; }
+.source-card span { color: var(--unit); font-size: 11px; font-weight: 950; }
+.source-card p { margin: 6px 0 0; color: #524536; font-size: 13px; line-height: 1.55; word-break: keep-all; }
 .answer-list { display: grid; gap: 9px; }
 .answer-list button { min-height: 55px; display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 11px; padding: 9px 13px; color: #26333d; text-align: left; border: 2px solid #d4bd8d; border-radius: 13px; background: #fffdf7; cursor: pointer; transition: transform .15s ease, border-color .15s ease; }
 .answer-list button:not(:disabled):hover { transform: translateX(4px); border-color: var(--unit); }
@@ -184,11 +190,22 @@ button:focus-visible { outline: 3px solid #57f1e7; outline-offset: 3px; }
 .feedback p { margin: 5px 0 12px; color: #665642; font-size: 13px; line-height: 1.5; }
 .feedback button, .result-actions button { min-height: 43px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 0 15px; color: #fff; border: 0; border-radius: 10px; background: var(--unit); font-weight: 900; cursor: pointer; }
 .feedback button { margin-left: auto; }
+.hint-box { min-height: 47px; margin-top: 12px; padding: 10px 12px; border: 1px dashed #b59659; border-radius: 11px; background: #fff5d9; }
+.hint-box button { color: #73571d; border: 0; background: transparent; font-size: 12px; font-weight: 950; cursor: pointer; }
+.hint-box button:disabled { opacity: .5; cursor: default; }
+.hint-box p { margin: 7px 0 0; color: #5f503c; font-size: 13px; line-height: 1.45; }
 .game-result { min-height: 410px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 28px; text-align: center; }
 .game-result > svg { color: #d59c25; }
 .game-result > span { margin-top: 12px; color: var(--unit); font-size: 12px; font-weight: 950; }
 .game-result h3 { margin: 5px 0; font-size: 34px; }
 .game-result p { color: #765f48; }
+.competency-grid { width: 100%; display: grid; grid-template-columns: 1fr 1fr; gap: 7px; margin-top: 10px; }
+.competency-grid span { display: flex; justify-content: space-between; padding: 9px 10px; color: #6f5d48; border: 1px solid #d8c7a4; border-radius: 9px; background: #fffdf7; font-size: 11px; }
+.competency-grid b { color: var(--unit); }
+.result-note { width: 100%; margin-top: 10px; padding: 11px; border-radius: 10px; background: #e7f4eb; }
+.result-note strong, .result-note span { display: block; }
+.result-note strong { color: #237651; font-size: 13px; }
+.result-note span { margin-top: 4px; color: #5e6b60; font-size: 11px; }
 .result-actions { display: flex; gap: 8px; margin-top: 16px; }
 .result-actions button:last-child { color: var(--unit); border: 2px solid var(--unit); background: transparent; }
 
