@@ -25,6 +25,8 @@ import {
   CheckCircle,
   XCircle,
   ArrowCounterClockwise,
+  SpeakerHigh,
+  SpeakerSlash,
 } from "@phosphor-icons/react";
 
 type Unit = {
@@ -38,7 +40,7 @@ type Unit = {
 };
 
 type Question = {
-  kind?: "choice" | "ox" | "short" | "completion" | "matching" | "combination" | "essay";
+  kind?: "choice" | "ox" | "short" | "completion" | "matching" | "combination" | "essay" | "initial" | "crossword" | "ladder";
   prompt: string;
   choices: string[];
   answer: number;
@@ -53,9 +55,24 @@ type Question = {
   correctAnswers?: number[];
   rubricTerms?: string[][];
   minLength?: number;
+  initials?: string;
+  crosswordAnswers?: string[];
+  sourceImage?: string;
+  sourceAlt?: string;
+  sentenceStem?: string;
+  writingMode?: "sentence" | "stem" | "claim-evidence" | "data-opinion";
 };
 
 type ActiveGame = { unit: Unit; level: number };
+
+const unitOneStories = [
+  { place: "권리의 항구", mission: "흩어진 기본권 암호를 모아 첫 관문을 열어라.", item: "인권 나침반", icon: "🧭" },
+  { place: "헌법 기록실", mission: "헌법 문서와 국가 기관의 연결을 복원하라.", item: "헌법 방패", icon: "🛡️" },
+  { place: "판례의 미궁", mission: "사건의 문맥을 읽고 침해된 권리를 찾아라.", item: "판례 돋보기", icon: "🔎" },
+  { place: "수호대 작전실", mission: "자료를 해석해 가장 균형 잡힌 대안을 설계하라.", item: "자료 분석기", icon: "📊" },
+  { place: "시민 참여 광장", mission: "주장과 근거를 갖춘 시민의 목소리를 완성하라.", item: "시민 배지", icon: "🎖️" },
+  { place: "세계 인권 의회", mission: "세계 자료를 분석해 최종 인권 해결안을 발표하라.", item: "인권 수호 깃발", icon: "🏳️" },
+];
 
 const units: Unit[] = [
   { id: 1, title: "인권 보장과 헌법", shortTitle: "인권 보장과\n헌법", image: "/assets/unit-1-rights.jpg", color: "#2e855f", progress: 82, levels: ["핵심 개념 탐색", "헌법 자료 해독", "인권 판례 챌린지", "기본권 수호대", "시민 참여 캠페인", "보스: 인권 해결 프로젝트"] },
@@ -131,6 +148,41 @@ const unitOneQuestionSets: Question[][] = [
     { sourceLabel: "보스 사건 1 - 문제 정의", source: "한 지역의 청소년 노동자 40명 중 18명이 근로계약서를 받지 못했고, 12명은 약속한 임금보다 적게 받았다고 응답했다.", prompt: "자료에 근거한 탐구 문제 정의는?", choices: ["모든 사업주는 청소년을 차별한다", "이 지역 청소년 노동자의 계약·임금 권리 보장이 충분한가", "청소년은 일하면 안 된다"], answer: 1, explanation: "자료 범위를 넘겨 단정하지 않고 계약과 임금이라는 확인된 문제를 탐구 질문으로 제시했습니다.", hints: ["사실과 추론을 구분하세요.", "40명의 조사 결과로 모든 사업주를 단정할 수 없습니다.", "두 번째 선택지입니다."], competency: "자료 해석" },
     { sourceLabel: "보스 사건 2 - 원인 분석", source: "면담 결과: 계약 절차를 모르는 학생이 많았고, 소규모 사업장에는 노동법 안내가 거의 전달되지 않았다.", prompt: "표면적 원인과 구조적 원인을 함께 연결한 것은?", choices: ["학생 개인의 부주의만 문제다", "계약 지식 부족 + 사업장 안내·감독 체계 부족", "임금이 적다는 사실만 반복한다"], answer: 1, explanation: "개인 수준의 정보 부족과 제도 수준의 안내·감독 부족을 함께 분석했습니다.", hints: ["수행평가 기준은 서로 다른 두 측면의 원인을 요구합니다.", "개인과 제도 수준을 함께 보세요.", "두 번째 선택지입니다."], competency: "분석·추론" },
     { kind: "essay", sourceLabel: "보스 사건 3 - 해결 설계", source: "목표: 청소년 노동자의 계약·임금 권리를 실질적으로 보장하고, 학생이 직접 참여할 수 있어야 한다.", prompt: "자료에서 확인한 원인과 연결되는 해결 방안 두 가지를 제안하고, 기대 효과 또는 한계를 포함해 3~4문장으로 작성하세요.", choices: [], answer: 0, rubricTerms: [["계약", "임금", "노동권"], ["교육", "상담", "점검", "신고"], ["효과", "한계", "그러나", "기대"]], minLength: 70, explanation: "서술형 답안은 문제·원인과 연결된 복수의 대안, 그리고 기대 효과나 한계를 갖추어야 합니다. 특정 문장 하나만 정답으로 보지 않습니다.", hints: ["문제-원인-대안-효과/한계 순서로 써 보세요.", "학교의 계약 교육과 지역의 상담·점검을 연계할 수 있습니다.", "‘계약 교육은 정보 부족을 줄이지만, 사업장 점검이 함께 이루어져야 한다’는 틀을 활용해 보세요."], competency: "논증·표현" },
+  ],
+];
+
+const enhancedUnitOneQuestionSets: Question[][] = [
+  [
+    { kind: "ox", prompt: "인권은 모든 사람이 태어날 때부터 가지는 권리이다.", choices: ["O", "X"], answer: 0, explanation: "인권은 인간이라면 누구나 가지는 보편적 권리입니다.", hints: ["국적이나 성별에 따라 생기는 권리가 아닙니다.", "‘보편성’을 떠올려 보세요.", "정답은 O입니다."], competency: "개념 이해" },
+    { kind: "ox", prompt: "사회권은 국가의 간섭을 받지 않을 권리만을 뜻한다.", choices: ["O", "X"], answer: 1, explanation: "사회권은 인간다운 생활을 위해 국가의 적극적인 역할을 요구하는 권리입니다.", hints: ["교육과 노동의 권리를 생각해 보세요.", "국가의 적극적 역할이 핵심입니다.", "정답은 X입니다."], competency: "개념 이해" },
+    { kind: "initial", initials: "ㅈ ㅇ ㄱ", prompt: "초성을 보고 ‘국가의 부당한 간섭을 받지 않을 권리’를 쓰세요.", choices: [], answer: 0, accepted: ["자유권"], explanation: "자유권은 신체, 거주, 직업 선택 등 자유로운 생활을 보장합니다.", hints: ["신체의 ○○를 떠올려 보세요.", "첫 글자는 ‘자’입니다.", "정답은 자유권입니다."], competency: "개념 이해" },
+    { kind: "initial", initials: "ㅍ ㄷ ㄱ", prompt: "초성을 보고 ‘차별받지 않고 동등하게 대우받을 권리’를 쓰세요.", choices: [], answer: 0, accepted: ["평등권"], explanation: "평등권은 합리적 이유 없는 차별을 받지 않을 권리입니다.", hints: ["같은 것은 같게, 다른 것은 다르게 대우합니다.", "첫 글자는 ‘평’입니다.", "정답은 평등권입니다."], competency: "개념 이해" },
+    { kind: "matching", prompt: "기본권과 대표 사례를 연결하세요.", choices: ["자유권", "평등권", "사회권", "청구권"], answer: 0, matchOptions: ["직업을 선택한다", "성별로 차별받지 않는다", "교육받을 기회를 요구한다", "재판을 청구한다"], expectedMatches: [0, 1, 2, 3], explanation: "기본권의 뜻을 구체적인 생활 사례와 연결하면 오래 기억할 수 있습니다.", hints: ["직업 선택은 자유, 교육은 사회적 보장과 관련됩니다.", "재판을 요구하는 권리는 청구권입니다.", "위에서부터 1-2-3-4 순서입니다."], competency: "개념 이해" },
+    { kind: "ladder", prompt: "사다리를 타듯 국가 기관과 역할을 연결하세요.", choices: ["국회", "정부", "법원", "헌법재판소"], answer: 0, matchOptions: ["법률 제정", "법률 집행", "재판", "위헌 심판"], expectedMatches: [0, 1, 2, 3], explanation: "국회-입법, 정부-행정, 법원-사법, 헌법재판소-위헌 심판으로 연결됩니다.", hints: ["입법·행정·사법을 먼저 떠올리세요.", "헌법재판소는 법률의 위헌 여부를 판단합니다.", "위에서부터 1-2-3-4입니다."], competency: "개념 이해" },
+    { kind: "crossword", prompt: "가로세로 단서를 읽고 인권 용어 3개를 완성하세요.", choices: ["가로 1. 자유로운 생활을 보장하는 권리", "세로 2. 차별받지 않을 권리", "가로 3. 국가에 인간다운 생활을 요구하는 권리"], answer: 0, crosswordAnswers: ["자유권", "평등권", "사회권"], explanation: "가로 1 자유권, 세로 2 평등권, 가로 3 사회권입니다.", hints: ["정답은 모두 세 글자 기본권입니다.", "첫 글자는 자·평·사입니다.", "자유권, 평등권, 사회권을 차례로 쓰세요."], competency: "개념 이해" },
+    { kind: "completion", prompt: "문장을 완성하세요. 침해된 기본권의 구제를 요구하는 권리는 (          )이다.", choices: [], answer: 0, accepted: ["청구권"], explanation: "청구권에는 재판 청구권과 국가 배상 청구권 등이 포함됩니다.", hints: ["권리 침해 뒤 구제를 요청합니다.", "재판을 받을 권리가 대표 사례입니다.", "정답은 청구권입니다."], competency: "개념 이해" },
+  ],
+  [
+    ...unitOneQuestionSets[1],
+    { kind: "essay", writingMode: "sentence", sourceLabel: "생활 속 기본권", source: "학생이 정당한 이유 없이 학교 도서관 이용을 금지당했다.", prompt: "이 상황에서 침해될 수 있는 권리를 한 문장으로 쓰세요.", choices: [], answer: 0, rubricTerms: [["평등권", "교육", "이용"], ["침해", "차별"]], minLength: 18, explanation: "한 문장 안에 상황과 관련 권리를 연결하면 됩니다.", hints: ["‘이 사례는 ○○권과 관련된다’로 시작해 보세요.", "이용 기회를 정당한 이유 없이 다르게 주었습니다.", "‘정당한 이유 없는 이용 제한은 평등권을 침해할 수 있다.’처럼 써 보세요."], competency: "자료 해석" },
+  ],
+  [
+    ...unitOneQuestionSets[2],
+    { kind: "essay", writingMode: "sentence", sourceLabel: "사건의 문맥", source: "학교가 안전을 이유로 모든 학생의 가방을 매일, 아무런 절차 없이 검사한다.", prompt: "문맥을 파악해 목적과 수단의 문제를 한 문장으로 쓰세요.", choices: [], answer: 0, rubricTerms: [["안전", "목적"], ["매일", "절차", "과도"], ["사생활", "자유"]], minLength: 28, explanation: "안전이라는 목적과 과도한 검사 수단을 구분해 한 문장으로 연결해야 합니다.", hints: ["‘목적은 타당하지만’으로 시작해 보세요.", "검사의 범위와 절차를 따져 보세요.", "‘안전 목적은 타당하지만 무절차 검사는 사생활의 자유를 과도하게 제한한다.’처럼 써 보세요."], competency: "분석·추론" },
+  ],
+  [
+    { sourceImage: "/assets/unit1-youth-labor-chart.jpg", sourceAlt: "청소년 노동 인권 침해 실태 막대그래프", sourceLabel: "교과서 자료: 청소년 노동 인권 실태", source: "아르바이트 경험이 있는 고등학생 1,756명의 복수 응답 결과이다.", prompt: "그래프에서 응답 비율이 가장 높은 노동권 침해는?", choices: ["근로계약서 미작성", "임금 체불", "주휴 수당 미지급", "최저임금 미만 지급"], answer: 0, explanation: "근로계약서 미작성은 42%로 가장 높습니다.", hints: ["막대의 길이를 비교하세요.", "40%를 넘는 항목입니다.", "첫 번째 항목입니다."], competency: "자료 해석" },
+    ...unitOneQuestionSets[3],
+    { kind: "essay", writingMode: "stem", sentenceStem: "자료를 통해 알 수 있는 점은 ______이며, 따라서 ______해야 한다.", sourceImage: "/assets/unit1-youth-labor-chart.jpg", sourceAlt: "청소년 노동 인권 침해 실태 막대그래프", sourceLabel: "교과서 자료", source: "근로계약서 미작성 42%, 임금 체불 25% 등 청소년 노동권 침해가 나타났다.", prompt: "제시된 어간을 활용해 자료 해석과 대안을 한 문장으로 쓰세요.", choices: [], answer: 0, rubricTerms: [["근로계약서", "42%"], ["작성", "교육", "점검"]], minLength: 32, explanation: "자료의 수치 또는 항목과 실행 가능한 대안을 한 문장에 연결해야 합니다.", hints: ["첫 번째 빈칸에는 자료의 특징을 쓰세요.", "두 번째 빈칸에는 학교나 사업주의 행동을 쓰세요.", "‘미작성 비율이 가장 높으며, 따라서 계약서 작성 교육을 강화해야 한다’처럼 써 보세요."], competency: "문제 해결" },
+  ],
+  [
+    ...unitOneQuestionSets[4],
+    { kind: "essay", writingMode: "claim-evidence", sourceImage: "/assets/unit1-human-rights-indexes.jpg", sourceAlt: "성 격차 지수와 국제 아동 권리 지도를 함께 제시한 교과서 자료", sourceLabel: "교과서 자료: 인권 지수", source: "성 격차 지수와 국제 아동 권리 지수는 국가별 인권 수준의 서로 다른 측면을 보여 준다.", prompt: "자료를 바탕으로 개선이 필요한 인권 문제를 정하고, 주장과 근거를 구분해 쓰세요.", choices: [], answer: 0, rubricTerms: [["개선", "보장", "지원"], ["지수", "순위", "지도", "자료"]], minLength: 45, explanation: "주장은 무엇을 해야 하는지, 근거는 자료의 어떤 특징이 그 주장을 뒷받침하는지 보여 주어야 합니다.", hints: ["주장은 ‘○○을 개선해야 한다’로 쓰세요.", "근거에는 지수·순위·지도에서 확인한 사실을 넣으세요.", "주장과 근거가 같은 문제를 가리키는지 확인하세요."], competency: "논증·표현" },
+  ],
+  [
+    { sourceImage: "/assets/unit1-world-hunger-map.jpg", sourceAlt: "세계 기아 지수 지도", sourceLabel: "교과서 자료: 세계 기아 지수", source: "색이 주황색에 가까울수록 기아 수준이 심각하며, 초록색에 가까울수록 양호하다.", prompt: "지도에서 기아 문제가 상대적으로 심각하게 나타나는 지역은?", choices: ["사하라 이남 아프리카 일부", "북유럽 전역", "북아메리카 전역"], answer: 0, explanation: "지도에서 사하라 이남 아프리카의 여러 국가가 주황색 계열로 표시됩니다.", hints: ["범례의 색을 먼저 확인하세요.", "아프리카 대륙 중앙과 남쪽을 보세요.", "첫 번째 선택지입니다."], competency: "자료 해석" },
+    ...unitOneQuestionSets[5].slice(0, 2),
+    { kind: "essay", writingMode: "data-opinion", sourceImage: "/assets/unit1-world-hunger-map.jpg", sourceAlt: "세계 기아 지수 지도", sourceLabel: "최종 보스 자료", source: "세계 기아 지수는 영양 결핍 인구, 발육 부진 아동, 영유아 사망률 등을 종합해 국가별 기아 수준을 보여 준다.", prompt: "자료를 분석하고 국제사회가 해야 할 일을 자신의 의견으로 3~4문장 쓰세요.", choices: [], answer: 0, rubricTerms: [["아프리카", "지역", "지도", "기아"], ["지원", "협력", "국제기구", "식량"], ["왜냐하면", "근거", "따라서", "자료"]], minLength: 75, explanation: "자료에서 확인한 공간적 특징, 자신의 의견, 그 의견을 뒷받침하는 근거가 모두 드러나야 합니다.", hints: ["첫 문장에는 지도의 공간적 특징을 쓰세요.", "두 번째 문장에는 국제사회의 행동을 제안하세요.", "마지막에는 자료가 그 의견을 뒷받침하는 이유를 쓰세요."], competency: "논증·표현" },
   ],
 ];
 
@@ -324,6 +376,10 @@ function UnitModal({ unit, onClose, onStart }: { unit: Unit; onClose: () => void
         <img src={unit.image} alt="" />
         <button className="close-button" onClick={onClose}>×</button>
         <span>UNIT {unit.id}</span><h2>{unit.title}</h2><p>개념 확인에서 수행평가 준비까지 단계별로 도전하세요.</p>
+        {unit.id === 1 && <section className="explorer-loadout">
+          <div className="explorer-avatar" aria-label="인권 탐험대 캐릭터">🧑‍🚀</div>
+          <div><strong>인권 탐험대 장비</strong><small>레벨을 통과하면 캐릭터 장비가 하나씩 장착됩니다.</small><p>{unitOneStories.map((story, index) => <span key={story.item} className={saved.bestScores[index] >= 70 ? "earned" : ""} title={story.item}>{saved.bestScores[index] >= 70 ? story.icon : "🔒"}</span>)}</p></div>
+        </section>}
         <div>{unit.levels.map((level, i) => {
           const unlocked = unit.id !== 1 || i === 0 || saved.bestScores[i - 1] >= 70;
           const labels = ["개념 이해", "자료 해석", "분석과 추론", "문제 해결", "논증과 표현", "종합 수행 과제"];
@@ -335,10 +391,13 @@ function UnitModal({ unit, onClose, onStart }: { unit: Unit; onClose: () => void
 }
 
 function GameModal({ game, onClose, onProgress }: { game: ActiveGame; onClose: () => void; onProgress: () => void }) {
-  const gameQuestions = game.unit.id === 1 ? unitOneQuestionSets[game.level] : questions[game.unit.id];
+  const gameQuestions = game.unit.id === 1 ? enhancedUnitOneQuestionSets[game.level] : questions[game.unit.id];
   const [step, setStep] = useState(0);
   const [choice, setChoice] = useState<number | null>(null);
   const [textAnswer, setTextAnswer] = useState("");
+  const [claimAnswer, setClaimAnswer] = useState("");
+  const [evidenceAnswer, setEvidenceAnswer] = useState("");
+  const [wordEntries, setWordEntries] = useState<string[]>([]);
   const [selectedMany, setSelectedMany] = useState<number[]>([]);
   const [matches, setMatches] = useState<number[]>([]);
   const [submitted, setSubmitted] = useState(false);
@@ -348,11 +407,34 @@ function GameModal({ game, onClose, onProgress }: { game: ActiveGame; onClose: (
   const [penalty, setPenalty] = useState(0);
   const [hintLevel, setHintLevel] = useState(0);
   const [finished, setFinished] = useState(false);
+  const [soundOn, setSoundOn] = useState(true);
   const question = gameQuestions[step];
   const kind = question.kind ?? "choice";
-  const typeLabels = { choice: "선택형", ox: "진위형 OX", short: "단답형", completion: "완성형", matching: "연결형", combination: "배합형", essay: "서술형" };
+  const typeLabels = { choice: "선택형", ox: "진위형 OX", short: "단답형", completion: "완성형", matching: "연결형", combination: "배합형", essay: "서술형", initial: "초성 퀴즈", crossword: "가로세로 용어게임", ladder: "사다리 연결게임" };
+  const story = unitOneStories[game.level];
   const finalScore = Math.max(0, Math.round((score / gameQuestions.length) * 100) - penalty);
   const expectedLevel = finalScore >= 90 ? "A" : finalScore >= 80 ? "B" : finalScore >= 70 ? "C" : finalScore >= 50 ? "D" : "E";
+
+  const playSound = (tone: "correct" | "wrong" | "complete") => {
+    if (!soundOn || typeof window === "undefined") return;
+    const AudioContextClass = window.AudioContext ?? (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!AudioContextClass) return;
+    const context = new AudioContextClass();
+    const notes = tone === "correct" ? [660, 880] : tone === "complete" ? [523, 659, 784] : [220, 175];
+    notes.forEach((frequency, index) => {
+      const oscillator = context.createOscillator();
+      const gain = context.createGain();
+      oscillator.type = tone === "wrong" ? "sawtooth" : "sine";
+      oscillator.frequency.value = frequency;
+      gain.gain.setValueAtTime(.0001, context.currentTime + index * .1);
+      gain.gain.exponentialRampToValueAtTime(.13, context.currentTime + index * .1 + .01);
+      gain.gain.exponentialRampToValueAtTime(.0001, context.currentTime + index * .1 + .16);
+      oscillator.connect(gain).connect(context.destination);
+      oscillator.start(context.currentTime + index * .1);
+      oscillator.stop(context.currentTime + index * .1 + .18);
+    });
+    window.setTimeout(() => void context.close(), 650);
+  };
 
   const choose = (index: number) => {
     if (submitted) return;
@@ -360,32 +442,39 @@ function GameModal({ game, onClose, onProgress }: { game: ActiveGame; onClose: (
     const result = index === question.answer;
     setCorrect(result);
     setSubmitted(true);
+    playSound(result ? "correct" : "wrong");
     if (result) setScore((value) => value + 1); else setPenalty((value) => value + 10);
   };
 
   const submitResponse = () => {
     let result = false;
-    if (kind === "short" || kind === "completion") {
+    if (kind === "short" || kind === "completion" || kind === "initial") {
       const normalized = textAnswer.replace(/\s+/g, "").toLowerCase();
       result = (question.accepted ?? []).some((answer) => answer.replace(/\s+/g, "").toLowerCase() === normalized);
     } else if (kind === "combination") {
       result = JSON.stringify([...selectedMany].sort()) === JSON.stringify([...(question.correctAnswers ?? [])].sort());
-    } else if (kind === "matching") {
+    } else if (kind === "matching" || kind === "ladder") {
       result = matches.length === question.choices.length && matches.every((answer, index) => answer === question.expectedMatches?.[index]);
+    } else if (kind === "crossword") {
+      result = (question.crosswordAnswers ?? []).every((answer, index) => wordEntries[index]?.replace(/\s+/g, "") === answer.replace(/\s+/g, ""));
     } else if (kind === "essay") {
-      const compact = textAnswer.replace(/\s+/g, " ").trim();
+      const compact = (question.writingMode === "claim-evidence" ? `주장 ${claimAnswer} 근거 ${evidenceAnswer}` : textAnswer).replace(/\s+/g, " ").trim();
       const met = (question.rubricTerms ?? []).filter((group) => group.some((term) => compact.includes(term))).length;
       setRubricMet(met);
       result = compact.length >= (question.minLength ?? 30) && met >= Math.ceil((question.rubricTerms?.length ?? 1) * 2 / 3);
     }
     setCorrect(result);
     setSubmitted(true);
+    playSound(result ? "correct" : "wrong");
     if (result) setScore((value) => value + 1); else setPenalty((value) => value + 10);
   };
 
   const resetResponse = () => {
     setChoice(null);
     setTextAnswer("");
+    setClaimAnswer("");
+    setEvidenceAnswer("");
+    setWordEntries([]);
     setSelectedMany([]);
     setMatches([]);
     setSubmitted(false);
@@ -409,6 +498,7 @@ function GameModal({ game, onClose, onProgress }: { game: ActiveGame; onClose: (
         localStorage.setItem("social-arcade-unit-1", JSON.stringify(saved));
         onProgress();
       }
+      playSound("complete");
       setFinished(true);
       return;
     }
@@ -431,7 +521,7 @@ function GameModal({ game, onClose, onProgress }: { game: ActiveGame; onClose: (
       <section className="game-modal" style={{ "--unit": game.unit.color } as React.CSSProperties}>
         <header>
           <div><span>UNIT {game.unit.id} · LEVEL {game.level + 1}</span><h2>{game.unit.levels[game.level]}</h2></div>
-          <button className="game-close" onClick={onClose} aria-label="미션 닫기">×</button>
+          <div className="game-header-actions"><button className="sound-toggle" onClick={() => setSoundOn((value) => !value)} aria-label={soundOn ? "효과음 끄기" : "효과음 켜기"}>{soundOn ? <SpeakerHigh /> : <SpeakerSlash />}</button><button className="game-close" onClick={onClose} aria-label="미션 닫기">×</button></div>
         </header>
 
         {finished ? (
@@ -440,15 +530,18 @@ function GameModal({ game, onClose, onProgress }: { game: ActiveGame; onClose: (
             <span>미션 완료</span>
             <h3>{finalScore}점 · 예상 {expectedLevel} 수준</h3>
             <p>정답 {score}/{gameQuestions.length} · 감점 {penalty}점 · <strong>{finalScore} XP</strong> 획득</p>
+            {game.unit.id === 1 && finalScore >= 70 && <div className="earned-item"><span>{story.icon}</span><div><small>새 장비 획득!</small><strong>{story.item}</strong></div></div>}
             <div className="competency-grid"><span>개념 정확성 <b>{Math.round(finalScore * .3)}/30</b></span><span>자료 활용 <b>{Math.round(finalScore * .25)}/25</b></span><span>근거 타당성 <b>{Math.round(finalScore * .25)}/25</b></span><span>해결·표현 <b>{Math.round(finalScore * .2)}/20</b></span></div>
             <div className="result-note"><strong>{finalScore >= 70 ? "다음 레벨이 열렸어요!" : "70점 이상이면 다음 레벨이 열려요."}</strong><span>강점: {question.competency ?? "개념 이해"} · 추천: {finalScore >= 70 ? "다음 미션 도전" : "힌트를 활용해 다시 도전"}</span></div>
             <div className="result-actions"><button onClick={retry}><ArrowCounterClockwise /> 다시 도전</button><button onClick={onClose}>홈으로</button></div>
           </div>
         ) : (
           <div className="game-body">
+            {game.unit.id === 1 && <article className="story-banner"><div className="story-character"><span>🧑‍🚀</span>{unitOneStories.slice(0, game.level).map((item) => <i key={item.item}>{item.icon}</i>)}</div><div><small>STORY · {story.place}</small><strong>{story.mission}</strong></div></article>}
             <div className="game-progress"><span>문제 {step + 1} / {gameQuestions.length}</span><i><b style={{ width: `${((step + 1) / gameQuestions.length) * 100}%` }} /></i><strong>{Math.max(0, Math.round((score / gameQuestions.length) * 100) - penalty)}점</strong></div>
             <p className="game-kicker">{question.competency ?? "핵심 개념 탐구"} <b>{typeLabels[kind]}</b></p>
             {question.source && <article className="source-card"><span>{question.sourceLabel ?? "탐구 자료"}</span><p>{question.source}</p></article>}
+            {question.sourceImage && <figure className="textbook-visual"><img src={question.sourceImage} alt={question.sourceAlt ?? "교과서 탐구 자료"} /><figcaption>{question.sourceLabel ?? "교과서 자료"} · 미래엔 통합사회2</figcaption></figure>}
             <h3>{question.prompt}</h3>
             {(kind === "choice" || kind === "ox") && <div className={`answer-list ${kind === "ox" ? "ox-list" : ""}`}>
               {question.choices.map((answer, index) => {
@@ -456,10 +549,12 @@ function GameModal({ game, onClose, onProgress }: { game: ActiveGame; onClose: (
                 return <button key={answer} className={state} onClick={() => choose(index)} disabled={submitted}><b>{kind === "ox" ? answer : index + 1}</b><span>{kind === "ox" ? answer === "O" ? "옳다" : "그르다" : answer}</span>{state === "correct" && <CheckCircle weight="fill" />}{state === "wrong" && <XCircle weight="fill" />}</button>;
               })}
             </div>}
-            {(kind === "short" || kind === "completion") && <div className="written-response"><label htmlFor="short-answer">{kind === "short" ? "답" : "빈칸에 들어갈 말"}</label><input id="short-answer" value={textAnswer} onChange={(event) => setTextAnswer(event.target.value)} disabled={submitted} placeholder="정답을 입력하세요" onKeyDown={(event) => { if (event.key === "Enter" && textAnswer.trim()) submitResponse(); }} /><button onClick={submitResponse} disabled={!textAnswer.trim() || submitted}>확인</button></div>}
+            {(kind === "short" || kind === "completion" || kind === "initial") && <div className={`written-response ${kind === "initial" ? "initial-response" : ""}`}>{kind === "initial" && <strong className="initials">{question.initials}</strong>}<label htmlFor="short-answer">{kind === "short" ? "답" : kind === "initial" ? "초성 정답" : "빈칸에 들어갈 말"}</label><input id="short-answer" value={textAnswer} onChange={(event) => setTextAnswer(event.target.value)} disabled={submitted} placeholder="정답을 입력하세요" onKeyDown={(event) => { if (event.key === "Enter" && textAnswer.trim()) submitResponse(); }} /><button onClick={submitResponse} disabled={!textAnswer.trim() || submitted}>확인</button></div>}
             {kind === "combination" && <div className="combination-list">{question.choices.map((answer, index) => <button key={answer} className={selectedMany.includes(index) ? "selected" : ""} disabled={submitted} onClick={() => setSelectedMany((values) => values.includes(index) ? values.filter((value) => value !== index) : [...values, index])}><span>{selectedMany.includes(index) ? "✓" : ""}</span>{answer}</button>)}<button className="response-submit" onClick={submitResponse} disabled={!selectedMany.length || submitted}>선택 완료</button></div>}
             {kind === "matching" && <div className="matching-list">{question.choices.map((left, index) => <label key={left}><span>{left}</span><select value={matches[index] ?? -1} disabled={submitted} onChange={(event) => setMatches((values) => { const nextValues = [...values]; nextValues[index] = Number(event.target.value); return nextValues; })}><option value={-1}>기능 선택</option>{question.matchOptions?.map((option, optionIndex) => <option key={option} value={optionIndex}>{option}</option>)}</select></label>)}<button className="response-submit" onClick={submitResponse} disabled={matches.filter((value) => value >= 0).length !== question.choices.length || submitted}>연결 완료</button></div>}
-            {kind === "essay" && <div className="essay-response"><div className="rubric-preview"><strong>답안 체크 기준</strong>{question.rubricTerms?.map((terms, index) => <span key={terms.join()}>✓ 요소 {index + 1}: {terms.join(" · ")} 중 하나 포함</span>)}<span>✓ {question.minLength}자 이상</span></div><textarea value={textAnswer} onChange={(event) => setTextAnswer(event.target.value)} disabled={submitted} placeholder="자료를 근거로 자신의 생각을 작성하세요." /><div><span>{textAnswer.trim().length} / {question.minLength}자</span><button onClick={submitResponse} disabled={!textAnswer.trim() || submitted}>답안 제출</button></div></div>}
+            {kind === "ladder" && <div className="ladder-game"><div className="ladder-rails" aria-hidden="true"><i /><i /><i /><i /></div>{question.choices.map((left, index) => <label key={left}><b>{left}</b><span>〰〰〰</span><select value={matches[index] ?? -1} disabled={submitted} onChange={(event) => setMatches((values) => { const nextValues = [...values]; nextValues[index] = Number(event.target.value); return nextValues; })}><option value={-1}>도착지 선택</option>{question.matchOptions?.map((option, optionIndex) => <option key={option} value={optionIndex}>{option}</option>)}</select></label>)}<button className="response-submit" onClick={submitResponse} disabled={matches.filter((value) => value >= 0).length !== question.choices.length || submitted}>사다리 출발!</button></div>}
+            {kind === "crossword" && <div className="crossword-game"><div className="crossword-grid" aria-hidden="true">{["자","유","권","평","등","권","사","회","권"].map((letter, index) => <span key={`${letter}-${index}`}>{submitted && correct ? letter : index % 4 === 0 ? index / 4 + 1 : ""}</span>)}</div><div className="crossword-clues">{question.choices.map((clue, index) => <label key={clue}><span>{clue}</span><input value={wordEntries[index] ?? ""} disabled={submitted} onChange={(event) => setWordEntries((values) => { const nextValues = [...values]; nextValues[index] = event.target.value; return nextValues; })} placeholder={`${index + 1}번 정답`} /></label>)}<button className="response-submit" onClick={submitResponse} disabled={wordEntries.filter(Boolean).length !== question.choices.length || submitted}>용어판 완성</button></div></div>}
+            {kind === "essay" && <div className="essay-response"><div className="rubric-preview"><strong>답안 체크 기준</strong>{question.rubricTerms?.map((terms, index) => <span key={terms.join()}>✓ 요소 {index + 1}: {terms.join(" · ")} 중 하나 포함</span>)}<span>✓ {question.minLength}자 이상</span></div>{question.sentenceStem && <p className="sentence-stem">문장 어간: {question.sentenceStem}</p>}{question.writingMode === "claim-evidence" ? <div className="claim-evidence"><label><strong>나의 주장</strong><textarea value={claimAnswer} onChange={(event) => setClaimAnswer(event.target.value)} disabled={submitted} placeholder="무엇을 해야 한다고 생각하나요?" /></label><label><strong>자료 근거</strong><textarea value={evidenceAnswer} onChange={(event) => setEvidenceAnswer(event.target.value)} disabled={submitted} placeholder="자료의 수치·색·순위로 뒷받침하세요." /></label></div> : <textarea value={textAnswer} onChange={(event) => setTextAnswer(event.target.value)} disabled={submitted} placeholder={question.writingMode === "data-opinion" ? "자료에서 확인한 사실 → 나의 의견 → 근거 순서로 작성하세요." : "자료를 근거로 자신의 생각을 작성하세요."} />}<div><span>{(question.writingMode === "claim-evidence" ? claimAnswer.length + evidenceAnswer.length : textAnswer.trim().length)} / {question.minLength}자</span><button onClick={submitResponse} disabled={question.writingMode === "claim-evidence" ? !claimAnswer.trim() || !evidenceAnswer.trim() || submitted : !textAnswer.trim() || submitted}>답안 제출</button></div></div>}
             {!submitted && question.hints && <div className="hint-box"><button onClick={showHint} disabled={hintLevel >= question.hints.length}>힌트 {Math.min(hintLevel + 1, 3)} 보기 {hintLevel === 0 ? "· 감점 없음" : hintLevel === 1 ? "· -5점" : "· -5점"}</button>{hintLevel > 0 && <p>{question.hints[hintLevel - 1]}</p>}</div>}
             {submitted && <div className={`feedback ${correct ? "correct" : "wrong"}`} role="status"><strong>{correct ? kind === "essay" ? "평가 요소를 충족했어요!" : "정답이에요!" : kind === "essay" ? `평가 요소 ${rubricMet}/${question.rubricTerms?.length ?? 0} 충족` : "답을 다시 확인해요."}</strong><p>{question.explanation}</p><button onClick={correct ? next : () => { setSubmitted(false); setChoice(null); }}>{correct ? step === gameQuestions.length - 1 ? "결과 보기" : "다음 문제" : "답안 수정"}<ArrowRight /></button></div>}
           </div>
