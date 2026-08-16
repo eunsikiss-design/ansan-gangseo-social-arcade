@@ -21,8 +21,8 @@ function CharacterPortraitAsset({ characterId, expression, position, pose, label
   // Character art is intentionally independent from dialogue/UI text. Each actor can
   // gain expression-specific PNGs later while the transparent default remains safe.
   const sources = [
-    `/assets/characters/${characterId}/${characterId}_${expression}.png`,
     `/assets/characters/${characterId}/${characterId}_default.png`,
+    `/assets/characters/${characterId}/${characterId}_${expression}.png`,
     `/assets/characters/${characterId}/${characterId}_${expression}.webp`,
     `/assets/characters/${characterId}/${characterId}_default.webp`,
     "/assets/characters/common/silhouette.webp",

@@ -34,6 +34,7 @@ export default function HomePage() {
   const [view, setView] = useState<View>("hub");
   const [hydrated, setHydrated] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [introOpen, setIntroOpen] = useState(false);
   const [audio, setAudio] = useState<AudioSettings>(defaultAudioSettings);
   const [returnPoint, setReturnPoint] = useState<ReturnPoint>(null);
   const [actComplete, setActComplete] = useState(false);
@@ -69,24 +70,25 @@ export default function HomePage() {
   return (
     <main className="arcade-viewport">
       <div className="arcade-phone" aria-label="안산강서고 1학년 통합사회 탐구 아케이드 홈 화면">
-        {view === "hub" && <HubScreen save={save} onNew={startNew} onContinue={continueGame} onMap={() => { setView("map"); interact(); }} onAcademy={() => { setView("academy"); interact("academy"); }} onSettings={() => setSettingsOpen(true)} />}
+        {view === "hub" && <HubScreen save={save} onNew={startNew} onContinue={continueGame} onMap={() => { setView("map"); interact(); }} onAcademy={() => { setView("academy"); interact("academy"); }} onIntro={() => setIntroOpen(true)} onSettings={() => setSettingsOpen(true)} />}
         {view === "map" && <MissionMap save={save} onStart={startMission} onBack={() => setView("hub")} onSettings={() => setSettingsOpen(true)} />}
         {view === "mission" && currentMission && <MissionPlayer key={`${currentMission.id}-${save.currentScene}`} mission={currentMission} save={save} setSave={setSave} onBack={() => setView("map")} onSettings={() => setSettingsOpen(true)} onAcademy={() => { setReturnPoint({ missionId: currentMission.id, scene: save.currentScene }); setView("academy"); }} onActComplete={() => setActComplete(true)} />}
         {view === "academy" && <AcademyScreen save={save} setSave={setSave} returnPoint={returnPoint} onReturn={() => { if (returnPoint) { setSave((prev) => ({ ...prev, currentMission: returnPoint.missionId, currentScene: returnPoint.scene })); setView("mission"); setReturnPoint(null); } else setView("hub"); }} />}
         {view === "record" && <RecordScreen save={save} onBack={() => setView("hub")} />}
         {(view === "hub" || view === "map" || view === "academy" || view === "record") && <BottomNavigation active={view === "map" ? "challenge" : view === "record" ? "record" : view === "academy" ? "growth" : "home"} onNavigate={navigate} />}
         {settingsOpen && <SettingsPanel audio={audio} onChange={updateAudio} onClose={() => setSettingsOpen(false)} />}
+        {introOpen && <GameIntroduction onClose={() => setIntroOpen(false)} />}
         {actComplete && <ActComplete onClose={() => { setActComplete(false); setView("map"); }} />}
       </div>
     </main>
   );
 }
 
-function HubScreen({ save, onNew, onContinue, onMap, onAcademy, onSettings }: { save: SaveData; onNew: () => void; onContinue: () => void; onMap: () => void; onAcademy: () => void; onSettings: () => void }) {
+function HubScreen({ save, onNew, onContinue, onMap, onAcademy, onIntro, onSettings }: { save: SaveData; onNew: () => void; onContinue: () => void; onMap: () => void; onAcademy: () => void; onIntro: () => void; onSettings: () => void }) {
   const hasSave = save.completedMissions.length > 0 || save.currentScene > 0;
   return <MainHubTemplate>
     <div className="hub-hero">
-      <div className="hub-actions-top"><span className="school-badge">안산강서고 · 통합사회2</span><button className="icon-button" onClick={onSettings} aria-label="설정"><Gear size={21} /></button></div>
+      <div className="hub-actions-top"><span className="school-badge">안산강서고 1학년 · 통합사회2</span><div className="hub-quick-actions"><button className="icon-button" onClick={onIntro} aria-label="게임 소개와 교과 연계"><BookOpen size={21} /></button><button className="icon-button" onClick={onSettings} aria-label="설정"><Gear size={21} /></button></div></div>
       <div className="title-lockup"><span>ARCA SOCIAL INVESTIGATION</span><h1>통합사회<br /><em>탐구 아케이드</em></h1><p>사건을 읽고, 근거를 모아, 더 나은 사회를 설계하라.</p></div>
       <div className="hub-character-stage"><CharacterPortrait characterId="haeon" expression="guide" position="left" /><CharacterPortrait characterId="ari" expression="smile" position="right" /></div>
     </div>
@@ -110,8 +112,27 @@ function HubScreen({ save, onNew, onContinue, onMap, onAcademy, onSettings }: { 
         <div><b>05</b><span>인권캠페인 스튜디오</span><small>COMING SOON</small></div>
       </div>
       <div className="coming-strip"><span>FINAL</span><strong>인권수호국 긴급 사건</strong><small>공공의 안전을 위해 시민의 자유를 제한해도 되는가?</small></div>
+      <button className="game-intro-entry" onClick={onIntro}><BookOpen size={24} weight="duotone" /><span><strong>게임 소개 · 교과 연계</strong><small>세계관 스토리와 탐구 파트너를 만나보세요.</small></span><ArrowRight size={18} /></button>
     </div>
   </MainHubTemplate>;
+}
+
+const introCharacters = [
+  { id: "player" as const, name: "탐구관", role: "플레이어 · 신입 탐구관", copy: "사건을 조사하고 자료를 분석해 사회 문제를 해결합니다.", skill: "자료 분석 · 근거 제시 · 의사 결정" },
+  { id: "ari" as const, name: "아리 AR-I", role: "AI 탐구 파트너", copy: "질문과 힌트를 건네며 복잡한 개념과 자료의 연결을 돕습니다.", skill: "탐구 질문 · 개념 연결 · 학습 안내" },
+  { id: "haeon" as const, name: "해온", role: "1단원 · 인권수호관", copy: "기본권을 지키는 가장 중요한 원칙과 실제 사건의 쟁점을 안내합니다.", skill: "인권 렌즈 · 헌법적 판단" },
+  { id: "zero" as const, name: "ZERO", role: "논쟁형 라이벌", copy: "효율과 결과를 앞세운 반론으로 플레이어의 판단 근거를 시험합니다.", skill: "반론 제기 · 논리 검증" },
+];
+
+function GameIntroduction({ onClose }: { onClose: () => void }) {
+  return <div className="modal-backdrop intro-backdrop"><section className="game-introduction" role="dialog" aria-modal="true" aria-labelledby="intro-title">
+    <button className="modal-close" onClick={onClose} aria-label="게임 소개 닫기"><X size={20} /></button>
+    <header><span>GAME GUIDE · 우리가 만드는 사회</span><h2 id="intro-title">통합사회 탐구 아케이드</h2><p>사회를 탐구하고, 판단하고, 함께 더 나은 미래를 만듭니다.</p></header>
+    <div className="intro-story"><strong>STORY · 신입 탐구관의 첫 임무</strong><p>사회의 균형을 지키는 ‘탐구 아카데미’에 기본권 침해 신호가 도착했습니다. 플레이어는 신입 탐구관으로 임명되어 AI 파트너 아리와 함께 사건 현장을 조사합니다. 교과서 자료와 시민의 목소리에서 Evidence를 모으고, 해온의 조언과 ZERO의 반론을 검토해 자신만의 판단을 완성해야 합니다.</p><ol><li>사건을 조사한다.</li><li>자료와 권리 카드를 모은다.</li><li>개념을 적용해 근거를 만든다.</li><li>ZERO의 반론을 검토한다.</li><li>판단을 제출하고 사회 지표의 변화를 확인한다.</li></ol></div>
+    <h3>주요 캐릭터</h3><div className="intro-character-list">{introCharacters.map((character) => <article key={character.id} className={`intro-character intro-${character.id}`}><CharacterPortrait characterId={character.id} expression={character.id === "zero" ? "confident" : "guide"} label={false} /><div><span>{character.role}</span><strong>{character.name}</strong><p>{character.copy}</p><small>{character.skill}</small></div></article>)}</div>
+    <div className="intro-curriculum"><strong>교과 연계</strong><p>인권과 헌법 → 정의와 불평등 → 시장경제와 지속가능발전 → 세계화와 평화 → 미래사회 설계의 순서로 탐구관의 역할과 장비가 성장합니다.</p></div>
+    <button className="primary-button full-button" onClick={onClose}>탐구 시작 준비 완료</button>
+  </section></div>;
 }
 
 function MissionMap({ save, onStart, onBack, onSettings }: { save: SaveData; onStart: (mission: Mission) => void; onBack: () => void; onSettings: () => void }) {
