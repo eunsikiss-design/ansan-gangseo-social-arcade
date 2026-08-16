@@ -1,4 +1,13 @@
-# vinext-starter
+# 통합사회 탐구 아케이드
+
+고등학교 1학년 통합사회 2를 위한 세로형 모바일 학습 게임입니다.
+
+- 다른 개발 도구로 인계할 때: [PROJECT_HANDOFF.md](./PROJECT_HANDOFF.md)
+- Google Antigravity 첫 대화: [ANTIGRAVITY_START.md](./ANTIGRAVITY_START.md)
+
+현재 구현 범위는 1단원 인권의 ACT 1(M01~M06)입니다. 사용자가 요청하기 전에는 ACT 2 또는 새로운 단원을 추가하지 않습니다.
+
+## 기술 기반
 
 A clean full-stack starter running on
 [vinext](https://github.com/cloudflare/vinext), with optional Cloudflare D1 and
