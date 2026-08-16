@@ -3,14 +3,6 @@
   "buildCommand": "npm run build",
   "routes": [
     {
-      "src": "/assets/(.*)",
-      "dest": "/dist/client/assets/$1"
-    },
-    {
-      "src": "/(.*\\.(?:png|jpg|jpeg|gif|svg|ico|webp|js|css|json|txt|woff|woff2))",
-      "dest": "/dist/client/$1"
-    },
-    {
       "src": "/(.*)",
       "dest": "/api/index.js"
     }
