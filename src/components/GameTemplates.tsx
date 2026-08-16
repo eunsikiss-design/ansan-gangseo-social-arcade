@@ -78,5 +78,5 @@ export function StatusBadge({ status }: { status: "new" | "complete" | "locked" 
 }
 
 export function PlayerIdentity() {
-  return <div className="player-identity"><UserCircle size={32} weight="fill" /><div><strong>신입 탐구관</strong><span>인권수호국 · ACT 1</span></div></div>;
+  return <div className="player-identity"><UserCircle size={32} weight="fill" /><div><strong>신입 인권수호관</strong><span>국가인권수호국 · 판례조사과</span></div></div>;
 }

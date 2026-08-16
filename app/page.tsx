@@ -90,13 +90,24 @@ function HubScreen({ save, onNew, onContinue, onMap, onAcademy, onSettings }: { 
     </div>
     <div className="hub-content">
       <PlayerIdentity />
+      <section className="story-brief" aria-label="인권수호국 임무 브리핑">
+        <span>PERSONNEL ORDER · 001</span><h3>신입 인권수호관, 첫 출동을 명합니다.</h3>
+        <p>도시 곳곳의 기본권 침해 신호를 추적해 권리 카드를 회수하세요. 여섯 사건의 기록은 마지막 긴급 판단의 근거가 됩니다.</p>
+      </section>
       <article className="featured-mission">
         <div><span className="overline">오늘의 추천 미션 도전하기</span><h2>UNIT 1 · 인권수호국</h2><p>ACT 1 인권판례 챌린지 · MISSION 01~06</p></div>
         <div className="feature-progress"><span style={{ width: `${save.completedMissions.length / 6 * 100}%` }} /></div>
         <div className="button-row"><button className="primary-button" onClick={onNew}><Play size={18} weight="fill" />새 게임</button>{hasSave && <button className="secondary-button" onClick={onContinue}>이어하기<ArrowRight size={18} /></button>}</div>
       </article>
       <div className="hub-grid"><button className="hub-card" onClick={onMap}><MapTrifold size={28} weight="duotone" /><span>미션 지도</span><small>1단원 인권 보장과 헌법</small></button><button className="hub-card" onClick={onAcademy}><BookOpen size={28} weight="duotone" /><span>탐구 아카데미</span><small>ROOM 1~3 개념 훈련</small></button></div>
-      <div className="coming-strip"><span>ACT 2~5</span><strong>새로운 사건 준비 중</strong><small>MISSION 07~24 · COMING SOON</small></div>
+      <div className="unit-roadmap" aria-label="인권수호관 성장 경로">
+        <div className="active"><b>01</b><span>인권판례 챌린지</span><small>권리 카드 수집 중</small></div>
+        <div><b>02</b><span>기본권수호대</span><small>COMING SOON</small></div>
+        <div><b>03</b><span>헌법소원 시뮬레이터</span><small>COMING SOON</small></div>
+        <div><b>04</b><span>시민참여 미션</span><small>COMING SOON</small></div>
+        <div><b>05</b><span>인권캠페인 스튜디오</span><small>COMING SOON</small></div>
+      </div>
+      <div className="coming-strip"><span>FINAL</span><strong>인권수호국 긴급 사건</strong><small>공공의 안전을 위해 시민의 자유를 제한해도 되는가?</small></div>
     </div>
   </MainHubTemplate>;
 }
@@ -205,4 +216,4 @@ function SettingsPanel({ audio, onChange, onClose }: { audio: AudioSettings; onC
   return <div className="modal-backdrop" role="presentation"><section className="settings-panel" role="dialog" aria-modal="true" aria-labelledby="settings-title"><button className="modal-close" onClick={onClose} aria-label="설정 닫기"><X size={20} /></button><h2 id="settings-title"><Gear size={22} />게임 설정</h2><label className="toggle-row"><span>{audio.bgm ? <Headphones size={21} /> : <SpeakerSlash size={21} />}BGM</span><input type="checkbox" checked={audio.bgm} onChange={(event) => onChange({ bgm: event.target.checked })} /></label><label>BGM 음량 <input type="range" min="0" max="1" step="0.05" value={audio.bgmVolume} onChange={(event) => onChange({ bgmVolume: Number(event.target.value) })} /></label><label className="toggle-row"><span>{audio.sfx ? <SpeakerHigh size={21} /> : <SpeakerSlash size={21} />}효과음</span><input type="checkbox" checked={audio.sfx} onChange={(event) => onChange({ sfx: event.target.checked })} /></label><label>효과음 음량 <input type="range" min="0" max="1" step="0.05" value={audio.sfxVolume} onChange={(event) => onChange({ sfxVolume: Number(event.target.value) })} /></label><p>브라우저 정책에 따라 첫 화면 조작 후 소리가 시작됩니다.</p></section></div>;
 }
 
-function ActComplete({ onClose }: { onClose: () => void }) { return <div className="modal-backdrop completion-backdrop"><section className="act-complete" role="dialog" aria-modal="true" aria-labelledby="complete-title"><Sparkle size={40} weight="fill" /><span>ACT 1 COMPLETE</span><h2 id="complete-title">인권 탐지자</h2><CharacterPortrait characterId="haeon" expression="success" /><p>MISSION 01~06을 모두 해결했습니다.</p><div><Medal size={22} />SKILL · 인권 렌즈 Lv.1</div><button className="primary-button full-button" onClick={onClose}>미션 지도로 돌아가기</button></section></div>; }
+function ActComplete({ onClose }: { onClose: () => void }) { return <div className="modal-backdrop completion-backdrop"><section className="act-complete" role="dialog" aria-modal="true" aria-labelledby="complete-title"><Sparkle size={40} weight="fill" /><span>ACT 1 COMPLETE</span><h2 id="complete-title">신입 인권수호관</h2><CharacterPortrait characterId="haeon" expression="success" /><p>여섯 사건을 해결하고 권리 카드 수집 훈련을 마쳤습니다.</p><div><Medal size={22} />SKILL · 인권 렌즈 Lv.1</div><blockquote>“다음 신고는 학교·직장·온라인에서 동시에 들어왔다. 어떤 기본권이 침해된 것일까?”</blockquote><small>기본권수호대 · COMING SOON</small><button className="primary-button full-button" onClick={onClose}>미션 지도로 돌아가기</button></section></div>; }
