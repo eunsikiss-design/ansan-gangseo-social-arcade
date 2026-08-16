@@ -10,6 +10,7 @@ import type { CharacterExpression, CharacterId, CharacterPosition, SocialIndicat
 const characterNames: Record<CharacterId, string> = { player: "탐구관", ari: "AR-I 아리", haeon: "해온", zero: "ZERO", npc: "NPC 지우" };
 const characterMarks: Record<CharacterId, string> = { player: "탐", ari: "AI", haeon: "해", zero: "0", npc: "지" };
 const expressionMarks: Record<string, string> = { smile: "✦", surprise: "!", think: "?", confident: "◆", guide: "→", research: "⌕", warning: "!", skill: "✧", success: "★", sad: "…", resolve: "▲", serious: "—", worried: "?", angry: "!", challenge: "VS", relieved: "◡", default: "•" };
+const availablePngExpressions = new Set(["player:think", "ari:success", "haeon:serious", "zero:challenge"]);
 
 export function CharacterPortrait({ characterId, expression = "default", position = "center", pose = "standing", label = true }: { characterId: CharacterId; expression?: CharacterExpression; position?: CharacterPosition; pose?: string; label?: boolean }) {
   return <CharacterPortraitAsset key={`${characterId}-${expression}`} characterId={characterId} expression={expression} position={position} pose={pose} label={label} />;
@@ -20,9 +21,11 @@ function CharacterPortraitAsset({ characterId, expression, position, pose, label
   const [loaded, setLoaded] = useState(false);
   // Character art is intentionally independent from dialogue/UI text. Each actor can
   // gain expression-specific PNGs later while the transparent default remains safe.
+  const pngSources = availablePngExpressions.has(`${characterId}:${expression}`)
+    ? [`/assets/characters/${characterId}/${characterId}_${expression}.png`, `/assets/characters/${characterId}/${characterId}_default.png`]
+    : [`/assets/characters/${characterId}/${characterId}_default.png`];
   const sources = [
-    `/assets/characters/${characterId}/${characterId}_default.png`,
-    `/assets/characters/${characterId}/${characterId}_${expression}.png`,
+    ...pngSources,
     `/assets/characters/${characterId}/${characterId}_${expression}.webp`,
     `/assets/characters/${characterId}/${characterId}_default.webp`,
     "/assets/characters/common/silhouette.webp",
