@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ArrowRight,
   ChartBar,
@@ -410,6 +410,10 @@ function GameModal({ game, onClose, onProgress }: { game: ActiveGame; onClose: (
   const [finished, setFinished] = useState(false);
   const [soundOn, setSoundOn] = useState(true);
   const [streak, setStreak] = useState(0);
+  const [elapsed, setElapsed] = useState(0);
+  const [attemptResults, setAttemptResults] = useState<Array<boolean | undefined>>([]);
+  const [responseTimes, setResponseTimes] = useState<number[]>([]);
+  const [hintUsage, setHintUsage] = useState<number[]>([]);
   const question = gameQuestions[step];
   const kind = question.kind ?? "choice";
   const typeLabels = { choice: "선택형", ox: "진위형 OX", short: "단답형", completion: "완성형", matching: "연결형", combination: "배합형", essay: "서술형", initial: "초성 퀴즈", crossword: "가로세로 용어게임", ladder: "사다리 연결게임" };
@@ -419,6 +423,31 @@ function GameModal({ game, onClose, onProgress }: { game: ActiveGame; onClose: (
   } as const;
   const finalScore = Math.max(0, Math.round((score / gameQuestions.length) * 100) - penalty);
   const expectedLevel = finalScore >= 90 ? "A" : finalScore >= 80 ? "B" : finalScore >= 70 ? "C" : finalScore >= 50 ? "D" : "E";
+  const questionTarget = kind === "essay" ? 180 : ["matching", "crossword", "ladder"].includes(kind) ? 75 : 45;
+  const accuracyScore = Math.round((attemptResults.filter(Boolean).length / gameQuestions.length) * 100);
+  const independenceScore = Math.max(0, Math.round(100 - (hintUsage.reduce((sum, value) => sum + value, 0) / Math.max(1, gameQuestions.length * 3)) * 100));
+  const paceScore = responseTimes.length ? Math.round(responseTimes.reduce((sum, seconds, index) => {
+    const targetKind = gameQuestions[index]?.kind ?? "choice";
+    const target = targetKind === "essay" ? 180 : ["matching", "crossword", "ladder"].includes(targetKind) ? 75 : 45;
+    return sum + Math.max(25, Math.min(100, Math.round((target / Math.max(target, seconds)) * 100)));
+  }, 0) / responseTimes.length) : 0;
+  const understandingScore = Math.round(accuracyScore * .6 + independenceScore * .25 + paceScore * .15);
+  const totalTime = responseTimes.reduce((sum, value) => sum + value, 0);
+  const slowestTime = Math.max(1, ...responseTimes);
+  const formatTime = (seconds: number) => `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
+
+  useEffect(() => {
+    if (finished || submitted) return;
+    const timer = window.setInterval(() => setElapsed((value) => value + 1), 1000);
+    return () => window.clearInterval(timer);
+  }, [finished, step, submitted]);
+
+  const recordFirstAttempt = (result: boolean) => {
+    if (attemptResults[step] !== undefined) return;
+    setAttemptResults((values) => { const next = [...values]; next[step] = result; return next; });
+    setResponseTimes((values) => { const next = [...values]; next[step] = Math.max(1, elapsed); return next; });
+    setHintUsage((values) => { const next = [...values]; next[step] = hintLevel; return next; });
+  };
 
   const playSound = (tone: "correct" | "wrong" | "complete") => {
     if (!soundOn || typeof window === "undefined") return;
@@ -445,6 +474,7 @@ function GameModal({ game, onClose, onProgress }: { game: ActiveGame; onClose: (
     if (submitted) return;
     setChoice(index);
     const result = index === question.answer;
+    recordFirstAttempt(result);
     setCorrect(result);
     setSubmitted(true);
     playSound(result ? "correct" : "wrong");
@@ -469,6 +499,7 @@ function GameModal({ game, onClose, onProgress }: { game: ActiveGame; onClose: (
       setRubricMet(met);
       result = compact.length >= (question.minLength ?? 30) && met >= Math.ceil((question.rubricTerms?.length ?? 1) * 2 / 3);
     }
+    recordFirstAttempt(result);
     setCorrect(result);
     setSubmitted(true);
     playSound(result ? "correct" : "wrong");
@@ -494,6 +525,7 @@ function GameModal({ game, onClose, onProgress }: { game: ActiveGame; onClose: (
     if (!question.hints || hintLevel >= question.hints.length) return;
     const nextLevel = hintLevel + 1;
     setHintLevel(nextLevel);
+    setHintUsage((values) => { const next = [...values]; next[step] = Math.max(next[step] ?? 0, nextLevel); return next; });
     if (nextLevel === 2 || nextLevel === 3) setPenalty((value) => value + 5);
   };
 
@@ -512,6 +544,7 @@ function GameModal({ game, onClose, onProgress }: { game: ActiveGame; onClose: (
     }
     setStep((value) => value + 1);
     resetResponse();
+    setElapsed(0);
     setHintLevel(0);
   };
 
@@ -521,6 +554,10 @@ function GameModal({ game, onClose, onProgress }: { game: ActiveGame; onClose: (
     setScore(0);
     setPenalty(0);
     setStreak(0);
+    setElapsed(0);
+    setAttemptResults([]);
+    setResponseTimes([]);
+    setHintUsage([]);
     setHintLevel(0);
     setFinished(false);
   };
@@ -538,8 +575,13 @@ function GameModal({ game, onClose, onProgress }: { game: ActiveGame; onClose: (
             <Trophy size={64} weight="duotone" />
             <span>미션 완료</span>
             <h3>{finalScore}점 · 예상 {expectedLevel} 수준</h3>
-            <p>정답 {score}/{gameQuestions.length} · 감점 {penalty}점 · <strong>{finalScore} XP</strong> 획득</p>
+            <p>정답 {score}/{gameQuestions.length} · 감점 {penalty}점 · 총 {formatTime(totalTime)} · <strong>{finalScore} XP</strong> 획득</p>
             {game.unit.id === 1 && finalScore >= 70 && <div className="earned-item"><span>{story.icon}</span><div><small>새 장비 획득!</small><strong>{story.item}</strong></div></div>}
+            <section className="learning-dashboard" aria-label="학습 분석 그래프">
+              <div className="score-rings"><article style={{ "--score": `${accuracyScore * 3.6}deg` } as React.CSSProperties}><div><strong>{accuracyScore}%</strong><span>정확도</span></div><p>첫 시도에 정확히 해결한 정도</p></article><article style={{ "--score": `${understandingScore * 3.6}deg` } as React.CSSProperties}><div><strong>{understandingScore}%</strong><span>이해도</span></div><p>정확도·힌트·속도 종합</p></article></div>
+              <div className="analysis-bars"><h4>학습 요소</h4>{[["첫 시도 정확성", accuracyScore], ["힌트 독립성", independenceScore], ["풀이 속도", paceScore]].map(([label, value]) => <label key={label}><span>{label}</span><i><b style={{ width: `${value}%` }} /></i><strong>{value}%</strong></label>)}</div>
+              <div className="time-chart"><h4>문항별 풀이 시간 <span>총 {formatTime(totalTime)}</span></h4><div>{responseTimes.map((seconds, index) => <label key={index} title={`${index + 1}번 ${formatTime(seconds)}`}><i><b style={{ height: `${Math.max(12, (seconds / slowestTime) * 100)}%` }} /></i><span>{index + 1}</span><small>{seconds}초</small></label>)}</div></div>
+            </section>
             <div className="competency-grid"><span>개념 정확성 <b>{Math.round(finalScore * .3)}/30</b></span><span>자료 활용 <b>{Math.round(finalScore * .25)}/25</b></span><span>근거 타당성 <b>{Math.round(finalScore * .25)}/25</b></span><span>해결·표현 <b>{Math.round(finalScore * .2)}/20</b></span></div>
             <div className="result-note"><strong>{finalScore >= 70 ? "다음 레벨이 열렸어요!" : "70점 이상이면 다음 레벨이 열려요."}</strong><span>강점: {question.competency ?? "개념 이해"} · 추천: {finalScore >= 70 ? "다음 미션 도전" : "힌트를 활용해 다시 도전"}</span></div>
             <div className="result-actions"><button onClick={retry}><ArrowCounterClockwise /> 다시 도전</button><button onClick={onClose}>홈으로</button></div>
@@ -549,7 +591,7 @@ function GameModal({ game, onClose, onProgress }: { game: ActiveGame; onClose: (
             {game.unit.id === 1 && <article className="story-banner"><div className="story-character"><span>🧑‍🚀</span>{unitOneStories.slice(0, game.level).map((item) => <i key={item.item}>{item.icon}</i>)}</div><div><small>STORY · {story.place}</small><strong>{story.mission}</strong></div></article>}
             <div className="game-progress"><span>문제 {step + 1} / {gameQuestions.length}</span><i><b style={{ width: `${((step + 1) / gameQuestions.length) * 100}%` }} /></i><strong>{Math.max(0, Math.round((score / gameQuestions.length) * 100) - penalty)}점</strong>{streak >= 2 && <em>🔥 {streak} COMBO</em>}</div>
             <p className="game-kicker">{question.competency ?? "핵심 개념 탐구"} <b>{typeLabels[kind]}</b></p>
-            <div className="interaction-guide"><span>{interactionGuides[kind][0]}</span><strong>{interactionGuides[kind][1]}</strong><i>GO!</i></div>
+            <div className="interaction-guide"><span>{interactionGuides[kind][0]}</span><strong>{interactionGuides[kind][1]}</strong><time className={elapsed > questionTarget ? "overtime" : ""} aria-label={`풀이 시간 ${formatTime(elapsed)}`}>⏱ {formatTime(elapsed)}</time><i>GO!</i></div>
             {question.source && <article className="source-card"><span>{question.sourceLabel ?? "탐구 자료"}</span><p>{question.source}</p></article>}
             {question.sourceImage && <figure className="textbook-visual"><img src={question.sourceImage} alt={question.sourceAlt ?? "교과서 탐구 자료"} /><figcaption>{question.sourceLabel ?? "교과서 자료"} · 미래엔 통합사회2</figcaption></figure>}
             <h3>{question.prompt}</h3>

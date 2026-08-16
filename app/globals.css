@@ -199,8 +199,11 @@ button:focus-visible { outline: 3px solid #57f1e7; outline-offset: 3px; }
 .interaction-guide { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; padding: 8px 10px; color: #61533e; border: 1px dashed #c7a85d; border-radius: 10px; background: #fff4ce; font-size: 10px; }
 .interaction-guide > span { font-size: 19px; animation: guide-bob 1.25s ease-in-out infinite; }
 .interaction-guide strong { flex: 1; }
+.interaction-guide time { min-width: 66px; padding: 6px 8px; color: #24584b; text-align: center; border: 1px solid #9ebca8; border-radius: 8px; background: #e7f4eb; font-size: 11px; font-weight: 950; font-variant-numeric: tabular-nums; letter-spacing: .4px; }
+.interaction-guide time.overtime { color: #9f392c; border-color: #d99888; background: #ffe4dc; animation: timer-alert .8s ease-in-out infinite alternate; }
 .interaction-guide i { padding: 3px 6px; color: #fff; border-radius: 5px; background: var(--unit); font-size: 8px; font-style: normal; letter-spacing: .5px; }
 @keyframes guide-bob { 50% { transform: translateY(-3px) rotate(4deg); } }
+@keyframes timer-alert { to { transform: scale(1.05); box-shadow: 0 0 0 4px #d9583520; } }
 .game-body > h3 { min-height: 59px; margin: 0 0 18px; font-size: 23px; line-height: 1.35; word-break: keep-all; }
 .source-card { margin: 15px 0 14px; padding: 14px 15px; border: 1px solid #cdb681; border-left: 5px solid var(--unit); border-radius: 11px; background: #fffdf6; box-shadow: 0 4px 11px #6e543015; }
 .source-card span { color: var(--unit); font-size: 11px; font-weight: 950; }
@@ -306,6 +309,29 @@ button:focus-visible { outline: 3px solid #57f1e7; outline-offset: 3px; }
 .game-result > span { margin-top: 12px; color: var(--unit); font-size: 12px; font-weight: 950; }
 .game-result h3 { margin: 5px 0; font-size: 34px; }
 .game-result p { color: #765f48; }
+.learning-dashboard { width: 100%; margin-top: 12px; display: grid; grid-template-columns: .9fr 1.1fr; gap: 9px; text-align: left; }
+.score-rings { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+.score-rings article { display: grid; justify-items: center; align-content: start; padding: 10px 6px; border: 1px solid #d8c7a4; border-radius: 12px; background: #fffdf7; }
+.score-rings article > div { width: 82px; height: 82px; display: grid; place-content: center; justify-items: center; position: relative; border-radius: 50%; background: conic-gradient(var(--unit) var(--score), #e4dcc9 0); }
+.score-rings article > div::after { content: ""; position: absolute; inset: 9px; border-radius: 50%; background: #fffdf7; }
+.score-rings article strong, .score-rings article span { position: relative; z-index: 1; display: block; }
+.score-rings article strong { color: var(--unit); font-size: 20px; line-height: 1; }.score-rings article span { margin-top: 3px; color: #75644e; font-size: 9px; font-weight: 900; }
+.score-rings article p { margin: 6px 0 0; color: #89765e; text-align: center; font-size: 8px; line-height: 1.35; }
+.analysis-bars { display: grid; gap: 7px; padding: 10px; border: 1px solid #d8c7a4; border-radius: 12px; background: #fffdf7; }
+.analysis-bars h4, .time-chart h4 { margin: 0 0 3px; color: #554733; font-size: 11px; }
+.analysis-bars label { display: grid; grid-template-columns: 78px 1fr 32px; align-items: center; gap: 6px; color: #75644f; font-size: 8px; }
+.analysis-bars label i { height: 8px; overflow: hidden; border-radius: 999px; background: #e5dcc8; }
+.analysis-bars label i b { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #dca53a, var(--unit)); animation: analysis-grow .8s ease both; }
+.analysis-bars label > strong { color: var(--unit); text-align: right; font-size: 9px; }
+@keyframes analysis-grow { from { width: 0 !important; } }
+.time-chart { grid-column: 1 / -1; padding: 10px; border: 1px solid #d8c7a4; border-radius: 12px; background: #fffdf7; }
+.time-chart h4 { display: flex; justify-content: space-between; }.time-chart h4 span { color: var(--unit); font-size: 9px; }
+.time-chart > div { height: 92px; display: flex; align-items: end; justify-content: space-around; gap: 5px; padding-top: 5px; border-bottom: 1px solid #cdbf9f; }
+.time-chart label { height: 100%; flex: 1; display: grid; grid-template-rows: 1fr auto auto; justify-items: center; gap: 2px; color: #75644e; font-size: 8px; }
+.time-chart label i { width: min(25px, 75%); height: 100%; display: flex; align-items: end; border-radius: 5px 5px 0 0; background: #eee6d6; }
+.time-chart label i b { width: 100%; display: block; border-radius: 5px 5px 0 0; background: linear-gradient(180deg, #e1b64d, var(--unit)); animation: time-grow .7s ease both; }
+.time-chart label small { color: #978168; font-size: 7px; }
+@keyframes time-grow { from { height: 0 !important; } }
 .earned-item { display: flex; align-items: center; gap: 10px; margin: 6px 0; padding: 9px 14px; border: 2px solid #d6aa42; border-radius: 13px; background: #fff3bd; box-shadow: 0 5px 12px #865f1925; }
 .earned-item > span { font-size: 31px; }
 .earned-item small, .earned-item strong { display: block; text-align: left; }
@@ -397,6 +423,10 @@ button:focus-visible { outline: 3px solid #57f1e7; outline-offset: 3px; }
   .game-body > h3 { min-height: 0; font-size: 20px; }
   .answer-list button { min-height: 51px; }
   .matching-list label { grid-template-columns: 1fr; gap: 5px; }
+  .interaction-guide { flex-wrap: wrap; }
+  .interaction-guide strong { min-width: 170px; }
+  .learning-dashboard { grid-template-columns: 1fr; }
+  .time-chart { grid-column: auto; }
   .matching-arena { grid-template-columns: 1fr 24px 1fr; gap: 5px; }
   .matching-column button { min-height: 50px; padding: 6px; }
   .matching-column button b { width: 23px; height: 23px; }
@@ -411,7 +441,7 @@ button:focus-visible { outline: 3px solid #57f1e7; outline-offset: 3px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .question-stage, .answer-list button, .interaction-guide > span, .game-progress i b, .connection-core span, .connection-core i, .success-burst span, .stage-success .ladder-rails::after { animation: none !important; }
+  .question-stage, .answer-list button, .interaction-guide > span, .interaction-guide time, .game-progress i b, .connection-core span, .connection-core i, .success-burst span, .stage-success .ladder-rails::after, .analysis-bars label i b, .time-chart label i b { animation: none !important; }
 }
 
 @media (max-width: 470px) {
