@@ -7,37 +7,107 @@ import {
 } from "@phosphor-icons/react";
 import type { CharacterExpression, CharacterId, CharacterPosition, SocialIndicators, TemplateStatus } from "@/src/game/types";
 
-const characterNames: Record<CharacterId, string> = { player: "탐구관", ari: "AR-I 아리", haeon: "해온", zero: "ZERO", npc: "NPC 지우" };
+const characterNames: Record<CharacterId, string> = { player: "탐구관", ari: "AR-I 아리", haeon: "해온", zero: "ZERO", npc: "지우 (의뢰인)" };
 const characterMarks: Record<CharacterId, string> = { player: "탐", ari: "AI", haeon: "해", zero: "0", npc: "지" };
 const expressionMarks: Record<string, string> = { smile: "✦", surprise: "!", think: "?", confident: "◆", guide: "→", research: "⌕", warning: "!", skill: "✧", success: "★", sad: "…", resolve: "▲", serious: "—", worried: "?", angry: "!", challenge: "VS", relieved: "◡", default: "•" };
-const availablePngExpressions = new Set(["player:think", "ari:success", "haeon:serious", "zero:challenge"]);
 
-export function CharacterPortrait({ characterId, expression = "default", position = "center", pose = "standing", label = true }: { characterId: CharacterId; expression?: CharacterExpression; position?: CharacterPosition; pose?: string; label?: boolean }) {
-  return <CharacterPortraitAsset key={`${characterId}-${expression}`} characterId={characterId} expression={expression} position={position} pose={pose} label={label} />;
+export function CharacterPortrait({
+  characterId,
+  expression = "default",
+  position = "center",
+  pose = "standing",
+  size = "md",
+  label = true,
+  className = "",
+}: {
+  characterId: CharacterId;
+  expression?: CharacterExpression;
+  position?: CharacterPosition;
+  pose?: string;
+  size?: "avatar" | "sm" | "md" | "lg" | "bust" | "full";
+  label?: boolean;
+  className?: string;
+}) {
+  return (
+    <CharacterPortraitAsset
+      key={`${characterId}-${expression}-${size}`}
+      characterId={characterId}
+      expression={expression}
+      position={position}
+      pose={pose}
+      size={size}
+      label={label}
+      className={className}
+    />
+  );
 }
 
-function CharacterPortraitAsset({ characterId, expression, position, pose, label }: { characterId: CharacterId; expression: CharacterExpression; position: CharacterPosition; pose: string; label: boolean }) {
+function CharacterPortraitAsset({
+  characterId,
+  expression,
+  position,
+  pose,
+  size = "md",
+  label,
+  className = "",
+}: {
+  characterId: CharacterId;
+  expression: CharacterExpression;
+  position: CharacterPosition;
+  pose: string;
+  size?: "avatar" | "sm" | "md" | "lg" | "bust" | "full";
+  label: boolean;
+  className?: string;
+}) {
   const [assetStep, setAssetStep] = useState(0);
   const [loaded, setLoaded] = useState(false);
-  // Character art is intentionally independent from dialogue/UI text. Each actor can
-  // gain expression-specific PNGs later while the transparent default remains safe.
-  const pngSources = availablePngExpressions.has(`${characterId}:${expression}`)
-    ? [`/assets/characters/${characterId}/${characterId}_${expression}.png`, `/assets/characters/${characterId}/${characterId}_default.png`]
-    : [`/assets/characters/${characterId}/${characterId}_default.png`];
+
+  // Candidate image paths with graceful cascading fallback
   const sources = [
-    ...pngSources,
+    `/assets/characters/${characterId}/${characterId}_${expression}.png`,
+    `/assets/characters/${characterId}/${characterId}_default.png`,
     `/assets/characters/${characterId}/${characterId}_${expression}.webp`,
     `/assets/characters/${characterId}/${characterId}_default.webp`,
+    `/assets/characters/${characterId}/${characterId}.png`,
     "/assets/characters/common/silhouette.webp",
   ];
+
   const hasAsset = assetStep < sources.length;
 
   return (
-    <figure className={`character character-${characterId} character-${position} expression-${expression}`} data-character={characterId} data-expression={expression} data-pose={pose} aria-label={`${characterNames[characterId]} ${expression} 표정`}>
-      {/* Dynamic fallback candidates are intentionally handled by a native image element. */}
+    <figure
+      className={`character character-${characterId} character-${position} character-size-${size} expression-${expression} ${className}`}
+      data-character={characterId}
+      data-expression={expression}
+      data-pose={pose}
+      aria-label={`${characterNames[characterId] || characterId} ${expression} 표정`}
+    >
+      {/* Dynamic fallback candidates handled with smooth loading */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      {hasAsset && <img src={sources[assetStep]} alt="" aria-hidden="true" className={loaded ? "character-image loaded" : "character-image"} onLoad={() => setLoaded(true)} onError={() => { setLoaded(false); setAssetStep((step) => step + 1); }} />}
-      {!loaded && <div className="character-fallback" aria-hidden="true"><span className="character-halo" /><span className="character-head"><i>{expressionMarks[expression] ?? expressionMarks.default}</i></span><span className="character-body"><b>{characterMarks[characterId]}</b></span></div>}
+      {hasAsset && (
+        <img
+          src={sources[assetStep]}
+          alt={characterNames[characterId] || characterId}
+          aria-hidden="true"
+          className={`character-image ${loaded ? "loaded" : "loading"}`}
+          onLoad={() => setLoaded(true)}
+          onError={() => {
+            setLoaded(false);
+            setAssetStep((step) => step + 1);
+          }}
+        />
+      )}
+      {!loaded && (
+        <div className="character-fallback" aria-hidden="true">
+          <span className="character-halo" />
+          <span className="character-head">
+            <i>{expressionMarks[expression] ?? expressionMarks.default}</i>
+          </span>
+          <span className="character-body">
+            <b>{characterMarks[characterId] ?? "•"}</b>
+          </span>
+        </div>
+      )}
       {label && <figcaption>{characterNames[characterId]}</figcaption>}
     </figure>
   );
