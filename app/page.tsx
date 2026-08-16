@@ -86,6 +86,14 @@ export default function HomePage() {
 
 function HubScreen({ save, onNew, onContinue, onMap, onAcademy, onIntro, onSettings }: { save: SaveData; onNew: () => void; onContinue: () => void; onMap: () => void; onAcademy: () => void; onIntro: () => void; onSettings: () => void }) {
   const hasSave = save.completedMissions.length > 0 || save.currentScene > 0;
+  const units = [
+    ["unit-human-rights.png", "인권 보장과 헌법", "권리 카드 수집 중"], ["unit-justice.png", "사회 정의와 불평등", "COMING SOON"],
+    ["unit-market.png", "시장경제와 지속가능발전", "COMING SOON"], ["unit-global-peace.png", "세계화와 평화", "COMING SOON"], ["unit-future.png", "미래와 지속가능한 삶", "COMING SOON"],
+  ];
+  const themes = [
+    ["theme-human-rights.png", "국내외 인권 문제"], ["theme-inequality.png", "사회·공간 불평등"], ["theme-trade.png", "현대 세계 무역"],
+    ["theme-globalization.png", "세계화의 문제점"], ["theme-cooperation.png", "국제사회 갈등과 협력"],
+  ];
   return <MainHubTemplate>
     <div className="hub-hero">
       <div className="hub-actions-top"><span className="school-badge">안산강서고 1학년 · 통합사회2</span><div className="hub-quick-actions"><button className="icon-button" onClick={onIntro} aria-label="게임 소개와 교과 연계"><BookOpen size={21} /></button><button className="icon-button" onClick={onSettings} aria-label="설정"><Gear size={21} /></button></div></div>
@@ -95,22 +103,19 @@ function HubScreen({ save, onNew, onContinue, onMap, onAcademy, onIntro, onSetti
     <div className="hub-content">
       <PlayerIdentity />
       <section className="story-brief" aria-label="인권수호국 임무 브리핑">
+        <img className="brief-icon" src="/assets/icons/gameplay/human-rights-lens.png" alt="인권 렌즈" />
         <span>PERSONNEL ORDER · 001</span><h3>신입 인권수호관, 첫 출동을 명합니다.</h3>
         <p>도시 곳곳의 기본권 침해 신호를 추적해 권리 카드를 회수하세요. 여섯 사건의 기록은 마지막 긴급 판단의 근거가 됩니다.</p>
       </section>
       <article className="featured-mission">
+        <img className="featured-icon" src="/assets/icons/units/unit-human-rights.png" alt="인권 보장과 헌법 단원" />
         <div><span className="overline">오늘의 추천 미션 도전하기</span><h2>UNIT 1 · 인권수호국</h2><p>ACT 1 인권판례 챌린지 · MISSION 01~06</p></div>
         <div className="feature-progress"><span style={{ width: `${save.completedMissions.length / 6 * 100}%` }} /></div>
         <div className="button-row"><button className="primary-button" onClick={onNew}><Play size={18} weight="fill" />새 게임</button>{hasSave && <button className="secondary-button" onClick={onContinue}>이어하기<ArrowRight size={18} /></button>}</div>
       </article>
       <div className="hub-grid"><button className="hub-card" onClick={onMap}><MapTrifold size={28} weight="duotone" /><span>미션 지도</span><small>1단원 인권 보장과 헌법</small></button><button className="hub-card" onClick={onAcademy}><BookOpen size={28} weight="duotone" /><span>탐구 아카데미</span><small>ROOM 1~3 개념 훈련</small></button></div>
-      <div className="unit-roadmap" aria-label="인권수호관 성장 경로">
-        <div className="active"><b>01</b><span>인권판례 챌린지</span><small>권리 카드 수집 중</small></div>
-        <div><b>02</b><span>기본권수호대</span><small>COMING SOON</small></div>
-        <div><b>03</b><span>헌법소원 시뮬레이터</span><small>COMING SOON</small></div>
-        <div><b>04</b><span>시민참여 미션</span><small>COMING SOON</small></div>
-        <div><b>05</b><span>인권캠페인 스튜디오</span><small>COMING SOON</small></div>
-      </div>
+      <h2 className="hub-section-title">5개 단원</h2><div className="unit-roadmap visual-roadmap" aria-label="탐구관 성장 경로">{units.map(([icon, title, status], index) => <div key={icon} className={index === 0 ? "active" : ""}><img src={`/assets/icons/units/${icon}`} alt="" /><b>{index + 1}</b><span>{title}</span><small>{status}</small></div>)}</div>
+      <h2 className="hub-section-title">공통주제 자유 도전</h2><div className="theme-icon-grid">{themes.map(([icon, title]) => <button key={icon} onClick={onMap}><img src={`/assets/icons/themes/${icon}`} alt="" /><span>{title}</span></button>)}</div>
       <div className="coming-strip"><span>FINAL</span><strong>인권수호국 긴급 사건</strong><small>공공의 안전을 위해 시민의 자유를 제한해도 되는가?</small></div>
       <button className="game-intro-entry" onClick={onIntro}><BookOpen size={24} weight="duotone" /><span><strong>게임 소개 · 교과 연계</strong><small>세계관 스토리와 탐구 파트너를 만나보세요.</small></span><ArrowRight size={18} /></button>
     </div>
