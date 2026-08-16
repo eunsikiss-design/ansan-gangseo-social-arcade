@@ -114,6 +114,28 @@ button:disabled { cursor:not-allowed; opacity:.48; }
 @media (min-width:700px){.arcade-phone{min-height:min(100dvh,960px);height:min(100dvh,960px);border:1px solid #ffffff22;border-radius:26px}.template-frame,.mission-screen{min-height:calc(min(100dvh,960px) - 68px)}.zero-challenge-template{min-height:calc(min(100dvh,960px) - 93px)!important}.mission-stage{min-height:calc(min(100dvh,960px) - 92px)}.bottom-navigation{border-radius:0 0 26px 26px}}
 @media (max-width:380px){.title-lockup h1{font-size:35px}.hub-character-stage{opacity:.72}.screen-scroll,.mission-stage{padding-left:14px;padding-right:14px}.zero-challenge-template{margin-left:-14px;margin-right:-14px;width:calc(100% + 28px)!important}.level-chip{font-size:9px}.mini-indicators{gap:7px}.result-reactions .character{transform:scale(.88)}}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
+
+/* Reference art direction: navy command console + gold-trimmed paper evidence. */
+.template-frame::before,.mission-screen::before{content:"";position:absolute;inset:0;pointer-events:none;opacity:.22;background:radial-gradient(circle at 18% 8%,transparent 0 42px,#d9b66018 43px 44px,transparent 45px),linear-gradient(115deg,transparent 0 48%,#ffffff08 49%,transparent 50%)}
+.screen-scroll,.mission-stage{position:relative;z-index:1}
+.template-heading{position:relative;padding:14px 15px 15px;border:1px solid #d7b55a48;border-radius:16px;background:linear-gradient(145deg,#10344aee,#081d2bee);box-shadow:inset 0 1px #ffffff16,0 10px 26px #0003}
+.template-heading::after{content:"";position:absolute;left:15px;right:15px;bottom:7px;height:1px;background:linear-gradient(90deg,transparent,#d7b55a80,transparent)}
+.template-heading h2{color:#fff7dd;text-shadow:0 2px 12px #000}
+.featured-mission,.story-brief,.academy-guide,.rank-panel{box-shadow:inset 0 0 0 1px #ffffff08,0 12px 30px #0003}
+.featured-mission,.story-brief{border-color:#d8b76570}
+.investigation-list button,.room-list button,.evidence-card,.decision-options button,.choice-grid button,.concept-card-grid button{position:relative;overflow:hidden;border-color:#c7a95a42;box-shadow:inset 0 1px #ffffff0c}
+.investigation-list button::after,.room-list button::after,.evidence-card::after,.decision-options button::after{content:"";position:absolute;inset:5px;border:1px solid #ffffff08;border-radius:10px;pointer-events:none}
+.source-paper{background:linear-gradient(135deg,#fff7dc,#e9e0c2);color:#1f2c32;border:1px solid #e0bd69;box-shadow:8px 8px 0 #082333,0 14px 36px #0005}
+.dialogue-box{background:linear-gradient(145deg,#fff9e8,#e8dfc6);border:2px solid #d1aa55;color:#142631;box-shadow:0 -12px 40px #0007,inset 0 0 0 3px #fff9}
+.dialogue-box>strong{color:#75500d}.dialogue-box p{color:#172b35}
+.character-image{filter:drop-shadow(0 14px 16px #0009)}
+.character-ari .character-image{filter:drop-shadow(0 0 13px #42dff088) drop-shadow(0 14px 16px #0008)}
+.character-zero .character-image{filter:drop-shadow(0 0 12px #8b56d855) drop-shadow(0 14px 16px #0009)}
+.mission-node{border-color:#caaa5740;background:linear-gradient(145deg,#11364a,#091f2e)}
+.mission-node.unlocked{border-color:#e0bd6c88}.mission-number{border:1px solid #d4b05860;background:radial-gradient(circle,#28536a,#112d3d);border-radius:50%}
+.game-hud{border-bottom-color:#d4b15c55;box-shadow:0 7px 22px #0005}.bottom-navigation{border-top-color:#d4b15c50}
+.zero-dialogue{border-color:#bd8bff80;box-shadow:inset 0 0 20px #8d4cff14}
+@media (max-width:420px){.dialogue-stage{min-height:300px}.character{min-height:165px}.template-heading{padding:12px 13px 14px}.template-heading h2{font-size:23px}}
 .story-brief{padding:15px 16px;border-radius:17px;background:linear-gradient(135deg,#173b4d,#0a2231);border:1px solid #ffd36a42;position:relative;overflow:hidden}.story-brief::after{content:"CLASSIFIED";position:absolute;right:-8px;top:12px;transform:rotate(8deg);border:2px solid #ffcf5c55;color:#ffcf5c77;padding:3px 8px;font-size:9px;font-weight:900;letter-spacing:.13em}.story-brief>span{color:var(--gold);font-size:9px;font-weight:900;letter-spacing:.12em}.story-brief h3{margin:7px 64px 5px 0;font-size:15px}.story-brief p{margin:0;color:#bcd0d8;font-size:11px;line-height:1.65}
 .unit-roadmap{display:grid;gap:7px}.unit-roadmap>div{display:grid;grid-template-columns:34px 1fr auto;align-items:center;gap:8px;padding:9px 11px;border-radius:12px;background:#ffffff07;border:1px solid #ffffff10;color:#79939e}.unit-roadmap>div.active{background:#0f4548;border-color:#25d9cb66;color:#e7fbfa}.unit-roadmap b{width:28px;height:28px;display:grid;place-items:center;border-radius:8px;background:#173648;color:var(--gold);font-size:10px}.unit-roadmap span{font-size:11px;font-weight:800}.unit-roadmap small{font-size:8px;color:#7894a0}.unit-roadmap .active small{color:var(--teal-soft)}
 .act-complete blockquote{margin:12px 0 3px;padding:11px;border-left:3px solid var(--purple);background:#ffffff09;border-radius:0 10px 10px 0;color:#d9d0fa;font-size:11px;line-height:1.6;text-align:left}.act-complete>small{color:#9fb5c0;font-size:9px;letter-spacing:.08em}

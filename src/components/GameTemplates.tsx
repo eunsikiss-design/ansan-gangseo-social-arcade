@@ -18,7 +18,15 @@ export function CharacterPortrait({ characterId, expression = "default", positio
 function CharacterPortraitAsset({ characterId, expression, position, pose, label }: { characterId: CharacterId; expression: CharacterExpression; position: CharacterPosition; pose: string; label: boolean }) {
   const [assetStep, setAssetStep] = useState(0);
   const [loaded, setLoaded] = useState(false);
-  const sources = [`/assets/characters/${characterId}/${characterId}_${expression}.webp`, `/assets/characters/${characterId}/${characterId}_default.webp`, "/assets/characters/common/silhouette.webp"];
+  // Character art is intentionally independent from dialogue/UI text. Each actor can
+  // gain expression-specific PNGs later while the transparent default remains safe.
+  const sources = [
+    `/assets/characters/${characterId}/${characterId}_${expression}.png`,
+    `/assets/characters/${characterId}/${characterId}_default.png`,
+    `/assets/characters/${characterId}/${characterId}_${expression}.webp`,
+    `/assets/characters/${characterId}/${characterId}_default.webp`,
+    "/assets/characters/common/silhouette.webp",
+  ];
   const hasAsset = assetStep < sources.length;
 
   return (
