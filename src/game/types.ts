@@ -22,6 +22,8 @@ export interface Scene {
   bgm?: string;
   sfx?: string;
   next?: string;
+  image?: string;
+  imageAlt?: string;
 }
 
 export interface EvidenceCardData {
@@ -91,6 +93,7 @@ export interface SaveData {
   studentChoices: Record<string, number>;
   decisionHistory: { missionId: string; choice: number; evidenceIds: string[] }[];
   mastery: Record<string, number>;
+  academyDrafts: Record<string, Record<string, string>>;
   reviewConcepts: string[];
   skill: string[];
   achievement: string[];

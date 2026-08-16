@@ -1,6 +1,6 @@
 import type { EvidenceCardData, Mission, MissionStep, Scene } from "@/src/game/types";
 
-const scene = (id: string, speaker: string, text: string, character: Scene["character"], expression: string, background = "hq_lobby", position: Scene["position"] = "right"): Scene => ({ id, speaker, text, character, expression, background, position });
+const scene = (id: string, speaker: string, text: string, character: Scene["character"], expression: string, background = "hq_lobby", position: Scene["position"] = "right", image?: string, imageAlt?: string): Scene => ({ id, speaker, text, character, expression, background, position, image, imageAlt });
 const activity = (id: string, type: MissionStep["type"], title: string, extras: Partial<MissionStep> = {}): MissionStep => ({ id, type, title, ...extras });
 const mission = (data: Omit<Mission, "actId" | "required" | "estimatedMinutes" | "backgrounds" | "endingScenes">): Mission => ({
   actId: "act-1", required: true, estimatedMinutes: 9, backgrounds: [data.openingScenes[0]?.background ?? "hq_lobby"], endingScenes: [], ...data,
@@ -48,10 +48,10 @@ export const missions: Mission[] = [
     ],
     activities: [
       activity("m02-b", "briefing", "사건번호 HR-002 · DNA 해킹", { body: "보편성·천부성·불가침성·항구성을 각각의 왜곡된 주장과 정확히 연결하세요." }),
-      activity("m02-p1", "puzzle", "DNA 1 · 보편성", { question: "‘국적이 다르면 인권을 인정하지 않아도 된다’는 주장에 맞서는 특성은?", choices: ["보편성", "천부성", "불가침성", "항구성"], answer: 0 }),
-      activity("m02-p2", "puzzle", "DNA 2 · 천부성", { question: "‘국가가 허가증을 발급해야 인권이 생긴다’는 주장에 맞서는 특성은?", choices: ["항구성", "불가침성", "천부성", "보편성"], answer: 2 }),
-      activity("m02-p3", "puzzle", "DNA 3 · 불가침성", { question: "‘돈을 받았으니 자신의 인권을 모두 넘길 수 있다’는 주장에 맞서는 특성은?", choices: ["항구성", "불가침성", "보편성", "천부성"], answer: 1 }),
-      activity("m02-p4", "puzzle", "DNA 4 · 항구성", { question: "‘성인이 된 뒤에는 인권 보장이 끝난다’는 주장에 맞서는 특성은?", choices: ["보편성", "천부성", "불가침성", "항구성"], answer: 3 }),
+      activity("m02-p1", "puzzle", "DNA 조각 1 · 국적 제한 코드", { question: "‘국적이 다르면 인권을 인정하지 않아도 된다’는 주장에 맞서는 특성은?", choices: ["보편성", "천부성", "불가침성", "항구성"], answer: 0 }),
+      activity("m02-p2", "puzzle", "DNA 조각 2 · 국가 허가 코드", { question: "‘국가가 허가증을 발급해야 인권이 생긴다’는 주장에 맞서는 특성은?", choices: ["항구성", "불가침성", "천부성", "보편성"], answer: 2 }),
+      activity("m02-p3", "puzzle", "DNA 조각 3 · 권리 양도 코드", { question: "‘돈을 받았으니 자신의 인권을 모두 넘길 수 있다’는 주장에 맞서는 특성은?", choices: ["항구성", "불가침성", "보편성", "천부성"], answer: 1 }),
+      activity("m02-p4", "puzzle", "DNA 조각 4 · 기간 만료 코드", { question: "‘성인이 된 뒤에는 인권 보장이 끝난다’는 주장에 맞서는 특성은?", choices: ["보편성", "천부성", "불가침성", "항구성"], answer: 3 }),
       activity("m02-e", "evidence", "인권 DNA 권리 카드", { evidenceIds: ["UNIVERSALITY", "NATURAL_RIGHT", "INVIOLABILITY", "PERMANENCE"] }),
     ],
     zeroChallenge: activity("m02-z", "zero", "ZERO의 검증", { body: "현실에서 보장되지 않는 권리도 정말 인권이라고 부를 수 있을까?", choices: ["국가가 실제로 보장해야만 인권이다.", "권리의 근원과 현실의 보장 수준은 구분해야 한다."], answer: 1 }),
@@ -59,7 +59,7 @@ export const missions: Mission[] = [
 
   mission({ id: "m03", number: 3, title: "혁명의 문을 열어라", subtitle: "시민 혁명과 권리 확장 추적", relatedConceptIds: ["자유권", "평등권", "참정권"],
     openingScenes: [
-      scene("m03-o1", "해온", "기록실의 세 문이 잠겼다. 사건의 이름이 아니라 사람들이 요구한 권리로 열어야 해.", "haeon", "guide", "revolution_archive"),
+      scene("m03-o1", "해온", "로자 파크스는 버스의 인종 분리 좌석을 거부했어. 이 한 장면에서 어떤 차별과 권리 요구를 읽을 수 있을까?", "haeon", "guide", "revolution_archive", "rosa-parks.jpg", "인종 분리 좌석을 거부한 로자 파크스 사례 삽화"),
       scene("m03-o2", "ZERO", "연표를 외웠다고 권리의 의미까지 이해한 건 아니겠지?", "zero", "confident", "revolution_archive"),
     ],
     activities: [
@@ -76,7 +76,7 @@ export const missions: Mission[] = [
   mission({ id: "m04", number: 4, title: "권리는 왜 늘어났을까", subtitle: "산업화·세계 대전과 새로운 권리", relatedConceptIds: ["사회권", "연대권"],
     openingScenes: [
       scene("m04-o1", "해온", "공장 도시는 성장했지만 노동자들의 삶은 무너지고 있어. 자유만으로 충분한지 확인하자.", "haeon", "skill", "industrial_city"),
-      scene("m04-o2", "아리", "그리고 전쟁 뒤에는 어느 한 국가만으로 해결할 수 없는 문제가 남았어.", "ari", "research", "postwar_world"),
+      scene("m04-o2", "아리", "여성 차별 철폐 협약처럼 세계는 차별을 없애기 위한 공동 기준을 만들었어. 연대권은 국경을 넘어 함께 책임지는 권리야.", "ari", "research", "postwar_world", "cedaw.jpg", "여성 차별 철폐 협약 CEDAW 상징"),
     ],
     activities: [
       activity("m04-b", "briefing", "사건번호 HR-004 · 두 시대의 구조 신호", { body: "산업 혁명 이후의 열악한 생활 조건과 세계 대전 이후의 공동 문제를 비교해 사회권과 연대권의 등장 이유를 찾으세요." }),
@@ -91,7 +91,7 @@ export const missions: Mission[] = [
   mission({ id: "m05", number: 5, title: "지워지지 않는 영상", subtitle: "첫 시민 신고 · 새로운 인권과 권리 충돌", relatedConceptIds: ["새로운 인권", "개인정보", "잊힐 권리", "표현의 자유"],
     openingScenes: [
       scene("m05-o1", "NPC 지민", "어릴 때 공개된 영상이 계속 퍼져요. 이름을 검색하면 가장 먼저 나와서 학교생활도 너무 힘들어요.", "npc", "worried", "digital_case_room", "left"),
-      scene("m05-o2", "아리", "이제 훈련 기록이 아니라 실제 신고야. 피해와 공익, 표현의 자유를 모두 확인해야 해.", "ari", "think", "digital_case_room"),
+      scene("m05-o2", "아리", "교과서의 ‘잊힐 권리’ 사례처럼 개인정보 삭제 요구는 피해와 공익, 표현의 자유를 함께 확인해야 해.", "ari", "think", "digital_case_room", "forgotten-right.jpg", "온라인 개인정보 삭제와 잊힐 권리를 나타낸 삽화"),
       scene("m05-o3", "해온", "서두른 삭제도, 무조건적인 보존도 위험해. 근거를 세 장 이상 확보하자.", "haeon", "warning", "digital_case_room"),
     ],
     activities: [
@@ -106,8 +106,8 @@ export const missions: Mission[] = [
 
   mission({ id: "m06", number: 6, title: "네 개의 새로운 권리", subtitle: "도시 동시 경보 · 주거·안전·환경·문화", relatedConceptIds: ["주거권", "안전권", "환경권", "문화권"],
     openingScenes: [
-      scene("m06-o1", "아리", "긴급 상황! ARCA 네 구역에서 동시에 인권 경보가 발생했어.", "ari", "warning", "arca_city_map"),
-      scene("m06-o2", "해온", "모든 신고를 같은 방식으로 처리할 수는 없어. 현장 원인과 해당 권리를 먼저 연결하자.", "haeon", "resolve", "arca_city_map"),
+      scene("m06-o1", "아리", "초미세 먼지가 ‘매우 나쁨’이야. 저감 작업은 환경권을 보장하기 위한 공공의 대응 사례가 될 수 있어.", "ari", "warning", "arca_city_map", "fine-dust.jpg", "초미세 먼지 경보와 도로 저감 작업 삽화"),
+      scene("m06-o2", "해온", "위험 시설은 시민이 안전 신문고로 신고하고 개선할 수 있어. 권리 보장은 국가와 시민의 참여가 함께 필요해.", "haeon", "resolve", "arca_city_map", "safety-report.jpg", "시민이 위험 시설을 안전 신문고에 신고하는 삽화"),
     ],
     activities: [
       activity("m06-b", "briefing", "사건번호 HR-006 · 도시 복합 위기", { body: "도시 집중, 안전사고, 환경오염, 문화 격차가 만든 네 사건을 조사하고 현대 사회에서 확장된 권리와 연결하세요." }),
@@ -133,7 +133,28 @@ export const getMissionSteps = (item: Mission): MissionStep[] => [
 ];
 
 export const academyRooms = [
-  { id: "room1", title: "ROOM 1 — 인권의 의미", concepts: ["인권", "인간 존엄", "보편성", "천부성", "불가침성", "항구성"], question: "모든 인간에게 차별 없이 적용되는 인권의 특성은?", choices: ["보편성", "항구성", "참정권"], answer: 0 },
-  { id: "room2", title: "ROOM 2 — 인권의 확장", concepts: ["자유권", "평등권", "참정권", "사회권", "연대권"], question: "인간다운 생활을 위한 국가의 적극적 역할과 관련된 권리는?", choices: ["자유권", "사회권", "재산권"], answer: 1 },
-  { id: "room3", title: "ROOM 3 — 현대적 인권", concepts: ["주거권", "안전권", "환경권", "문화권", "잊힐 권리"], question: "공동체 문화생활에 참여하고 문화적 정체성을 유지할 권리는?", choices: ["문화권", "참정권", "재산권"], answer: 0 },
+  { id: "room1", title: "ROOM 1 — 인권의 의미", concepts: [
+    { term: "인권", definition: "인간이라는 이유만으로 존엄을 보장받으며 행복하게 살아갈 권리" }, { term: "인간 존엄", definition: "사람을 다른 목적의 수단이 아니라 그 자체로 존중해야 한다는 가치" }, { term: "보편성", definition: "인종·성별·종교·신분과 관계없이 모든 사람에게 적용되는 성질" }, { term: "천부성", definition: "인간으로 태어날 때부터 당연히 갖는 성질" }, { term: "불가침성", definition: "함부로 빼앗거나 다른 사람에게 넘길 수 없는 성질" }, { term: "항구성", definition: "일정 기간이 아니라 영구히 보장되어야 하는 성질" },
+  ], levels: [
+    { question: "인권의 네 가지 특성 중 ‘모든 사람에게 적용됨’을 뜻하는 것은?", choices: ["보편성", "천부성", "불가침성"], answer: 0, prompt: "인권 또는 인간 존엄의 뜻을 자신의 말로 1문장 써 보세요." },
+    { question: "‘국가가 허락하기 전에도 사람은 인권을 가진다’와 연결되는 특성은?", choices: ["항구성", "천부성", "보편성"], answer: 1, prompt: "천부성과 보편성의 관계를 1문장으로 연결해 보세요." },
+    { question: "돈을 받고 자신의 인권을 모두 포기한다는 계약이 성립하기 어려운 까닭은?", choices: ["불가침성 때문", "참정권 때문", "문화권 때문"], answer: 0, prompt: "이 계약 사례에 불가침성을 적용해 1문장으로 판단해 보세요." },
+    { question: "개별적이면서 지속적인 권리는 어느 영역에 해당하는가?", choices: ["개별적·지속적", "집단적·일시적", "집단적·지속적"], answer: 0, prompt: "‘모든 사람의 존엄을 보장해야 한다’는 주장과 근거를 2문장으로 써 보세요." },
+  ]},
+  { id: "room2", title: "ROOM 2 — 인권의 확장", concepts: [
+    { term: "자유권", definition: "국가 권력의 부당한 간섭에서 벗어나 자유롭게 생활할 권리" }, { term: "평등권", definition: "성별·종교·사회적 신분 등을 이유로 부당하게 차별받지 않을 권리" }, { term: "참정권", definition: "국가의 의사 결정에 직접 또는 간접으로 참여할 권리" }, { term: "사회권", definition: "국가에 인간다운 생활의 적극적 보장을 요구할 권리" }, { term: "연대권", definition: "국경을 넘어 공동체의 연대와 협력으로 보장하는 권리" },
+  ], levels: [
+    { question: "국가 권력의 부당한 간섭에서 벗어날 권리는?", choices: ["자유권", "사회권", "연대권"], answer: 0, prompt: "가장 기억에 남는 권리 하나의 뜻을 1문장으로 써 보세요." },
+    { question: "산업 혁명 이후 국가의 적극적 역할과 함께 강조된 권리는?", choices: ["참정권", "사회권", "자유권"], answer: 1, prompt: "자유권과 사회권의 차이를 1문장으로 연결해 보세요." },
+    { question: "로자 파크스 사례에서 가장 직접적으로 문제 된 권리는?", choices: ["평등권", "환경권", "청구권"], answer: 0, prompt: "로자 파크스 사례에 평등권을 적용해 1문장으로 판단해 보세요." },
+    { question: "세계 대전 이후 인류 공동의 협력을 강조한 권리는?", choices: ["재산권", "연대권", "직업 선택의 자유"], answer: 1, prompt: "인권 확장에 국가 간 협력이 필요하다는 주장과 근거를 2문장으로 써 보세요." },
+  ]},
+  { id: "room3", title: "ROOM 3 — 현대적 인권", concepts: [
+    { term: "주거권", definition: "쾌적하고 안정적인 주거 환경에서 인간다운 주거 생활을 할 권리" }, { term: "안전권", definition: "재해·사고·감염병 등 각종 위험으로부터 보호받을 권리" }, { term: "환경권", definition: "건강하고 쾌적한 생활에 필요한 환경을 누릴 권리" }, { term: "문화권", definition: "문화생활에 참여하고 문화적 정체성을 유지할 권리" }, { term: "잊힐 권리", definition: "온라인에 공개된 자신의 정보에 삭제를 요구할 수 있다는 새로운 권리 요구" },
+  ], levels: [
+    { question: "건강하고 쾌적한 생활 환경을 누릴 권리는?", choices: ["환경권", "참정권", "재산권"], answer: 0, prompt: "현대적 인권 하나의 뜻을 자신의 말로 1문장 써 보세요." },
+    { question: "위험한 횡단보도를 안전 신문고에 신고한 사례와 직접 연결되는 권리는?", choices: ["문화권", "안전권", "주거권"], answer: 1, prompt: "안전권과 시민 참여의 관계를 1문장으로 연결해 보세요." },
+    { question: "오래된 개인정보 영상의 삭제를 요구하는 사례와 가장 가까운 권리는?", choices: ["잊힐 권리", "선거권", "재산권"], answer: 0, prompt: "영상 삭제 사례에서 고려할 두 권리를 1~2문장으로 써 보세요." },
+    { question: "환경권에 관한 설명으로 가장 적절한 것은?", choices: ["국민에게는 권리만 있다", "국가와 국민 모두 환경 보전을 위해 노력해야 한다", "문화생활 참여만 뜻한다"], answer: 1, prompt: "미세 먼지 저감 정책에 대한 주장과 근거를 구분해 2문장으로 써 보세요." },
+  ]},
 ];
