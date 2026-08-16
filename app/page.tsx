@@ -52,18 +52,22 @@ export default function HomePage() {
     if (hydrated) localStorage.setItem(SAVE_KEY, JSON.stringify(save));
   }, [hydrated, save]);
 
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, [view, save.currentMission, save.currentScene]);
+
   const currentMission = missions.find((item) => item.id === save.currentMission) ?? null;
-  const interact = () => { void audioManager.unlock(); void audioManager.playBgm(view === "academy" ? "academy" : "main_hub"); };
+  const interact = (track = view === "academy" ? "academy" : "main_hub") => { void audioManager.playBgm(track); };
   const startNew = () => { const next = blankSave(); next.currentMission = "m01"; setSave(next); setActComplete(false); setView("map"); interact(); };
   const continueGame = () => { setView(save.currentMission ? "mission" : "map"); interact(); };
   const startMission = (mission: Mission) => { setSave((prev) => ({ ...prev, currentMission: mission.id, currentScene: prev.currentMission === mission.id ? prev.currentScene : 0 })); setView("mission"); void audioManager.playSfx("case_open"); };
-  const navigate = (tab: "home" | "challenge" | "record" | "growth") => { setView(tab === "home" ? "hub" : tab === "challenge" ? "map" : tab === "record" ? "record" : "academy"); };
+  const navigate = (tab: "home" | "challenge" | "record" | "growth") => { setView(tab === "home" ? "hub" : tab === "challenge" ? "map" : tab === "record" ? "record" : "academy"); interact(tab === "growth" ? "academy" : "main_hub"); };
   const updateAudio = (next: Partial<AudioSettings>) => { audioManager.update(next); setAudio({ ...audioManager.settings }); setSave((prev) => ({ ...prev, audio: { ...prev.audio, ...next } })); };
 
   return (
-    <main className="arcade-viewport" onPointerDown={interact}>
+    <main className="arcade-viewport">
       <div className="arcade-phone" aria-label="안산강서고 1학년 통합사회 탐구 아케이드 홈 화면">
-        {view === "hub" && <HubScreen save={save} onNew={startNew} onContinue={continueGame} onMap={() => setView("map")} onAcademy={() => setView("academy")} onSettings={() => setSettingsOpen(true)} />}
+        {view === "hub" && <HubScreen save={save} onNew={startNew} onContinue={continueGame} onMap={() => { setView("map"); interact(); }} onAcademy={() => { setView("academy"); interact("academy"); }} onSettings={() => setSettingsOpen(true)} />}
         {view === "map" && <MissionMap save={save} onStart={startMission} onBack={() => setView("hub")} onSettings={() => setSettingsOpen(true)} />}
         {view === "mission" && currentMission && <MissionPlayer key={`${currentMission.id}-${save.currentScene}`} mission={currentMission} save={save} setSave={setSave} onBack={() => setView("map")} onSettings={() => setSettingsOpen(true)} onAcademy={() => { setReturnPoint({ missionId: currentMission.id, scene: save.currentScene }); setView("academy"); }} onActComplete={() => setActComplete(true)} />}
         {view === "academy" && <AcademyScreen save={save} setSave={setSave} returnPoint={returnPoint} onReturn={() => { if (returnPoint) { setSave((prev) => ({ ...prev, currentMission: returnPoint.missionId, currentScene: returnPoint.scene })); setView("mission"); setReturnPoint(null); } else setView("hub"); }} />}
@@ -118,7 +122,10 @@ function MissionPlayer({ mission, save, setSave, onBack, onSettings, onAcademy, 
   const step = steps[Math.min(save.currentScene, steps.length - 1)];
   const [selected, setSelected] = useState<number | null>(null);
   const [selectedEvidence, setSelectedEvidence] = useState<string[]>([]);
-  const [investigated, setInvestigated] = useState<string[]>([]);
+  const [investigated, setInvestigated] = useState<string[]>(() => {
+    const stepItems = step.items ?? mission.investigations;
+    return stepItems.filter((item) => save.investigatedSources.includes(`${mission.id}:${item}`));
+  });
   const [elapsed, setElapsed] = useState(0);
 
   useEffect(() => { const id = window.setInterval(() => setElapsed((value) => value + 1), 1000); return () => window.clearInterval(id); }, [step.id]);
@@ -130,7 +137,11 @@ function MissionPlayer({ mission, save, setSave, onBack, onSettings, onAcademy, 
   const collectEvidence = (id: string) => { setSave((prev) => ({ ...prev, evidence: [...new Set([...prev.evidence, id])] })); void audioManager.playSfx("evidence_found"); };
   const complete = () => {
     const goodChoice = save.studentChoices[mission.id] === mission.decisions.length - 1;
-    setSave((prev) => ({ ...prev, completedMissions: [...new Set([...prev.completedMissions, mission.id])], exp: prev.completedMissions.includes(mission.id) ? prev.exp : prev.exp + mission.rewards.exp, level: Math.floor((prev.exp + mission.rewards.exp) / 150) + 1, currentMission: mission.nextMissionId ?? mission.id, currentScene: 0, indicators: { ...prev.indicators, humanRights: Math.min(100, prev.indicators.humanRights + (goodChoice ? 12 : 5)), fairness: Math.min(100, prev.indicators.fairness + (goodChoice ? 6 : 2)), trust: Math.min(100, prev.indicators.trust + (goodChoice ? 8 : 3)) }, skill: mission.rewards.skill ? [...new Set([...prev.skill, mission.rewards.skill])] : prev.skill, achievement: mission.rewards.title ? [...new Set([...prev.achievement, mission.rewards.title])] : prev.achievement }));
+    setSave((prev) => {
+      const firstCompletion = !prev.completedMissions.includes(mission.id);
+      const nextExp = prev.exp + (firstCompletion ? mission.rewards.exp : 0);
+      return { ...prev, completedMissions: [...new Set([...prev.completedMissions, mission.id])], exp: nextExp, level: Math.floor(nextExp / 150) + 1, currentMission: mission.nextMissionId ?? null, currentScene: 0, indicators: firstCompletion ? { ...prev.indicators, humanRights: Math.min(100, prev.indicators.humanRights + (goodChoice ? 12 : 5)), fairness: Math.min(100, prev.indicators.fairness + (goodChoice ? 6 : 2)), trust: Math.min(100, prev.indicators.trust + (goodChoice ? 8 : 3)) } : prev.indicators, skill: mission.rewards.skill ? [...new Set([...prev.skill, mission.rewards.skill])] : prev.skill, achievement: mission.rewards.title ? [...new Set([...prev.achievement, mission.rewards.title])] : prev.achievement };
+    });
     void audioManager.playSfx("mission_complete");
     if (mission.nextMissionId) window.setTimeout(() => {}, 0); else onActComplete();
   };

@@ -58,7 +58,7 @@ export const getMissionSteps = (mission: Mission): MissionStep[] => [
   mission.activities[0],
   ...mission.openingScenes.map((item, index) => activity(`${mission.id}-dialogue-${index}`, "dialogue", "사건 대화", { scene: item })),
   ...mission.activities.slice(1),
-  activity(`${mission.id}-evidence-final`, "evidence", "Evidence 확보", { evidenceIds: mission.evidenceIds }),
+  ...(mission.activities.some((item) => item.type === "evidence") ? [] : [activity(`${mission.id}-evidence-final`, "evidence", "Evidence 확보", { evidenceIds: mission.evidenceIds })]),
   mission.zeroChallenge,
   activity(`${mission.id}-decision`, "decision", "최종 판단", { choices: mission.decisions }),
   activity(`${mission.id}-result`, "result", "사건 결과"),
