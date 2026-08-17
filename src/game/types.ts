@@ -99,6 +99,17 @@ export interface SocialIndicators {
   trust: number;
 }
 
+export interface StudentProfile {
+  studentId: string;
+  grade: string;
+  classNum: string;
+  studentNum: string;
+  name: string;
+  password?: string;
+  isLoggedIn: boolean;
+  schoolName: string;
+}
+
 export interface SaveData {
   currentMission: string | null;
   currentScene: number;
@@ -119,4 +130,6 @@ export interface SaveData {
   correctAnswers: number;
   answerTimes: number[];
   audio: { bgm: boolean; sfx: boolean; bgmVolume: number; sfxVolume: number };
+  studentProfile?: StudentProfile;
 }
+
