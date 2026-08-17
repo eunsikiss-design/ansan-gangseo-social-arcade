@@ -99,15 +99,31 @@ export interface SocialIndicators {
   trust: number;
 }
 
+export type UserRole = "student" | "teacher" | "guest";
+
 export interface StudentProfile {
-  studentId: string;
+  studentId: string; // e.g. "SC0108" for student, "SCT01" for teacher
+  role: UserRole;
   grade: string;
   classNum: string;
   studentNum: string;
   name: string;
   password?: string;
+  mustChangePassword?: boolean;
   isLoggedIn: boolean;
   schoolName: string;
+}
+
+export interface UnitCertificateInfo {
+  unitId: number;
+  unitTitle: string;
+  certName: string;
+  certSubtitle: string;
+  badgeName: string;
+  badgeIcon: string;
+  totalMissions: number;
+  description: string;
+  constitutionalBasis: string;
 }
 
 export interface SaveData {
@@ -131,5 +147,7 @@ export interface SaveData {
   answerTimes: number[];
   audio: { bgm: boolean; sfx: boolean; bgmVolume: number; sfxVolume: number };
   studentProfile?: StudentProfile;
+  earnedCertificates?: number[]; // [1] for Unit 1, etc.
 }
+
 
