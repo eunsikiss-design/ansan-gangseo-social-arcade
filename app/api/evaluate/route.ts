@@ -2,9 +2,16 @@ import { NextResponse } from "next/server";
 
 export async function POST(req: Request) {
   try {
-    const rawText = await req.text();
-    const body = rawText ? JSON.parse(rawText) : {};
-    const { skillType, studentAnswer, context, history = [], requestHint } = body;
+    let body: any = {};
+    try {
+      body = await req.json();
+    } catch {
+      try {
+        const rawText = await req.text();
+        body = rawText ? JSON.parse(rawText) : {};
+      } catch {}
+    }
+    const { skillType, studentAnswer, context, history = [], requestHint } = body || {};
 
     const answerText = (studentAnswer || "").trim();
 
