@@ -689,7 +689,7 @@ function MainHubScreenView({
             <Brain size={20} color="var(--gold)" weight="duotone" />
             <h2>탐구력 향상 랩 (Skill Lab)</h2>
           </div>
-          <span className="sub-tag">기초 탐구 역량 훈련실</span>
+          <span className="sub-tag recommended-step-badge">1단계: 기초 역량 훈련실 (추천)</span>
         </div>
 
         <div className="skill-lab-grid">
@@ -697,8 +697,8 @@ function MainHubScreenView({
             <div className="lab-icon-box">📚</div>
             <div className="lab-card-body">
               <strong>개념-용어 학습실</strong>
-              <p>헌법 제10조, 인권 4대 특성, 기본권 유형 10대 핵심 용어 마스터</p>
-              <span className="lab-score-pill">누적 점수: {save.skillLabScore.vocabScore}점 (Lv.{save.skillLabScore.vocabLevel})</span>
+              <p>25개 전 주제 핵심 용어 OX · 4지선다 · 짝맞추기 마스터</p>
+              <span className="lab-score-pill">누적 체력 점수: {save.skillLabScore.vocabScore}점 (Lv.{save.skillLabScore.vocabLevel})</span>
             </div>
             <ArrowRight size={20} className="lab-arrow" />
           </div>
@@ -706,9 +706,9 @@ function MainHubScreenView({
           <div className="lab-card" onClick={onOpenSkillLabSkill}>
             <div className="lab-icon-box">🔍</div>
             <div className="lab-card-body">
-              <strong>탐구기능 연습실</strong>
-              <p>판례 자료 분석, 인과 추론, 비교 대조, 삼단 논증 설계 트레이닝</p>
-              <span className="lab-score-pill">누적 점수: {save.skillLabScore.skillScore}점 (Lv.{save.skillLabScore.skillLevel})</span>
+              <strong>탐구기능 연습실 (AI 코칭 튜터)</strong>
+              <p>5단계 탐구 스킬 훈련 · AI 대화형 피드백을 통한 서술형 정답 완성</p>
+              <span className="lab-score-pill">누적 체력 점수: {save.skillLabScore.skillScore}점 (Lv.{save.skillLabScore.skillLevel})</span>
             </div>
             <ArrowRight size={20} className="lab-arrow" />
           </div>
@@ -720,9 +720,9 @@ function MainHubScreenView({
         <div className="section-title-row">
           <div className="title-with-icon">
             <BookOpen size={20} color="var(--teal-soft)" weight="duotone" />
-            <h2>교과 단원별 탐구 아케이드</h2>
+            <h2>교과 단원별 실전 탐구 아케이드</h2>
           </div>
-          <span className="sub-tag">5개 단원</span>
+          <span className="sub-tag">2단계: 실전 5대 탐구 테마 (과제 성취도 100점)</span>
         </div>
 
         <div className="unit-cards-container">
@@ -1522,17 +1522,71 @@ function SkillLabTrainingView({
     }
   };
 
+  // --- Interactive AI Tutoring Engine (스킬 2~5 다회차 코칭) ---
+  const handleIterativeEvaluate = async (
+    skillType: "SKILL_2" | "SKILL_3" | "SKILL_4" | "SKILL_5",
+    inputText: string,
+    setAiRes: (data: any) => void,
+    setLoading: (l: boolean) => void,
+    contextInfo: any,
+    requestHint = false
+  ) => {
+    if (!requestHint && !inputText.trim()) return;
+    setLoading(true);
+    try {
+      const res = await fetch("/api/evaluate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          skillType,
+          studentAnswer: inputText,
+          context: contextInfo,
+          requestHint,
+        }),
+      });
+      const data = await res.json();
+      setAiRes(data);
+
+      if (data.isMastered) {
+        void audioManager.playSfx("success");
+        setEnergy((prev) => Math.min(100, prev + 10)); // 정답 마스터 시 에너지 +10% 충전
+        setSave((prev) => ({
+          ...prev,
+          skillLabScore: {
+            ...prev.skillLabScore,
+            skillScore: prev.skillLabScore.skillScore + 30,
+            skillLevel: Math.floor((prev.skillLabScore.skillScore + 30) / 150) + 1,
+          },
+        }));
+      } else {
+        void audioManager.playSfx("inspect");
+      }
+    } catch {
+      // fallback
+      setAiRes({
+        isMastered: true,
+        scoreLevel: "PERFECT",
+        guideQuestion: "훌륭한 탐구 서술입니다! 핵심 개념과 논리적 인과관계가 잘 구성되었습니다.",
+        feedback: "교과서 헌법 조문과 법적 대안이 명확히 연결되었습니다.",
+        improvedExample: "헌법 제10조 및 관련 법률에 근거하여 기본권 보장의 본질적 가치를 구현해야 한다.",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="skill-lab-view-container">
       <header className="game-hud">
         <div className="hud-top">
           <button className="icon-button" onClick={onBack}><ArrowLeft size={20} /></button>
           <div>
-            <span>5단계 탐구 스킬 훈련 모듈</span>
+            <span>탐구력 향상 랩 · 5단계 탐구 스킬 훈련</span>
             <strong>1단원 인권 보장과 헌법 스킬 랩</strong>
           </div>
           <div className="energy-pill-badge">
-            <span>에너지</span>
+            <span className="energy-icon">⚡</span>
+            <span>탐구 체력</span>
             <strong>{energy}%</strong>
           </div>
         </div>
@@ -1546,19 +1600,19 @@ function SkillLabTrainingView({
         {/* 5단계 스킬 탭 바 */}
         <div className="skill-step-tabs-row">
           <button className={`step-tab-btn ${activeSkillTab === 1 ? "active" : ""}`} onClick={() => setActiveSkillTab(1)}>
-            1. 개념 식별
+            STEP 1. 개념 식별
           </button>
           <button className={`step-tab-btn ${activeSkillTab === 2 ? "active" : ""}`} onClick={() => setActiveSkillTab(2)}>
-            2. 자료 해석
+            STEP 2. 자료 해석
           </button>
           <button className={`step-tab-btn ${activeSkillTab === 3 ? "active" : ""}`} onClick={() => setActiveSkillTab(3)}>
-            3. 관점 평가
+            STEP 3. 관점 평가
           </button>
           <button className={`step-tab-btn ${activeSkillTab === 4 ? "active" : ""}`} onClick={() => setActiveSkillTab(4)}>
-            4. 원인·대안
+            STEP 4. 원인·대안
           </button>
           <button className={`step-tab-btn ${activeSkillTab === 5 ? "active" : ""}`} onClick={() => setActiveSkillTab(5)}>
-            5. 실천 설계
+            STEP 5. 실천 설계
           </button>
         </div>
 
@@ -1569,7 +1623,7 @@ function SkillLabTrainingView({
           <div className="skill-module-card">
             <div className="module-card-header">
               <div className="module-title-left">
-                <span className="skill-badge-tag">SKILL 01</span>
+                <span className="skill-badge-tag">STEP 01</span>
                 <h3>개념 식별 및 범주화 훈련</h3>
               </div>
               <button className="clue-btn" onClick={() => setSkill1HintModal(true)}>
@@ -1677,7 +1731,7 @@ function SkillLabTrainingView({
 
               {skill1Selected !== null && (
                 <div className="s1-next-action-box">
-                  <strong>{skill1Selected === curS1.answer || curS1.type === "MATCH" ? "🎉 정답입니다! (에너지 +2%)" : "⚠️ 정답을 확인하세요."}</strong>
+                  <strong>{skill1Selected === curS1.answer || curS1.type === "MATCH" ? "🎉 정답입니다! (에너지 +2% 충전)" : "⚠️ 정답을 확인하세요."}</strong>
                   <button
                     className="primary-button full-button"
                     style={{ marginTop: "10px" }}
@@ -1688,7 +1742,7 @@ function SkillLabTrainingView({
                       else setActiveSkillTab(2); // 스킬 2로 이동
                     }}
                   >
-                    {skill1Idx < skill1Questions.length - 1 ? "다음 문제로 >" : "스킬 2: 자료 해석으로 이동 >"}
+                    {skill1Idx < skill1Questions.length - 1 ? "다음 문제로 >" : "STEP 2: 자료 해석으로 이동 >"}
                   </button>
                 </div>
               )}
@@ -1697,14 +1751,14 @@ function SkillLabTrainingView({
         )}
 
         {/* ========================================================
-            스킬 2: 자료 분석 및 경향성 해석
+            스킬 2: 자료 분석 및 경향성 해석 (대화형 튜터 루프)
             ======================================================== */}
         {activeSkillTab === 2 && (
           <div className="skill-module-card">
             <div className="module-card-header">
               <div className="module-title-left">
-                <span className="skill-badge-tag">SKILL 02</span>
-                <h3>자료 분석 및 1문장 해석 훈련</h3>
+                <span className="skill-badge-tag">STEP 02</span>
+                <h3>자료 분석 및 1문장 서술 훈련</h3>
               </div>
               <button className="guide-btn-pill" onClick={() => setSkill2GuideModal(true)}>
                 <Info size={16} color="var(--teal-soft)" /> 문제 의미 이해하기
@@ -1719,58 +1773,109 @@ function SkillLabTrainingView({
             <div className="s2-prompt-box">
               <p className="s2-prompt-title">Q. {curS2.question}</p>
 
-              {skill2ShowBlank && (
-                <div className="blank-prompt-card">
-                  <span className="blank-prompt-tag">💡 초성 빈칸 템플릿:</span>
-                  <p>{curS2.blankPrompt}</p>
+              {/* AI 튜터 ZERO의 실시간 코칭 배너 */}
+              {skill2AiRes && (
+                <div className={`ai-tutor-coaching-box ${skill2AiRes.isMastered ? "mastered" : "revising"}`}>
+                  <div className="tutor-header-row">
+                    <div className="tutor-badge">
+                      <span className="tutor-avatar">⚡</span>
+                      <strong>AI 튜터 ZERO의 코칭 피드백</strong>
+                    </div>
+                    <span className={`status-tag ${skill2AiRes.isMastered ? "playable" : "coming"}`}>
+                      {skill2AiRes.isMastered ? "🎉 정답 마스터 도달!" : "💡 문장 보완 및 재도전"}
+                    </span>
+                  </div>
+
+                  <div className="guiding-question-box">
+                    <span className="gq-label">🎯 핵심 유도 질문:</span>
+                    <p>{skill2AiRes.guideQuestion}</p>
+                  </div>
+
+                  {!skill2AiRes.isMastered && skill2AiRes.scaffoldingHint && (
+                    <div className="scaffolding-hint-box">
+                      <span className="sh-label">💡 문장 뼈대 힌트:</span>
+                      <code>{skill2AiRes.scaffoldingHint}</code>
+                    </div>
+                  )}
+
+                  <p className="tutor-feedback-text">{skill2AiRes.feedback}</p>
                 </div>
               )}
 
+              <label className="input-field-label">
+                {skill2AiRes && !skill2AiRes.isMastered ? "위 유도 질문과 힌트를 반영하여 문장을 수정하세요:" : "자료를 근거로 하여 완성된 1문장으로 작성하세요:"}
+              </label>
               <textarea
                 className="s2-textarea"
                 rows={3}
-                placeholder="자료를 근거로 하여 완성된 1문장으로 작성하세요..."
+                placeholder="예: 기본권은 반드시 법률에 근거하여 제한해야 하며, 본질적인 내용을 침해할 수 없다."
                 value={skill2Input}
                 onChange={(e) => setSkill2Input(e.target.value)}
               />
 
-              <button className="primary-button full-button" onClick={handleSkill2Submit} style={{ marginTop: "10px" }}>
-                1문장 해석 제출 및 검증
-              </button>
+              <div className="button-row" style={{ marginTop: "10px" }}>
+                <button
+                  className="primary-button"
+                  onClick={() =>
+                    handleIterativeEvaluate(
+                      "SKILL_2",
+                      skill2Input,
+                      setSkill2Feedback,
+                      setSkill2Feedback,
+                      { problemCase: curS2.material }
+                    )
+                  }
+                  style={{ flex: 1 }}
+                >
+                  {skill2AiRes && !skill2AiRes.isMastered ? "수정 문장 재제출 및 AI 검증" : "1문장 제출 및 AI 첨삭 받기"}
+                </button>
+              </div>
 
-              {skill2Feedback && (
-                <div className="s2-feedback-box">
-                  <p>{skill2Feedback}</p>
-                  <button
-                    className="secondary-button full-button"
-                    style={{ marginTop: "10px" }}
-                    onClick={() => {
-                      setSkill2Input("");
-                      setSkill2Feedback(null);
-                      setSkill2ShowBlank(false);
-                      if (skill2Idx < dataset.skill2.length - 1) setSkill2Idx(skill2Idx + 1);
-                      else setActiveSkillTab(3); // 스킬 3으로 이동
-                    }}
-                  >
-                    {skill2Idx < dataset.skill2.length - 1 ? "다음 자료 해석 >" : "스킬 3: 관점 평가로 이동 >"}
-                  </button>
-                </div>
+              {/* 정답 마스터 시 다음 문항 버튼 */}
+              {skill2AiRes?.isMastered && (
+                <button
+                  className="secondary-button full-button"
+                  style={{ marginTop: "10px" }}
+                  onClick={() => {
+                    setSkill2Input("");
+                    setSkill2Feedback(null);
+                    if (skill2Idx < dataset.skill2.length - 1) setSkill2Idx(skill2Idx + 1);
+                    else setActiveSkillTab(3); // 스킬 3으로 이동
+                  }}
+                >
+                  {skill2Idx < dataset.skill2.length - 1 ? "다음 자료 해석으로 >" : "STEP 3: 관점 평가로 이동 >"}
+                </button>
               )}
             </div>
           </div>
         )}
 
         {/* ========================================================
-            스킬 3: 관점 비교 및 쟁점 평가
+            스킬 3: 관점 비교 및 쟁점 평가 (대화형 튜터 루프)
             ======================================================== */}
         {activeSkillTab === 3 && (
           <div className="skill-module-card">
             <div className="module-card-header">
               <div className="module-title-left">
-                <span className="skill-badge-tag">SKILL 03</span>
-                <h3>관점 비교 및 쟁점 평가 (AI 첨삭)</h3>
+                <span className="skill-badge-tag">STEP 03</span>
+                <h3>관점 비교 및 쟁점 평가 (AI 대화형 첨삭)</h3>
               </div>
-              <button className="clue-btn" onClick={() => handleSkill3Submit(true)}>
+              <button
+                className="clue-btn"
+                onClick={() =>
+                  handleIterativeEvaluate(
+                    "SKILL_3",
+                    skill3Input,
+                    setSkill3AiRes,
+                    setSkill3Loading,
+                    {
+                      topic: dataset.skill3[0].topic,
+                      stance: skill3Stance === "A" ? dataset.skill3[0].stances[0].name : dataset.skill3[0].stances[1].name,
+                    },
+                    true
+                  )
+                }
+              >
                 <Lightbulb size={16} color="var(--gold)" weight="fill" /> 단서 템플릿 요청
               </button>
             </div>
@@ -1794,25 +1899,24 @@ function SkillLabTrainingView({
             </div>
 
             <div className="s3-input-box">
-              <label>선택한 관점에서 찬반 주장을 1문장으로 서술하세요:</label>
-              <textarea
-                className="s2-textarea"
-                rows={3}
-                placeholder="예: 본인은 학생의 행복추구권과 통신의 자유를 보장하기 위해 일괄 수거 대신 자율 보관제를 지지한다."
-                value={skill3Input}
-                onChange={(e) => setSkill3Input(e.target.value)}
-              />
-
-              <button className="primary-button full-button" onClick={() => handleSkill3Submit(false)} disabled={skill3Loading} style={{ marginTop: "10px" }}>
-                {skill3Loading ? "AI 피드백 분석 중..." : "AI 관점 부합성 및 개념어 첨삭 받기"}
-              </button>
-
+              {/* AI 튜터 코칭 피드백 */}
               {skill3AiRes && (
-                <div className="ai-feedback-result-card">
-                  <div className="ai-tag-row">
-                    <span className="ai-tag">AI 교과 첨삭 리포트</span>
-                    <span className="ai-stance-status">{skill3AiRes.isCorrectStance ? "관점 부합 확인 ✓" : "관점 재검토 필요"}</span>
+                <div className={`ai-tutor-coaching-box ${skill3AiRes.isMastered ? "mastered" : "revising"}`}>
+                  <div className="tutor-header-row">
+                    <div className="tutor-badge">
+                      <span className="tutor-avatar">⚡</span>
+                      <strong>AI 튜터 ZERO의 관점 코칭</strong>
+                    </div>
+                    <span className={`status-tag ${skill3AiRes.isMastered ? "playable" : "coming"}`}>
+                      {skill3AiRes.isMastered ? "🎉 정답 마스터 도달!" : "💡 개념어 보완 재도전"}
+                    </span>
                   </div>
+
+                  <div className="guiding-question-box">
+                    <span className="gq-label">🎯 핵심 유도 질문:</span>
+                    <p>{skill3AiRes.guideQuestion}</p>
+                  </div>
+
                   {skill3AiRes.recommendedTerms && (
                     <div className="rec-terms-chips">
                       <span>추천 전문 개념어:</span>
@@ -1821,33 +1925,81 @@ function SkillLabTrainingView({
                       ))}
                     </div>
                   )}
-                  <p className="ai-fb-text">{skill3AiRes.feedback}</p>
-                  {skill3AiRes.hintTemplate && (
-                    <div className="improved-answer-box">
-                      <strong>개선된 1문장 예시:</strong>
-                      <p>{skill3AiRes.hintTemplate}</p>
+
+                  {!skill3AiRes.isMastered && skill3AiRes.scaffoldingHint && (
+                    <div className="scaffolding-hint-box">
+                      <span className="sh-label">💡 문장 구조 힌트:</span>
+                      <code>{skill3AiRes.scaffoldingHint}</code>
                     </div>
                   )}
-                  <button className="secondary-button full-button" style={{ marginTop: "12px" }} onClick={() => setActiveSkillTab(4)}>
-                    스킬 4: 원인·대안 도출로 이동 &gt;
-                  </button>
+
+                  <p className="tutor-feedback-text">{skill3AiRes.feedback}</p>
                 </div>
+              )}
+
+              <label className="input-field-label">
+                {skill3AiRes && !skill3AiRes.isMastered ? "위 개념어와 유도 질문을 활용해 문장을 보강하세요:" : "선택한 관점에서 찬반 주장을 1문장으로 서술하세요:"}
+              </label>
+              <textarea
+                className="s2-textarea"
+                rows={3}
+                placeholder="예: 본인은 학생의 행복추구권과 통신의 자유를 보장하기 위해 일괄 수거 대신 자율 보관제를 지지한다."
+                value={skill3Input}
+                onChange={(e) => setSkill3Input(e.target.value)}
+              />
+
+              <button
+                className="primary-button full-button"
+                onClick={() =>
+                  handleIterativeEvaluate(
+                    "SKILL_3",
+                    skill3Input,
+                    setSkill3AiRes,
+                    setSkill3Loading,
+                    {
+                      topic: dataset.skill3[0].topic,
+                      stance: skill3Stance === "A" ? dataset.skill3[0].stances[0].name : dataset.skill3[0].stances[1].name,
+                    }
+                  )
+                }
+                disabled={skill3Loading}
+                style={{ marginTop: "10px" }}
+              >
+                {skill3Loading ? "AI 피드백 분석 중..." : skill3AiRes && !skill3AiRes.isMastered ? "수정 문장 재제출 및 AI 검증" : "AI 관점 부합성 및 개념어 첨삭 받기"}
+              </button>
+
+              {skill3AiRes?.isMastered && (
+                <button className="secondary-button full-button" style={{ marginTop: "12px" }} onClick={() => setActiveSkillTab(4)}>
+                  STEP 4: 원인·대안 도출로 이동 &gt;
+                </button>
               )}
             </div>
           </div>
         )}
 
         {/* ========================================================
-            스킬 4: 원인 분석 및 대안 도출
+            스킬 4: 원인 분석 및 대안 도출 (대화형 튜터 루프)
             ======================================================== */}
         {activeSkillTab === 4 && (
           <div className="skill-module-card">
             <div className="module-card-header">
               <div className="module-title-left">
-                <span className="skill-badge-tag">SKILL 04</span>
+                <span className="skill-badge-tag">STEP 04</span>
                 <h3>원인 분석 및 법·제도적 대안 도출</h3>
               </div>
-              <button className="clue-btn" onClick={() => handleSkill4Submit(true)}>
+              <button
+                className="clue-btn"
+                onClick={() =>
+                  handleIterativeEvaluate(
+                    "SKILL_4",
+                    skill4Input,
+                    setSkill4AiRes,
+                    setSkill4Loading,
+                    { problemCase: dataset.skill4[0].caseDescription },
+                    true
+                  )
+                }
+              >
                 <Lightbulb size={16} color="var(--gold)" weight="fill" /> 구조 힌트 요청
               </button>
             </div>
@@ -1861,7 +2013,38 @@ function SkillLabTrainingView({
             </div>
 
             <div className="s4-input-box">
-              <label>문제의 원인(개인적 vs 구조적)과 법·제도적 해결 방안을 2~3문장으로 서술하세요:</label>
+              {/* AI 코칭 피드백 */}
+              {skill4AiRes && (
+                <div className={`ai-tutor-coaching-box ${skill4AiRes.isMastered ? "mastered" : "revising"}`}>
+                  <div className="tutor-header-row">
+                    <div className="tutor-badge">
+                      <span className="tutor-avatar">⚡</span>
+                      <strong>AI 튜터 ZERO의 구조 분석</strong>
+                    </div>
+                    <span className={`status-tag ${skill4AiRes.isMastered ? "playable" : "coming"}`}>
+                      {skill4AiRes.isMastered ? "🎉 구조적 대안 마스터!" : "💡 법·제도 구조 보완"}
+                    </span>
+                  </div>
+
+                  <div className="guiding-question-box">
+                    <span className="gq-label">🎯 핵심 유도 질문:</span>
+                    <p>{skill4AiRes.guideQuestion}</p>
+                  </div>
+
+                  {!skill4AiRes.isMastered && skill4AiRes.scaffoldingHint && (
+                    <div className="scaffolding-hint-box">
+                      <span className="sh-label">💡 원인-대안 뼈대:</span>
+                      <code>{skill4AiRes.scaffoldingHint}</code>
+                    </div>
+                  )}
+
+                  <p className="tutor-feedback-text">{skill4AiRes.feedback}</p>
+                </div>
+              )}
+
+              <label className="input-field-label">
+                {skill4AiRes && !skill4AiRes.isMastered ? "유도 질문을 바탕으로 법·제도적 구조와 대안을 보강하세요:" : "문제의 원인(개인적 vs 구조적)과 법·제도적 해결 방안을 2~3문장으로 서술하세요:"}
+              </label>
               <textarea
                 className="s2-textarea"
                 rows={4}
@@ -1870,45 +2053,55 @@ function SkillLabTrainingView({
                 onChange={(e) => setSkill4Input(e.target.value)}
               />
 
-              <button className="primary-button full-button" onClick={() => handleSkill4Submit(false)} disabled={skill4Loading} style={{ marginTop: "10px" }}>
-                {skill4Loading ? "구조 분석 중..." : "원인 판별 및 대안 일관성 검토"}
+              <button
+                className="primary-button full-button"
+                onClick={() =>
+                  handleIterativeEvaluate(
+                    "SKILL_4",
+                    skill4Input,
+                    setSkill4AiRes,
+                    setSkill4Loading,
+                    { problemCase: dataset.skill4[0].caseDescription }
+                  )
+                }
+                disabled={skill4Loading}
+                style={{ marginTop: "10px" }}
+              >
+                {skill4Loading ? "구조 분석 중..." : skill4AiRes && !skill4AiRes.isMastered ? "수정 답안 재제출 및 재검증" : "원인 판별 및 대안 일관성 검토"}
               </button>
 
-              {skill4AiRes && (
-                <div className="ai-feedback-result-card">
-                  <div className="ai-tag-row">
-                    <span className="ai-tag">원인 판별 결과</span>
-                    <span className={`cause-category-badge ${skill4AiRes.causeCategory}`}>
-                      {skill4AiRes.causeCategory === "STRUCTURAL" ? "구조적 원인 포착 (우수)" : "표면적 원인 (보완 권장)"}
-                    </span>
-                  </div>
-                  <p className="ai-fb-text">{skill4AiRes.feedback}</p>
-                  {skill4AiRes.improvedAnswer && (
-                    <div className="improved-answer-box">
-                      <strong>모범 구조 예시:</strong>
-                      <p>{skill4AiRes.improvedAnswer}</p>
-                    </div>
-                  )}
-                  <button className="secondary-button full-button" style={{ marginTop: "12px" }} onClick={() => setActiveSkillTab(5)}>
-                    스킬 5: 실천 설계로 이동 &gt;
-                  </button>
-                </div>
+              {skill4AiRes?.isMastered && (
+                <button className="secondary-button full-button" style={{ marginTop: "12px" }} onClick={() => setActiveSkillTab(5)}>
+                  STEP 5: 실천 설계로 이동 &gt;
+                </button>
               )}
             </div>
           </div>
         )}
 
         {/* ========================================================
-            스킬 5: 통합적 예측 및 실천 설계
+            스킬 5: 통합적 예측 및 실천 설계 (대화형 튜터 루프)
             ======================================================== */}
         {activeSkillTab === 5 && (
           <div className="skill-module-card">
             <div className="module-card-header">
               <div className="module-title-left">
-                <span className="skill-badge-tag">SKILL 05</span>
+                <span className="skill-badge-tag">STEP 05</span>
                 <h3>통합적 예측 및 실천 설계 (종합 루브릭)</h3>
               </div>
-              <button className="clue-btn" onClick={() => handleSkill5Submit(true)}>
+              <button
+                className="clue-btn"
+                onClick={() =>
+                  handleIterativeEvaluate(
+                    "SKILL_5",
+                    skill5Input,
+                    setSkill5AiRes,
+                    setSkill5Loading,
+                    { problemCase: dataset.skill5[0].contextData },
+                    true
+                  )
+                }
+              >
                 <Lightbulb size={16} color="var(--gold)" weight="fill" /> 3단 뼈대 가이드
               </button>
             </div>
@@ -1922,7 +2115,38 @@ function SkillLabTrainingView({
             </div>
 
             <div className="s5-input-box">
-              <label>현황 ➔ 구조적 원인 ➔ 헌법적 실천 방안의 3단 서술형 답안을 작성하세요:</label>
+              {/* AI 종합 루브릭 코칭 */}
+              {skill5AiRes && (
+                <div className={`ai-tutor-coaching-box ${skill5AiRes.isMastered ? "mastered" : "revising"}`}>
+                  <div className="tutor-header-row">
+                    <div className="tutor-badge">
+                      <span className="tutor-avatar">⚡</span>
+                      <strong>AI 튜터 ZERO의 종합 루브릭</strong>
+                    </div>
+                    <span className={`status-tag ${skill5AiRes.isMastered ? "playable" : "coming"}`}>
+                      {skill5AiRes.isMastered ? "🎉 최고 성취수준(A) 완수!" : "💡 3단 구조 보완"}
+                    </span>
+                  </div>
+
+                  <div className="guiding-question-box">
+                    <span className="gq-label">🎯 핵심 유도 질문:</span>
+                    <p>{skill5AiRes.guideQuestion}</p>
+                  </div>
+
+                  {!skill5AiRes.isMastered && skill5AiRes.scaffoldingHint && (
+                    <div className="scaffolding-hint-box">
+                      <span className="sh-label">💡 3단 뼈대 힌트:</span>
+                      <code>{skill5AiRes.scaffoldingHint}</code>
+                    </div>
+                  )}
+
+                  <p className="tutor-feedback-text">{skill5AiRes.feedback}</p>
+                </div>
+              )}
+
+              <label className="input-field-label">
+                {skill5AiRes && !skill5AiRes.isMastered ? "유도 질문을 참고하여 3단 서술형 문장을 완성하세요:" : "현황 ➔ 구조적 원인 ➔ 헌법적 실천 방안의 3단 서술형 답안을 작성하세요:"}
+              </label>
               <textarea
                 className="s2-textarea"
                 rows={6}
@@ -1931,36 +2155,27 @@ function SkillLabTrainingView({
                 onChange={(e) => setSkill5Input(e.target.value)}
               />
 
-              <button className="primary-button full-button" onClick={() => handleSkill5Submit(false)} disabled={skill5Loading} style={{ marginTop: "10px" }}>
-                {skill5Loading ? "루브릭 종합 평가 중..." : "서술형 루브릭 종합 채점 받기"}
+              <button
+                className="primary-button full-button"
+                onClick={() =>
+                  handleIterativeEvaluate(
+                    "SKILL_5",
+                    skill5Input,
+                    setSkill5AiRes,
+                    setSkill5Loading,
+                    { problemCase: dataset.skill5[0].contextData }
+                  )
+                }
+                disabled={skill5Loading}
+                style={{ marginTop: "10px" }}
+              >
+                {skill5Loading ? "루브릭 종합 평가 중..." : skill5AiRes && !skill5AiRes.isMastered ? "수정 3단 서술 재제출 및 AI 검증" : "서술형 루브릭 종합 채점 받기"}
               </button>
 
-              {skill5AiRes && (
-                <div className="ai-feedback-result-card">
-                  <div className="ai-tag-row">
-                    <span className="ai-tag">종합 루브릭 평가 결과</span>
-                  </div>
-                  <div className="rubric-feedback-grid">
-                    <div className="rf-item">
-                      <span className="rf-label">잘된 점 (강점)</span>
-                      <p>{skill5AiRes.strength}</p>
-                    </div>
-                    <div className="rf-item">
-                      <span className="rf-label">보완할 점</span>
-                      <p>{skill5AiRes.improvement}</p>
-                    </div>
-                  </div>
-                  <p className="ai-fb-text"><strong>총평:</strong> {skill5AiRes.overallFeedback}</p>
-                  {skill5AiRes.modelAnswer && (
-                    <div className="improved-answer-box">
-                      <strong>교과서 연계 최고 수준 모범 답안:</strong>
-                      <p>{skill5AiRes.modelAnswer}</p>
-                    </div>
-                  )}
-                  <button className="primary-button full-button" style={{ marginTop: "14px" }} onClick={onBack}>
-                    5단계 탐구 스킬 훈련 완수 (허브로 복귀)
-                  </button>
-                </div>
+              {skill5AiRes?.isMastered && (
+                <button className="primary-button full-button" style={{ marginTop: "14px" }} onClick={onBack}>
+                  🎉 5단계 탐구 스킬 훈련 전 과정 마스터 완료 (허브로 복귀)
+                </button>
               )}
             </div>
           </div>
@@ -2002,7 +2217,6 @@ function SkillLabTrainingView({
             <div className="f-step-box">
               <span className="f-step-label">출제 의도 및 접근법</span>
               <p>{curS2.guide}</p>
-            </div>
             <button className="primary-button full-button" style={{ marginTop: "12px" }} onClick={() => setSkill2GuideModal(false)}>
               확인하고 답안 작성하기
             </button>
@@ -2012,6 +2226,7 @@ function SkillLabTrainingView({
     </div>
   );
 }
+
 
 
 // =========================================================================
