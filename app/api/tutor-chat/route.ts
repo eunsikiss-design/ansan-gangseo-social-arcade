@@ -1,19 +1,15 @@
 import { NextResponse } from "next/server";
 
-export async function POST(req: Request) {
+export async function POST(req: any) {
   try {
     let body: any = {};
-    
-    // 1. req.json()
-    if (typeof (req as any).json === "function") {
+
+    if (req.body && typeof req.body === "object" && typeof req.body.getReader !== "function") {
+      body = req.body;
+    } else {
       try {
         body = await req.json();
-      } catch {}
-    }
-    
-    // 2. req.text()
-    if (!body || Object.keys(body).length === 0) {
-      if (typeof (req as any).text === "function") {
+      } catch {
         try {
           const t = await req.text();
           body = t ? JSON.parse(t) : {};
@@ -21,22 +17,12 @@ export async function POST(req: Request) {
       }
     }
 
-    // 3. stream buffer
-    if (!body || Object.keys(body).length === 0) {
-      try {
-        const chunks: any[] = [];
-        for await (const chunk of (req as any)) {
-          chunks.push(typeof chunk === "string" ? Buffer.from(chunk) : chunk);
-        }
-        if (chunks.length > 0) {
-          const str = Buffer.concat(chunks).toString("utf-8");
-          body = str ? JSON.parse(str) : {};
-        }
-      } catch {}
-    }
-
     const { message, contextInfo, history = [] } = body || {};
     const userMessage = (message || "").trim();
+
+    const activeSkillTitle = contextInfo?.activeSkillTitle || "STEP 2. 자료 해석";
+    const currentProblem = contextInfo?.currentProblem || "헌법 제37조 제2항 기본권 제한과 한계";
+    const currentStudentInput = (contextInfo?.currentStudentInput || "").trim();
 
     if (!userMessage) {
       return NextResponse.json({
@@ -44,10 +30,6 @@ export async function POST(req: Request) {
         suggestedSentence: "",
       });
     }
-
-    const activeSkillTitle = contextInfo?.activeSkillTitle || "STEP 2. 자료 해석";
-    const currentProblem = contextInfo?.currentProblem || "헌법 제37조 제2항 기본권 제한과 한계";
-    const currentStudentInput = (contextInfo?.currentStudentInput || "").trim();
 
     const systemInstructionText = `당신은 고등학교 통합사회 1단원(인권 보장과 헌법)의 1:1 전담 AI 보조교사이자 친근하고 유능한 튜터 'ZERO'입니다.
 제미나이(Gemini)처럼 매우 자연스럽고, 지적이며, 다정다감하게 학생과 실시간 티키타카 대화를 나눕니다.
@@ -69,7 +51,6 @@ export async function POST(req: Request) {
 
     if (apiKey) {
       try {
-        // 제미나이 표준 멀티턴 contents 배열 구성
         const contentsList: any[] = [];
 
         // 이전 대화 기록 (최대 10턴)
@@ -106,7 +87,6 @@ export async function POST(req: Request) {
               const data = await res.json();
               const fullReply = data.candidates?.[0]?.content?.parts?.[0]?.text;
               if (fullReply && fullReply.trim().length > 0) {
-                // 추천 문장 파싱 ([추천 문장]: 또는 [추천 완성 문장]: 추출)
                 let replyText = fullReply;
                 let suggested = "";
 
@@ -121,9 +101,6 @@ export async function POST(req: Request) {
                   suggestedSentence: suggested,
                 });
               }
-            } else {
-              const errBody = await res.text();
-              console.warn(`Gemini API error [${model}] status ${res.status}:`, errBody);
             }
           } catch (mErr) {
             console.warn(`Gemini model ${model} fetch failed:`, mErr);
@@ -134,15 +111,13 @@ export async function POST(req: Request) {
       }
     }
 
-    // 로컬 자연어 대화 폴백
+    // 로컬 폴백
     const fallback = getNaturalLocalReply(userMessage, activeSkillTitle, currentStudentInput);
     return NextResponse.json(fallback);
   } catch (err: any) {
-    console.error("Tutor chat uncaught error:", err);
     return NextResponse.json({
-      reply: `[디버그 진단: ${err?.message || "에러 발생"}] 무엇이든 편하게 물어보렴!`,
+      reply: "무엇이든 편하게 물어보렴! 지금 풀고 있는 헌법 조문이나 문장 작성법에 대해 알기 쉽게 설명해 줄게.",
       suggestedSentence: "기본권은 국가안전보장과 공공복리를 위해 법률로써 제한할 수 있으나, 본질적인 내용을 침해할 수 없다.",
-      debugError: String(err?.stack || err),
     });
   }
 }
