@@ -1182,9 +1182,15 @@ function MissionPlayer({
             <TemplateHeading
               eyebrow="LEGAL REASONING QUIZ · 법리 추론 퀴즈"
               title={step.title || "올바른 헌법적 해석은?"}
-              description={step.body || step.question || "사례에 적용되는 가장 적절한 법리를 선택하세요."}
+              description="교과서 핵심 원리와 헌법 조문을 바탕으로 가장 타당한 판단을 선택하세요."
               icon="quiz"
             />
+            {step.question && (
+              <div className="quiz-question-box">
+                <span className="quiz-question-tag">Q. 핵심 법리 탐구 문제</span>
+                <p className="quiz-question-text">{step.question}</p>
+              </div>
+            )}
             <div className="puzzle-choices-grid">
               {(step.choices || []).map((choice, idx) => {
                 const isSelected = selected === idx;
@@ -1210,7 +1216,7 @@ function MissionPlayer({
             {selected !== null && (
               <div className="puzzle-feedback-card">
                 <strong>{selected === step.answer ? "🎉 정확한 헌법적 판단입니다!" : "⚠️ 다시 검토해 보세요"}</strong>
-                <p>{selected === step.answer ? "헌법 제10조 및 기본권 보장의 본질적 내용을 정확히 짚었습니다." : "공익과 사익의 조화 및 과잉금지원칙을 다시 점검해 보세요."}</p>
+                <p>{selected === step.answer ? "헌법 제10조 및 기본권 보장의 본질적 내용을 정확히 짚었습니다." : "공익과 사익의 조화 및 과잉금지원칙, 교과서 개념을 다시 점검해 보세요."}</p>
                 <button className="primary-button full-button" onClick={advance} style={{ marginTop: "10px" }}>
                   다음 단계로 &gt;
                 </button>
@@ -1218,6 +1224,7 @@ function MissionPlayer({
             )}
           </PuzzleTemplate>
         )}
+
 
         {/* 6. Evidence Collection */}
         {step.type === "evidence" && (
