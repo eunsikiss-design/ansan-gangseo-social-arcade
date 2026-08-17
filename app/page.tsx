@@ -1871,6 +1871,107 @@ function SkillLabTrainingView({
   // 내가 쓴 글 서고 토글 모달
   const [historyModalOpen, setHistoryModalOpen] = useState(false);
 
+  // ⚡ 1:1 보조교사 AI 튜터 ZERO 실시간 챗봇 & 문장 자동완성 상태
+  const [tutorChatOpen, setTutorChatOpen] = useState(false);
+  const [chatInput, setChatInput] = useState("");
+  const [chatLoading, setChatLoading] = useState(false);
+  const [chatToast, setChatToast] = useState("");
+  const [chatMessages, setChatMessages] = useState<
+    Array<{ role: "user" | "tutor"; text: string; suggestedSentence?: string; quickFollowUps?: string[] }>
+  >([
+    {
+      role: "tutor",
+      text: "안녕! 나는 1단원 인권과 헌법 탐구를 함께하는 보조교사 AI 튜터 ZERO야. 문제를 풀다 막막하거나, 작성 중인 문장을 다듬고 싶을 때 언제든 편하게 물어봐!",
+      quickFollowUps: ["✍️ 내 문장 다듬어줘", "📖 이 문제 핵심 개념 알려줘", "🎯 80% 달성 힌트 줘"],
+    },
+  ]);
+
+  // ✍️ 문장 자동완성 주입 함수
+  const handleApplyAutocomplete = (sentence: string) => {
+    if (!sentence) return;
+    if (activeSkillTab === 2) setSkill2Input(sentence);
+    else if (activeSkillTab === 3) setSkill3Input(sentence);
+    else if (activeSkillTab === 4) setSkill4Input(sentence);
+    else if (activeSkillTab === 5) setSkill5Input(sentence);
+
+    void audioManager.playSfx("success");
+    setChatToast("✓ 추천 문장이 내 답안창에 자동완성으로 적용되었습니다!");
+    setTimeout(() => setChatToast(""), 3500);
+  };
+
+  // ⚡ 튜터 챗 전송 함수
+  const handleSendTutorChat = async (textToSend?: string) => {
+    const query = (textToSend || chatInput).trim();
+    if (!query || chatLoading) return;
+
+    setChatInput("");
+    setChatMessages((prev) => [...prev, { role: "user", text: query }]);
+    setChatLoading(true);
+
+    // 현재 문제 맥락 구성
+    let currentProblemText = "";
+    let currentInputText = "";
+    let activeSkillName = "STEP 1. 개념 식별";
+
+    if (activeSkillTab === 2) {
+      activeSkillName = "STEP 2. 자료 해석 (헌법 제37조 제2항)";
+      currentProblemText = dataset.skill2[skill2Idx]?.question || "";
+      currentInputText = skill2Input;
+    } else if (activeSkillTab === 3) {
+      activeSkillName = "STEP 3. 관점 평가 (휴대전화 수거 쟁점)";
+      currentProblemText = `선택 관점: ${skill3Stance === "A" ? "자유권/사생활 보호" : "공동체 학습권"}`;
+      currentInputText = skill3Input;
+    } else if (activeSkillTab === 4) {
+      activeSkillName = "STEP 4. 원인 분석 및 법·제도 대안";
+      currentProblemText = "청소년 배달 노동 인권 침해 원인과 근로기준법 대안";
+      currentInputText = skill4Input;
+    } else if (activeSkillTab === 5) {
+      activeSkillName = "STEP 5. 실천 설계 (3단 논증)";
+      currentProblemText = "디지털 잊힐 권리와 헌법 제10조 인격권 보장 방안";
+      currentInputText = skill5Input;
+    }
+
+    try {
+      const res = await fetch("/api/tutor-chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: query,
+          contextInfo: {
+            activeSkillTitle: activeSkillName,
+            currentProblem: currentProblemText,
+            currentStudentInput: currentInputText,
+          },
+          history: chatMessages.map((m) => ({ role: m.role === "user" ? "user" : "model", text: m.text })),
+        }),
+      });
+
+      const data = await res.json();
+      setChatMessages((prev) => [
+        ...prev,
+        {
+          role: "tutor",
+          text: data.reply || "생각을 잘 정리해 보자!",
+          suggestedSentence: data.suggestedSentence || "",
+          quickFollowUps: data.quickFollowUps || [],
+        },
+      ]);
+      void audioManager.playSfx("inspect");
+    } catch {
+      setChatMessages((prev) => [
+        ...prev,
+        {
+          role: "tutor",
+          text: "헌법 제10조 행복추구권과 제37조 제2항의 기본권 제한 한계(법률유보 및 본질적 내용 침해 금지)를 중심으로 문장을 다듬으면 80% 이상 모범 답안에 도달할 수 있어!",
+          suggestedSentence: "기본권은 반드시 법률에 근거하여 제한해야 하며, 본질적인 내용을 침해할 수 없다.",
+          quickFollowUps: ["이 문장 내 답안에 적용하기"],
+        },
+      ]);
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
   const dataset = unit1SkillLabMaster;
 
   // --- Skill 1 Helpers ---
@@ -2028,10 +2129,18 @@ function SkillLabTrainingView({
             <span>탐구력 향상 랩 · 5단계 탐구 스킬 훈련</span>
             <strong>1단원 인권 보장과 헌법 스킬 랩</strong>
           </div>
-          <button className="history-review-btn" onClick={() => setHistoryModalOpen(true)}>
-            <FileText size={16} color="var(--gold)" />
-            <span>내 답안 서고</span>
-          </button>
+          <div className="hud-right-actions">
+            <button className="ai-tutor-call-btn" onClick={() => setTutorChatOpen(true)}>
+              <div className="tutor-call-avatar-box">
+                <img src="/characters/zero_evaluator.jpg" alt="ZERO" />
+              </div>
+              <span>⚡ AI 튜터 ZERO</span>
+            </button>
+            <button className="history-review-btn" onClick={() => setHistoryModalOpen(true)}>
+              <FileText size={16} color="var(--gold)" />
+              <span>내 답안 서고</span>
+            </button>
+          </div>
         </div>
         {/* 실시간 에너지 게이지 바 */}
         <div className="energy-progress-bar">
@@ -2320,7 +2429,12 @@ function SkillLabTrainingView({
 
                   {!skill2AiRes.isMastered && skill2AiRes.scaffoldingHint && (
                     <div className="scaffolding-hint-box">
-                      <span className="sh-label">💡 문장 뼈대 힌트:</span>
+                      <div className="sh-header-row">
+                        <span className="sh-label">💡 문장 뼈대 힌트:</span>
+                        <button className="autocomplete-apply-btn" onClick={() => handleApplyAutocomplete(skill2AiRes.scaffoldingHint)}>
+                          ⚡ 이 뼈대로 자동완성
+                        </button>
+                      </div>
                       <code>{skill2AiRes.scaffoldingHint}</code>
                     </div>
                   )}
@@ -2495,7 +2609,12 @@ function SkillLabTrainingView({
 
                   {!skill3AiRes.isMastered && skill3AiRes.scaffoldingHint && (
                     <div className="scaffolding-hint-box">
-                      <span className="sh-label">💡 문장 구조 힌트:</span>
+                      <div className="sh-header-row">
+                        <span className="sh-label">💡 문장 구조 힌트:</span>
+                        <button className="autocomplete-apply-btn" onClick={() => handleApplyAutocomplete(skill3AiRes.scaffoldingHint)}>
+                          ⚡ 이 뼈대로 자동완성
+                        </button>
+                      </div>
                       <code>{skill3AiRes.scaffoldingHint}</code>
                     </div>
                   )}
@@ -2649,7 +2768,12 @@ function SkillLabTrainingView({
 
                   {!skill4AiRes.isMastered && skill4AiRes.scaffoldingHint && (
                     <div className="scaffolding-hint-box">
-                      <span className="sh-label">💡 원인-대안 뼈대:</span>
+                      <div className="sh-header-row">
+                        <span className="sh-label">💡 원인-대안 뼈대:</span>
+                        <button className="autocomplete-apply-btn" onClick={() => handleApplyAutocomplete(skill4AiRes.scaffoldingHint)}>
+                          ⚡ 이 뼈대로 자동완성
+                        </button>
+                      </div>
                       <code>{skill4AiRes.scaffoldingHint}</code>
                     </div>
                   )}
@@ -2800,7 +2924,12 @@ function SkillLabTrainingView({
 
                   {!skill5AiRes.isMastered && skill5AiRes.scaffoldingHint && (
                     <div className="scaffolding-hint-box">
-                      <span className="sh-label">💡 3단 구조 힌트:</span>
+                      <div className="sh-header-row">
+                        <span className="sh-label">💡 3단 구조 힌트:</span>
+                        <button className="autocomplete-apply-btn" onClick={() => handleApplyAutocomplete(skill5AiRes.scaffoldingHint)}>
+                          ⚡ 이 뼈대로 자동완성
+                        </button>
+                      </div>
                       <code>{skill5AiRes.scaffoldingHint}</code>
                     </div>
                   )}
@@ -2869,7 +2998,125 @@ function SkillLabTrainingView({
           </div>
         )}
 
+        {/* ⚡ 화면 우측 하단 상시 플로팅 AI 튜터 호출 버튼 */}
+        <button className="floating-tutor-fab-btn" onClick={() => setTutorChatOpen(true)}>
+          <div className="fab-avatar-box">
+            <img src="/characters/zero_evaluator.jpg" alt="ZERO" />
+          </div>
+          <div className="fab-text-col">
+            <small>1:1 보조교사</small>
+            <strong>⚡ AI 튜터 호출</strong>
+          </div>
+        </button>
 
+        {/* 💬 문장 자동완성 적용 토스트 알림 */}
+        {chatToast && (
+          <div className="chat-autocomplete-toast">
+            <Check size={18} color="#56e39f" weight="bold" />
+            <span>{chatToast}</span>
+          </div>
+        )}
+
+        {/* 💬 1:1 보조교사 AI 튜터 ZERO 실시간 채팅창 모달 */}
+        {tutorChatOpen && (
+          <div className="modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget) setTutorChatOpen(false); }}>
+            <div className="tutor-chat-drawer-panel">
+              {/* 채팅창 헤더 */}
+              <div className="tutor-chat-header">
+                <div className="tutor-header-profile">
+                  <div className="npc-role-avatar-img-box zero-mini-avatar" style={{ width: "36px", height: "36px" }}>
+                    <img src="/characters/zero_evaluator.jpg" alt="ZERO" className="npc-role-avatar-img" />
+                  </div>
+                  <div>
+                    <h4>⚡ AI 보조교사 ZERO (1:1 실시간 튜터)</h4>
+                    <span className="online-indicator">● 1단원 헌법·인권 지식 베이스 연결됨</span>
+                  </div>
+                </div>
+                <button className="modal-close" onClick={() => setTutorChatOpen(false)}><X size={20} /></button>
+              </div>
+
+              {/* 채팅 메시지 스크롤 영역 */}
+              <div className="tutor-chat-messages-scroll">
+                {chatMessages.map((msg, idx) => (
+                  <div key={idx} className={`chat-bubble-row ${msg.role === "user" ? "user-row" : "tutor-row"}`}>
+                    {msg.role === "tutor" && (
+                      <div className="chat-avatar-thumb">
+                        <img src="/characters/zero_evaluator.jpg" alt="ZERO" />
+                      </div>
+                    )}
+                    <div className="chat-bubble-content">
+                      <p className="chat-bubble-text">{msg.text}</p>
+
+                      {/* ✍️ 문장 자동완성 추천 카드 */}
+                      {msg.suggestedSentence && (
+                        <div className="suggested-sentence-card">
+                          <div className="card-top-title">
+                            <Lightbulb size={14} color="var(--gold)" weight="fill" />
+                            <strong>AI 추천 정제 문장:</strong>
+                          </div>
+                          <p className="sentence-body">"{msg.suggestedSentence}"</p>
+                          <button
+                            className="apply-autocomplete-action-btn"
+                            onClick={() => handleApplyAutocomplete(msg.suggestedSentence!)}
+                          >
+                            ✍️ 내 답안창에 자동완성 적용하기
+                          </button>
+                        </div>
+                      )}
+
+                      {/* 퀵 질문 추천 칩 */}
+                      {msg.quickFollowUps && msg.quickFollowUps.length > 0 && (
+                        <div className="chat-quick-followups">
+                          {msg.quickFollowUps.map((q, qIdx) => (
+                            <button key={qIdx} className="quick-q-pill" onClick={() => handleSendTutorChat(q)}>
+                              {q}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+
+                {chatLoading && (
+                  <div className="chat-bubble-row tutor-row">
+                    <div className="chat-avatar-thumb">
+                      <img src="/characters/zero_evaluator.jpg" alt="ZERO" />
+                    </div>
+                    <div className="chat-bubble-content">
+                      <div className="tutor-typing-indicator">
+                        <span />
+                        <span />
+                        <span />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* 하단 입력 폼 */}
+              <form
+                className="tutor-chat-input-form"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  void handleSendTutorChat();
+                }}
+              >
+                <input
+                  type="text"
+                  className="tutor-chat-input"
+                  placeholder="예: '내 문장 다듬어줘', '헌법 제37조 쉽게 설명해줘'..."
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  disabled={chatLoading}
+                />
+                <button type="submit" className="tutor-chat-send-btn" disabled={chatLoading || !chatInput.trim()}>
+                  전송
+                </button>
+              </form>
+            </div>
+          </div>
+        )}
 
         {/* 📋 내가 쓴 글 서고 & 질문 다시 보기 모달 */}
         {historyModalOpen && (
