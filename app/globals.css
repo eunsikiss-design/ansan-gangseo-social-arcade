@@ -3544,6 +3544,95 @@ button:disabled { cursor:not-allowed; opacity:.48; }
 }
 
 /* ====================================================
+   AI TUTOR COACHING BOX & GUIDING QUESTION STYLES
+   ==================================================== */
+.ai-tutor-coaching-box {
+  background: linear-gradient(135deg, #0d2838, #051622);
+  border: 2px solid #1f648b;
+  border-radius: 16px;
+  padding: 16px;
+  margin-bottom: 14px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+}
+.ai-tutor-coaching-box.mastered {
+  border-color: #56e39f;
+  background: linear-gradient(135deg, #093322, #041a11);
+}
+.ai-tutor-coaching-box.revising {
+  border-color: var(--gold);
+}
+.tutor-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.tutor-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.tutor-badge strong {
+  font-size: 13.5px;
+  color: #ffffff;
+}
+
+.guiding-question-box {
+  background: #03141f;
+  border-left: 3.5px solid var(--gold);
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 10px;
+}
+.gq-label {
+  font-size: 11px;
+  font-weight: 900;
+  color: var(--gold);
+  display: block;
+  margin-bottom: 4px;
+}
+.guiding-question-box p {
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #ffffff;
+  line-height: 1.5;
+}
+
+.scaffolding-hint-box {
+  background: #072233;
+  border: 1px dashed var(--teal);
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin-bottom: 10px;
+}
+.sh-label {
+  font-size: 10.5px;
+  font-weight: 800;
+  color: var(--teal-soft);
+  display: block;
+  margin-bottom: 3px;
+}
+.scaffolding-hint-box code {
+  font-family: inherit;
+  font-size: 12px;
+  color: #ffd36a;
+  line-height: 1.45;
+  display: block;
+}
+
+.tutor-feedback-text {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: #bce5f3;
+  line-height: 1.5;
+  background: rgba(0, 0, 0, 0.25);
+  padding: 8px 10px;
+  border-radius: 6px;
+}
+
+
+/* ====================================================
    ITEM ARCHIVE VIEW STYLES
    ==================================================== */
 .item-archive-view-container {

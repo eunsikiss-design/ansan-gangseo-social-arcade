@@ -2288,10 +2288,10 @@ function SkillLabTrainingView({
 
                   <div className="guiding-question-box">
                     <span className="gq-label">🎯 핵심 유도 질문 (답안 차이 좁히기):</span>
-                    <p>{skill2AiRes.guideQuestion}</p>
+                    <p>{skill2AiRes.guideQuestion || "자료의 핵심 헌법 조항과 법률 요건을 문장에 포함하여 다시 서술해 볼까요?"}</p>
                   </div>
 
-                  {skill2AiRes.recommendedTerms && (
+                  {skill2AiRes.recommendedTerms && skill2AiRes.recommendedTerms.length > 0 && (
                     <div className="rec-terms-chips">
                       <span>추천 전문 개념어:</span>
                       {skill2AiRes.recommendedTerms.map((t: string, i: number) => (
@@ -2307,7 +2307,7 @@ function SkillLabTrainingView({
                     </div>
                   )}
 
-                  <p className="tutor-feedback-text">{skill2AiRes.feedback}</p>
+                  {skill2AiRes.feedback && <p className="tutor-feedback-text">{skill2AiRes.feedback}</p>}
                 </div>
               )}
 
@@ -2439,10 +2439,10 @@ function SkillLabTrainingView({
 
                   <div className="guiding-question-box">
                     <span className="gq-label">🎯 핵심 유도 질문 (답안 차이 좁히기):</span>
-                    <p>{skill3AiRes.guideQuestion}</p>
+                    <p>{skill3AiRes.guideQuestion || "선택한 관점의 핵심 헌법적 가치(통신의 자유, 학습권 등)를 포함해 볼까요?"}</p>
                   </div>
 
-                  {skill3AiRes.recommendedTerms && (
+                  {skill3AiRes.recommendedTerms && skill3AiRes.recommendedTerms.length > 0 && (
                     <div className="rec-terms-chips">
                       <span>추천 전문 개념어:</span>
                       {skill3AiRes.recommendedTerms.map((t: string, i: number) => (
@@ -2458,7 +2458,7 @@ function SkillLabTrainingView({
                     </div>
                   )}
 
-                  <p className="tutor-feedback-text">{skill3AiRes.feedback}</p>
+                  {skill3AiRes.feedback && <p className="tutor-feedback-text">{skill3AiRes.feedback}</p>}
                 </div>
               )}
 
@@ -2569,10 +2569,10 @@ function SkillLabTrainingView({
 
                   <div className="guiding-question-box">
                     <span className="gq-label">🎯 핵심 유도 질문 (답안 차이 좁히기):</span>
-                    <p>{skill4AiRes.guideQuestion}</p>
+                    <p>{skill4AiRes.guideQuestion || "개인의 도덕성 문제 외에 '근로기준법'이나 근로감독 등 법·제도적 구조 원인을 포함해 볼까요?"}</p>
                   </div>
 
-                  {skill4AiRes.recommendedTerms && (
+                  {skill4AiRes.recommendedTerms && skill4AiRes.recommendedTerms.length > 0 && (
                     <div className="rec-terms-chips">
                       <span>추천 전문 개념어:</span>
                       {skill4AiRes.recommendedTerms.map((t: string, i: number) => (
@@ -2588,9 +2588,10 @@ function SkillLabTrainingView({
                     </div>
                   )}
 
-                  <p className="tutor-feedback-text">{skill4AiRes.feedback}</p>
+                  {skill4AiRes.feedback && <p className="tutor-feedback-text">{skill4AiRes.feedback}</p>}
                 </div>
               )}
+
 
               <label className="input-field-label">
                 {skill4AiRes && !skill4AiRes.isMastered ? "유도 질문을 바탕으로 법·제도적 구조와 대안을 보강하세요:" : "문제의 원인(개인적 vs 구조적)과 법·제도적 해결 방안을 2~3문장으로 서술하세요:"}
@@ -2696,10 +2697,10 @@ function SkillLabTrainingView({
 
                   <div className="guiding-question-box">
                     <span className="gq-label">🎯 핵심 유도 질문 (답안 차이 좁히기):</span>
-                    <p>{skill5AiRes.guideQuestion}</p>
+                    <p>{skill5AiRes.guideQuestion || "현황 문제와 구조 원인, 그리고 헌법 기반 실천 방안의 3단 연결 구조를 갖추어 볼까요?"}</p>
                   </div>
 
-                  {skill5AiRes.recommendedTerms && (
+                  {skill5AiRes.recommendedTerms && skill5AiRes.recommendedTerms.length > 0 && (
                     <div className="rec-terms-chips">
                       <span>추천 전문 개념어:</span>
                       {skill5AiRes.recommendedTerms.map((t: string, i: number) => (
@@ -2715,7 +2716,7 @@ function SkillLabTrainingView({
                     </div>
                   )}
 
-                  <p className="tutor-feedback-text">{skill5AiRes.feedback}</p>
+                  {skill5AiRes.feedback && <p className="tutor-feedback-text">{skill5AiRes.feedback}</p>}
                 </div>
               )}
 

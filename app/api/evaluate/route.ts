@@ -94,7 +94,15 @@ export async function POST(req: Request) {
               const jsonText = data.candidates?.[0]?.content?.parts?.[0]?.text;
               if (jsonText) {
                 const parsed = JSON.parse(jsonText);
-                return NextResponse.json(parsed);
+                return NextResponse.json({
+                  isMastered: Boolean(parsed.isMastered),
+                  scoreLevel: parsed.scoreLevel || (parsed.isMastered ? "PERFECT" : "REVISE"),
+                  guideQuestion: parsed.guideQuestion || parsed.question || "자료의 핵심 헌법 조항과 개념어를 문장에 포함해 볼까요?",
+                  recommendedTerms: Array.isArray(parsed.recommendedTerms) && parsed.recommendedTerms.length > 0 ? parsed.recommendedTerms : ["법률", "본질적인 내용"],
+                  feedback: parsed.feedback || "학생 답안을 분석하여 유도 질문과 핵심 개념을 제시합니다.",
+                  scaffoldingHint: parsed.scaffoldingHint || "자료 속의 핵심 헌법 용어를 문장에 활용해 보세요.",
+                  improvedExample: parsed.improvedExample || ""
+                });
               }
             }
           } catch (mErr) {
@@ -106,13 +114,13 @@ export async function POST(req: Request) {
       }
     }
 
-
     // 3. 전문 로컬 규칙 튜터 엔진 (다회차 스마트 코칭 지원)
     return evaluateLocallyIterative(skillType, answerText, context);
   } catch (err: any) {
     return NextResponse.json({ error: err?.message || "Evaluation error" }, { status: 500 });
   }
 }
+
 
 /**
  * 로컬 대화형 코칭 규칙 엔진 (오프라인/안전 모드에서도 실시간 문장 진단 및 점진적 정답 유도)
