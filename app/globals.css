@@ -4514,6 +4514,114 @@ button:disabled { cursor:not-allowed; opacity:.48; }
   40% { opacity: 1; transform: scale(1.2); }
 }
 
+/* 📌 AI 튜터 상단 실시간 탐구 과제 맥락 요약 카드 */
+.tutor-live-task-card {
+  background: rgba(8, 28, 44, 0.85);
+  border: 1px solid rgba(86, 227, 159, 0.3);
+  border-radius: 14px;
+  padding: 12px 14px;
+  margin-bottom: 10px;
+  backdrop-filter: blur(8px);
+}
+.task-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.task-step-tag {
+  background: linear-gradient(135deg, rgba(86, 227, 159, 0.2), rgba(0, 194, 255, 0.2));
+  color: #56e39f;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(86, 227, 159, 0.4);
+}
+.task-card-header small {
+  color: #8bb2c9;
+  font-size: 10px;
+}
+.task-problem-title {
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+  margin: 0 0 8px 0;
+}
+.task-my-input-preview {
+  background: rgba(3, 16, 26, 0.7);
+  border-left: 3px solid var(--gold);
+  border-radius: 6px;
+  padding: 6px 10px;
+}
+.task-my-input-preview span {
+  display: block;
+  font-size: 10px;
+  color: var(--gold);
+  font-weight: 700;
+  margin-bottom: 2px;
+}
+.task-my-input-preview p {
+  color: #cae3ec;
+  font-size: 11px;
+  margin: 0;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+/* 🎯 3대 원클릭 비계설정 퀵 액션 버튼 바 */
+.tutor-quick-scaffold-bar {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.quick-scaffold-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 8px 6px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 1px solid transparent;
+}
+.quick-scaffold-btn.hint-btn {
+  background: rgba(255, 215, 0, 0.12);
+  color: var(--gold);
+  border-color: rgba(255, 215, 0, 0.35);
+}
+.quick-scaffold-btn.hint-btn:hover:not(:disabled) {
+  background: rgba(255, 215, 0, 0.25);
+  transform: translateY(-1px);
+}
+.quick-scaffold-btn.structure-btn {
+  background: rgba(0, 229, 255, 0.12);
+  color: var(--teal);
+  border-color: rgba(0, 229, 255, 0.35);
+}
+.quick-scaffold-btn.structure-btn:hover:not(:disabled) {
+  background: rgba(0, 229, 255, 0.25);
+  transform: translateY(-1px);
+}
+.quick-scaffold-btn.eval-btn {
+  background: rgba(86, 227, 159, 0.12);
+  color: #56e39f;
+  border-color: rgba(86, 227, 159, 0.35);
+}
+.quick-scaffold-btn.eval-btn:hover:not(:disabled) {
+  background: rgba(86, 227, 159, 0.25);
+  transform: translateY(-1px);
+}
+.quick-scaffold-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 
 
 

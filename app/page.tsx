@@ -1899,10 +1899,15 @@ function SkillLabTrainingView({
     setTimeout(() => setChatToast(""), 3500);
   };
 
-  // ⚡ 튜터 챗 전송 함수
-  const handleSendTutorChat = async (textToSend?: string) => {
-    const query = (textToSend || chatInput).trim();
-    if (!query || chatLoading) return;
+  // ⚡ 튜터 챗 전송 함수 (보안 격리 & 3대 퀵 비계 액션 완벽 연동)
+  const handleSendTutorChat = async (textToSend?: string, actionType?: "HINT" | "SCAFFOLD" | "EVALUATE") => {
+    let query = (textToSend || chatInput).trim();
+    if (actionType === "HINT") query = "💡 생각 열기 (힌트 질문 요청)";
+    else if (actionType === "SCAFFOLD") query = "✍️ 문장 뼈대 및 초성 힌트 요청";
+    else if (actionType === "EVALUATE") query = "🔍 내 답안 실시간 정밀 첨삭 요청";
+
+    if (!query && !actionType) return;
+    if (chatLoading) return;
 
     setChatInput("");
     setChatMessages((prev) => [...prev, { role: "user", text: query }]);
@@ -1932,105 +1937,40 @@ function SkillLabTrainingView({
     }
 
     try {
-      let finalReply = "";
-      let finalSuggested = "";
+      const res = await fetch("/api/tutor-chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: query,
+          actionType,
+          contextInfo: {
+            activeSkillTitle: activeSkillName,
+            currentProblem: currentProblemText,
+            currentStudentInput: currentInputText,
+          },
+          history: chatMessages.map((m) => ({ role: m.role === "user" ? "user" : "model", text: m.text })),
+        }),
+      });
 
-      try {
-        const res = await fetch("/api/tutor-chat", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            message: query,
-            contextInfo: {
-              activeSkillTitle: activeSkillName,
-              currentProblem: currentProblemText,
-              currentStudentInput: currentInputText,
-            },
-            history: chatMessages.map((m) => ({ role: m.role === "user" ? "user" : "model", text: m.text })),
-          }),
-        });
-
-        if (res.ok) {
-          const data = await res.json();
-          if (data.reply && !data.reply.includes("무엇이든 편하게 물어보렴") && !data.reply.includes("디버그 진단")) {
-            finalReply = data.reply;
-            finalSuggested = data.suggestedSentence || "";
-          }
-        }
-      } catch (srvErr) {
-        console.warn("Server tutor-chat fetch failed, attempting client direct Gemini:", srvErr);
-      }
-
-      // 만약 서버에서 응답을 제대로 못 받았을 경우 클라이언트 다이렉트 Gemini 호출
-      if (!finalReply) {
-        const apiKey = atob("QVEuQWI4Uk42SWhKTVBjVkVCR0dxQWQ1WXBHQk1VWVdhTTB0cmEyNkZZYUFxT0JLWEctZUE=");
-        const contentsList: any[] = [];
-        
-        // 대화 히스토리 구성
-        for (const h of chatMessages.slice(-6)) {
-          contentsList.push({
-            role: h.role === "user" ? "user" : "model",
-            parts: [{ text: h.text }],
-          });
-        }
-        contentsList.push({ role: "user", parts: [{ text: query }] });
-
-        const sysPrompt = `당신은 고등학교 통합사회 1단원(인권 보장과 헌법)의 1:1 보조교사 AI 튜터 'ZERO'입니다.
-학생과 다정하고 생생하게 실시간 티키타카 대화를 나눕니다.
-[학생의 현재 과제]: ${activeSkillName} (${currentProblemText})
-[학생이 쓴 글]: "${currentInputText || "(미작성)"}"
-학생의 질문/말에 공감하며 사람처럼 알기 쉽게 설명해 주세요. 학생이 문장을 원할 때는 마지막에 [추천 문장]: ... 형식으로 1문장을 제안해 주세요.`;
-
-        const models = ["gemini-flash-latest", "gemini-3.7-flash", "gemini-3.5-flash", "gemini-pro-latest"];
-        for (const m of models) {
-          try {
-            const gRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${apiKey}`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                systemInstruction: { parts: [{ text: sysPrompt }] },
-                contents: contentsList,
-              }),
-            });
-
-            if (gRes.ok) {
-              const gData = await gRes.json();
-              const fullText = gData.candidates?.[0]?.content?.parts?.[0]?.text;
-              if (fullText && fullText.trim()) {
-                const match = fullText.match(/\[추천\s*(?:완성\s*)?문장\]\s*:\s*([^\n\r]+)/i);
-                if (match && match[1]) {
-                  finalSuggested = match[1].replace(/["']/g, "").trim();
-                  finalReply = fullText.replace(/\[추천\s*(?:완성\s*)?문장\]\s*:\s*[^\n\r]+/i, "").trim();
-                } else {
-                  finalReply = fullText.trim();
-                }
-                break;
-              }
-            }
-          } catch (cErr) {
-            console.warn(`Direct model ${m} failed:`, cErr);
-          }
-        }
-      }
-
+      const data = await res.json();
       setChatMessages((prev) => [
         ...prev,
         {
           role: "tutor",
-          text: finalReply || `좋은 질문이야! 지금 **${activeSkillName}**에서는 헌법 조문의 핵심 취지(법률유보 및 본질적 내용 침해 금지)를 중심으로 문장을 풀어가면 80% 이상 모범 답안에 도달할 수 있단다!`,
-          suggestedSentence: finalSuggested,
-          quickFollowUps: ["✍️ 이 문장 내 답안에 적용하기", "💡 80% 달성을 위해 뭘 더 써야 해?"],
+          text: data.reply || "좋은 질문이야! 헌법 조문과 교과서 핵심 개념을 함께 연결해 보자.",
+          suggestedSentence: data.suggestedSentence || "",
+          quickFollowUps: ["✍️ 이 문장 내 답안에 적용하기", "💡 추가로 보완할 점은 뭐야?"],
         },
       ]);
       void audioManager.playSfx("inspect");
-    } catch {
+    } catch (err) {
       setChatMessages((prev) => [
         ...prev,
         {
           role: "tutor",
-          text: "헌법 제10조 행복추구권과 제37조 제2항의 기본권 제한 한계(법률유보 및 본질적 내용 침해 금지)를 중심으로 문장을 다듬으면 80% 이상 모범 답안에 도달할 수 있어!",
+          text: "헌법 제10조 행복추구권과 제37조 제2항의 기본권 제한 한계(법률유보 및 본질적 내용 침해 금지)를 중심으로 문장을 다듬으면 완성도 높은 모범 답안을 완성할 수 있단다!",
           suggestedSentence: "기본권은 반드시 법률에 근거하여 제한해야 하며, 본질적인 내용을 침해할 수 없다.",
-          quickFollowUps: ["이 문장 내 답안에 적용하기"],
+          quickFollowUps: ["✍️ 이 문장 내 답안에 적용하기"],
         },
       ]);
     } finally {
@@ -3083,22 +3023,78 @@ function SkillLabTrainingView({
           </div>
         )}
 
-        {/* 💬 1:1 보조교사 AI 튜터 ZERO 실시간 채팅창 모달 */}
+        {/* 💬 1:1 보조교사 AI 튜터 ZERO 실시간 채팅창 모달 (전면 재설계) */}
         {tutorChatOpen && (
           <div className="modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget) setTutorChatOpen(false); }}>
             <div className="tutor-chat-drawer-panel">
               {/* 채팅창 헤더 */}
               <div className="tutor-chat-header">
                 <div className="tutor-header-profile">
-                  <div className="npc-role-avatar-img-box zero-mini-avatar" style={{ width: "36px", height: "36px" }}>
+                  <div className="npc-role-avatar-img-box zero-mini-avatar" style={{ width: "38px", height: "38px" }}>
                     <img src="/characters/zero_evaluator.jpg" alt="ZERO" className="npc-role-avatar-img" />
                   </div>
                   <div>
-                    <h4>⚡ AI 보조교사 ZERO (1:1 실시간 튜터)</h4>
-                    <span className="online-indicator">● 1단원 헌법·인권 지식 베이스 연결됨</span>
+                    <h4>⚡ AI 보조교사 ZERO (1:1 탐구 튜터)</h4>
+                    <span className="online-indicator">● 문항 분석 및 정답 유도 비계 시스템 가동 중</span>
                   </div>
                 </div>
                 <button className="modal-close" onClick={() => setTutorChatOpen(false)}><X size={20} /></button>
+              </div>
+
+              {/* 📌 현재 풀고 있는 탐구 과제 실시간 요약 카드 */}
+              <div className="tutor-live-task-card">
+                <div className="task-card-header">
+                  <span className="task-step-tag">
+                    {activeSkillTab === 2 ? "STEP 2. 자료 해석" :
+                     activeSkillTab === 3 ? "STEP 3. 관점 평가" :
+                     activeSkillTab === 4 ? "STEP 4. 원인 분석 및 대안" :
+                     activeSkillTab === 5 ? "STEP 5. 실천 설계" : "STEP 1. 개념 식별"}
+                  </span>
+                  <small>현재 탐구 과제 맥락</small>
+                </div>
+                <p className="task-problem-title">
+                  {activeSkillTab === 2 ? "Q. 기본권 제한의 '형식적 요건(법률)'과 '실질적 한계(본질적 내용)' 서술" :
+                   activeSkillTab === 3 ? `Q. 휴대전화 수거 쟁점 (${skill3Stance === "A" ? "자유권/사생활 보호" : "공동체 학습권"} 관점) 주장 서술` :
+                   activeSkillTab === 4 ? "Q. 청소년 배달 노동 인권 침해의 구조적 원인과 근로기준법 기반 해결책" :
+                   activeSkillTab === 5 ? "Q. [현황 ➔ 구조 원인 ➔ 헌법 기반 대안] 3단 논증 완성" : "통합사회 핵심 개념어 학습"}
+                </p>
+                <div className="task-my-input-preview">
+                  <span>내 작성 답안:</span>
+                  <p>
+                    {activeSkillTab === 2 ? (skill2Input || "(아직 작성하지 않음)") :
+                     activeSkillTab === 3 ? (skill3Input || "(아직 작성하지 않음)") :
+                     activeSkillTab === 4 ? (skill4Input || "(아직 작성하지 않음)") :
+                     activeSkillTab === 5 ? (skill5Input || "(아직 작성하지 않음)") : "(개념 식별 단계)"}
+                  </p>
+                </div>
+              </div>
+
+              {/* 🎯 3대 원클릭 비계설정 퀵 액션 버튼 바 */}
+              <div className="tutor-quick-scaffold-bar">
+                <button
+                  className="quick-scaffold-btn hint-btn"
+                  onClick={() => void handleSendTutorChat("", "HINT")}
+                  disabled={chatLoading}
+                >
+                  <Lightbulb size={15} color="var(--gold)" weight="fill" />
+                  <span>💡 핵심 힌트 질문</span>
+                </button>
+                <button
+                  className="quick-scaffold-btn structure-btn"
+                  onClick={() => void handleSendTutorChat("", "SCAFFOLD")}
+                  disabled={chatLoading}
+                >
+                  <FileText size={15} color="var(--teal)" weight="fill" />
+                  <span>✍️ 문장 뼈대 지원</span>
+                </button>
+                <button
+                  className="quick-scaffold-btn eval-btn"
+                  onClick={() => void handleSendTutorChat("", "EVALUATE")}
+                  disabled={chatLoading}
+                >
+                  <Sparkle size={15} color="#56e39f" weight="fill" />
+                  <span>🔍 내 답안 정밀 첨삭</span>
+                </button>
               </div>
 
               {/* 채팅 메시지 스크롤 영역 */}
@@ -3111,30 +3107,14 @@ function SkillLabTrainingView({
                       </div>
                     )}
                     <div className="chat-bubble-content">
-                      {/* 📊 수준 진단 뱃지 */}
-                      {msg.levelDiagnosis && (
-                        <div className="tutor-level-diagnosis-badge">
-                          <CheckCircle2 size={13} color="var(--gold)" />
-                          <span>AI 진단: <strong>{msg.levelDiagnosis}</strong></span>
-                        </div>
-                      )}
-
                       <p className="chat-bubble-text">{msg.text}</p>
-
-                      {/* 🎯 단계별 비계설정 유도 질문 카드 */}
-                      {msg.scaffoldingGuide && (
-                        <div className="tutor-scaffolding-guide-box">
-                          <span className="scaffold-label">🎯 정답을 향한 1단계 비계 질문:</span>
-                          <p>{msg.scaffoldingGuide}</p>
-                        </div>
-                      )}
 
                       {/* ✍️ 문장 자동완성 추천 카드 */}
                       {msg.suggestedSentence && (
                         <div className="suggested-sentence-card">
                           <div className="card-top-title">
                             <Lightbulb size={14} color="var(--gold)" weight="fill" />
-                            <strong>수준 맞춤형 추천 문장 (80% 이상 목표):</strong>
+                            <strong>모범 답안 수준 추천 문장:</strong>
                           </div>
                           <p className="sentence-body">"{msg.suggestedSentence}"</p>
                           <button
@@ -3150,7 +3130,7 @@ function SkillLabTrainingView({
                       {msg.quickFollowUps && msg.quickFollowUps.length > 0 && (
                         <div className="chat-quick-followups">
                           {msg.quickFollowUps.map((q, qIdx) => (
-                            <button key={qIdx} className="quick-q-pill" onClick={() => handleSendTutorChat(q)}>
+                            <button key={qIdx} className="quick-q-pill" onClick={() => void handleSendTutorChat(q)}>
                               {q}
                             </button>
                           ))}
@@ -3187,7 +3167,7 @@ function SkillLabTrainingView({
                 <input
                   type="text"
                   className="tutor-chat-input"
-                  placeholder="예: '내 문장 다듬어줘', '헌법 제37조 쉽게 설명해줘'..."
+                  placeholder="질문이나 생각을 편하게 적어보렴 (예: '왜 법률로 제한해야 해?')..."
                   value={chatInput}
                   onChange={(e) => setChatInput(e.target.value)}
                   disabled={chatLoading}
