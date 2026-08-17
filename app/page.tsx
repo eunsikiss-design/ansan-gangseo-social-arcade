@@ -1843,7 +1843,10 @@ function SkillLabTrainingView({
   // 내가 쓴 글 서고 토글 모달
   const [historyModalOpen, setHistoryModalOpen] = useState(false);
 
-  // ⚡ 1:1 보조교사 AI 튜터 ZERO 실시간 챗봇 & 문장 자동완성 상태
+  // 🔽 AI 코칭 박스 접어두기 토글 상태 (STEP별 독립 제어)
+  const [coachingCollapsed, setCoachingCollapsed] = useState<Record<number, boolean>>({});
+
+  // ⚡ 1:1 보조교사 AI 튜터 ZERO 실시간 챗봇 상태
   const [tutorChatOpen, setTutorChatOpen] = useState(false);
   const [chatInput, setChatInput] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
@@ -2428,7 +2431,7 @@ function SkillLabTrainingView({
             </div>
 
             <div className="s2-prompt-box">
-              {/* AI 튜터 ZERO의 실시간 코칭 배너 */}
+              {/* AI 튜터 ZERO의 실시간 코칭 배너 (접어두기 기능 탑재) */}
               {skill2AiRes && (
                 <div className={`ai-tutor-coaching-box ${skill2AiRes.isMastered ? "mastered" : "revising"}`}>
                   <div className="tutor-header-row">
@@ -2438,49 +2441,68 @@ function SkillLabTrainingView({
                       </div>
                       <strong>AI 튜터 ZERO의 실시간 코칭</strong>
                     </div>
-                    <span className={`status-tag ${skill2AiRes.isMastered ? "playable" : "coming"}`}>
-                      {skill2AiRes.isMastered ? "🎉 80% 이상 마스터 달성!" : `🔥 일치도 ${skill2AiRes.matchRate || 40}% (80% 목표)`}
-                    </span>
-                  </div>
-
-                  {/* 일치도 게이지 바 */}
-                  <div className="match-rate-bar-container">
-                    <div className="match-rate-label-row">
-                      <small>모범 답안 일치도 지수</small>
-                      <strong>{skill2AiRes.matchRate || 40}% / 80% 기준</strong>
-                    </div>
-                    <div className="match-rate-progress-track">
-                      <div className="match-rate-progress-fill" style={{ width: `${Math.min(100, skill2AiRes.matchRate || 40)}%`, background: skill2AiRes.isMastered ? "#56e39f" : "var(--gold)" }} />
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <span className={`status-tag ${skill2AiRes.isMastered ? "playable" : "coming"}`}>
+                        {skill2AiRes.isMastered ? "🎉 80% 이상 마스터 달성!" : `🔥 일치도 ${skill2AiRes.matchRate || 40}% (80% 목표)`}
+                      </span>
+                      <button
+                        className="coach-collapse-toggle-btn"
+                        onClick={() => setCoachingCollapsed((prev) => ({ ...prev, 2: !prev[2] }))}
+                        title={coachingCollapsed[2] ? "코칭 펼치기" : "코칭 접기"}
+                      >
+                        {coachingCollapsed[2] ? "🔽 코칭 펼치기" : "🔼 코칭 접기"}
+                      </button>
                     </div>
                   </div>
 
-                  <div className="guiding-question-box">
-                    <span className="gq-label">🎯 핵심 유도 질문 (답안 차이 좁히기):</span>
-                    <p>{skill2AiRes.guideQuestion || "자료의 핵심 헌법 조항과 법률 요건을 문장에 포함하여 다시 서술해 볼까요?"}</p>
-                  </div>
-
-                  {skill2AiRes.recommendedTerms && skill2AiRes.recommendedTerms.length > 0 && (
-                    <div className="rec-terms-chips">
-                      <span>추천 전문 개념어:</span>
-                      {skill2AiRes.recommendedTerms.map((t: string, i: number) => (
-                        <span key={i} className="term-chip">{t}</span>
-                      ))}
-                    </div>
-                  )}
-
-                  {!skill2AiRes.isMastered && skill2AiRes.scaffoldingHint && (
-                    <div className="scaffolding-hint-box">
-                      <div className="sh-header-row">
-                        <span className="sh-label">💡 문장 뼈대 힌트:</span>
-                        <button className="autocomplete-apply-btn" onClick={() => handleApplyAutocomplete(skill2AiRes.scaffoldingHint)}>
-                          ⚡ 이 뼈대로 자동완성
-                        </button>
+                  {!coachingCollapsed[2] && (
+                    <div className="coaching-expandable-content">
+                      {/* 일치도 게이지 바 */}
+                      <div className="match-rate-bar-container">
+                        <div className="match-rate-label-row">
+                          <small>모범 답안 일치도 지수</small>
+                          <strong>{skill2AiRes.matchRate || 40}% / 80% 기준</strong>
+                        </div>
+                        <div className="match-rate-progress-track">
+                          <div className="match-rate-progress-fill" style={{ width: `${Math.min(100, skill2AiRes.matchRate || 40)}%`, background: skill2AiRes.isMastered ? "#56e39f" : "var(--gold)" }} />
+                        </div>
                       </div>
-                      <code>{skill2AiRes.scaffoldingHint}</code>
+
+                      <div className="guiding-question-box">
+                        <span className="gq-label">🎯 핵심 유도 질문 (답안 차이 좁히기):</span>
+                        <p>{skill2AiRes.guideQuestion || "자료의 핵심 헌법 조항과 법률 요건을 문장에 포함하여 다시 서술해 볼까요?"}</p>
+                      </div>
+
+                      {skill2AiRes.recommendedTerms && skill2AiRes.recommendedTerms.length > 0 && (
+                        <div className="rec-terms-chips">
+                          <span>추천 전문 개념어:</span>
+                          {skill2AiRes.recommendedTerms.map((t: string, i: number) => (
+                            <span key={i} className="term-chip">{t}</span>
+                          ))}
+                        </div>
+                      )}
+
+                      {!skill2AiRes.isMastered && skill2AiRes.scaffoldingHint && (
+                        <div className="scaffolding-hint-box">
+                          <div className="sh-header-row">
+                            <span className="sh-label">💡 문장 뼈대 힌트 (직접 입력해 보세요):</span>
+                          </div>
+                          <code>{skill2AiRes.scaffoldingHint}</code>
+                        </div>
+                      )}
+
+                      {skill2AiRes.feedback && (
+                        <div className="tutor-feedback-with-avatar">
+                          <div className="npc-role-avatar-img-box zero-micro-avatar">
+                            <img src="/characters/zero_evaluator.jpg" alt="ZERO" className="npc-role-avatar-img" />
+                          </div>
+                          <p className="tutor-feedback-text">
+                            "{skill2AiRes.feedback}"
+                          </p>
+                        </div>
+                      )}
                     </div>
                   )}
-
-                  {skill2AiRes.feedback && <p className="tutor-feedback-text">{skill2AiRes.feedback}</p>}
                 </div>
               )}
 
@@ -2608,7 +2630,7 @@ function SkillLabTrainingView({
             </div>
 
             <div className="s3-input-box">
-              {/* AI 튜터 코칭 피드백 */}
+              {/* AI 튜터 코칭 피드백 (접어두기 기능 탑재) */}
               {skill3AiRes && (
                 <div className={`ai-tutor-coaching-box ${skill3AiRes.isMastered ? "mastered" : "revising"}`}>
                   <div className="tutor-header-row">
@@ -2618,49 +2640,68 @@ function SkillLabTrainingView({
                       </div>
                       <strong>AI 튜터 ZERO의 관점 코칭</strong>
                     </div>
-                    <span className={`status-tag ${skill3AiRes.isMastered ? "playable" : "coming"}`}>
-                      {skill3AiRes.isMastered ? "🎉 80% 이상 마스터 달성!" : `🔥 일치도 ${skill3AiRes.matchRate || 40}% (80% 목표)`}
-                    </span>
-                  </div>
-
-                  {/* 일치도 게이지 바 */}
-                  <div className="match-rate-bar-container">
-                    <div className="match-rate-label-row">
-                      <small>모범 답안 일치도 지수</small>
-                      <strong>{skill3AiRes.matchRate || 40}% / 80% 기준</strong>
-                    </div>
-                    <div className="match-rate-progress-track">
-                      <div className="match-rate-progress-fill" style={{ width: `${Math.min(100, skill3AiRes.matchRate || 40)}%`, background: skill3AiRes.isMastered ? "#56e39f" : "var(--gold)" }} />
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <span className={`status-tag ${skill3AiRes.isMastered ? "playable" : "coming"}`}>
+                        {skill3AiRes.isMastered ? "🎉 80% 이상 마스터 달성!" : `🔥 일치도 ${skill3AiRes.matchRate || 40}% (80% 목표)`}
+                      </span>
+                      <button
+                        className="coach-collapse-toggle-btn"
+                        onClick={() => setCoachingCollapsed((prev) => ({ ...prev, 3: !prev[3] }))}
+                        title={coachingCollapsed[3] ? "코칭 펼치기" : "코칭 접기"}
+                      >
+                        {coachingCollapsed[3] ? "🔽 코칭 펼치기" : "🔼 코칭 접기"}
+                      </button>
                     </div>
                   </div>
 
-                  <div className="guiding-question-box">
-                    <span className="gq-label">🎯 핵심 유도 질문 (답안 차이 좁히기):</span>
-                    <p>{skill3AiRes.guideQuestion || "선택한 관점의 핵심 헌법적 가치(통신의 자유, 학습권 등)를 포함해 볼까요?"}</p>
-                  </div>
-
-                  {skill3AiRes.recommendedTerms && skill3AiRes.recommendedTerms.length > 0 && (
-                    <div className="rec-terms-chips">
-                      <span>추천 전문 개념어:</span>
-                      {skill3AiRes.recommendedTerms.map((t: string, i: number) => (
-                        <span key={i} className="term-chip">{t}</span>
-                      ))}
-                    </div>
-                  )}
-
-                  {!skill3AiRes.isMastered && skill3AiRes.scaffoldingHint && (
-                    <div className="scaffolding-hint-box">
-                      <div className="sh-header-row">
-                        <span className="sh-label">💡 문장 구조 힌트:</span>
-                        <button className="autocomplete-apply-btn" onClick={() => handleApplyAutocomplete(skill3AiRes.scaffoldingHint)}>
-                          ⚡ 이 뼈대로 자동완성
-                        </button>
+                  {!coachingCollapsed[3] && (
+                    <div className="coaching-expandable-content">
+                      {/* 일치도 게이지 바 */}
+                      <div className="match-rate-bar-container">
+                        <div className="match-rate-label-row">
+                          <small>모범 답안 일치도 지수</small>
+                          <strong>{skill3AiRes.matchRate || 40}% / 80% 기준</strong>
+                        </div>
+                        <div className="match-rate-progress-track">
+                          <div className="match-rate-progress-fill" style={{ width: `${Math.min(100, skill3AiRes.matchRate || 40)}%`, background: skill3AiRes.isMastered ? "#56e39f" : "var(--gold)" }} />
+                        </div>
                       </div>
-                      <code>{skill3AiRes.scaffoldingHint}</code>
+
+                      <div className="guiding-question-box">
+                        <span className="gq-label">🎯 핵심 유도 질문 (답안 차이 좁히기):</span>
+                        <p>{skill3AiRes.guideQuestion || "선택한 관점의 핵심 헌법적 가치(통신의 자유, 학습권 등)를 포함해 볼까요?"}</p>
+                      </div>
+
+                      {skill3AiRes.recommendedTerms && skill3AiRes.recommendedTerms.length > 0 && (
+                        <div className="rec-terms-chips">
+                          <span>추천 전문 개념어:</span>
+                          {skill3AiRes.recommendedTerms.map((t: string, i: number) => (
+                            <span key={i} className="term-chip">{t}</span>
+                          ))}
+                        </div>
+                      )}
+
+                      {!skill3AiRes.isMastered && skill3AiRes.scaffoldingHint && (
+                        <div className="scaffolding-hint-box">
+                          <div className="sh-header-row">
+                            <span className="sh-label">💡 문장 구조 힌트 (직접 입력해 보세요):</span>
+                          </div>
+                          <code>{skill3AiRes.scaffoldingHint}</code>
+                        </div>
+                      )}
+
+                      {skill3AiRes.feedback && (
+                        <div className="tutor-feedback-with-avatar">
+                          <div className="npc-role-avatar-img-box zero-micro-avatar">
+                            <img src="/characters/zero_evaluator.jpg" alt="ZERO" className="npc-role-avatar-img" />
+                          </div>
+                          <p className="tutor-feedback-text">
+                            "{skill3AiRes.feedback}"
+                          </p>
+                        </div>
+                      )}
                     </div>
                   )}
-
-                  {skill3AiRes.feedback && <p className="tutor-feedback-text">{skill3AiRes.feedback}</p>}
                 </div>
               )}
 
@@ -2767,7 +2808,7 @@ function SkillLabTrainingView({
             </div>
 
             <div className="s4-input-box">
-              {/* AI 코칭 피드백 */}
+              {/* AI 코칭 피드백 (접어두기 기능 탑재) */}
               {skill4AiRes && (
                 <div className={`ai-tutor-coaching-box ${skill4AiRes.isMastered ? "mastered" : "revising"}`}>
                   <div className="tutor-header-row">
@@ -2777,49 +2818,68 @@ function SkillLabTrainingView({
                       </div>
                       <strong>AI 튜터 ZERO의 구조 분석</strong>
                     </div>
-                    <span className={`status-tag ${skill4AiRes.isMastered ? "playable" : "coming"}`}>
-                      {skill4AiRes.isMastered ? "🎉 80% 이상 마스터 달성!" : `🔥 일치도 ${skill4AiRes.matchRate || 40}% (80% 목표)`}
-                    </span>
-                  </div>
-
-                  {/* 일치도 게이지 바 */}
-                  <div className="match-rate-bar-container">
-                    <div className="match-rate-label-row">
-                      <small>모범 답안 일치도 지수</small>
-                      <strong>{skill4AiRes.matchRate || 40}% / 80% 기준</strong>
-                    </div>
-                    <div className="match-rate-progress-track">
-                      <div className="match-rate-progress-fill" style={{ width: `${Math.min(100, skill4AiRes.matchRate || 40)}%`, background: skill4AiRes.isMastered ? "#56e39f" : "var(--gold)" }} />
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <span className={`status-tag ${skill4AiRes.isMastered ? "playable" : "coming"}`}>
+                        {skill4AiRes.isMastered ? "🎉 80% 이상 마스터 달성!" : `🔥 일치도 ${skill4AiRes.matchRate || 40}% (80% 목표)`}
+                      </span>
+                      <button
+                        className="coach-collapse-toggle-btn"
+                        onClick={() => setCoachingCollapsed((prev) => ({ ...prev, 4: !prev[4] }))}
+                        title={coachingCollapsed[4] ? "코칭 펼치기" : "코칭 접기"}
+                      >
+                        {coachingCollapsed[4] ? "🔽 코칭 펼치기" : "🔼 코칭 접기"}
+                      </button>
                     </div>
                   </div>
 
-                  <div className="guiding-question-box">
-                    <span className="gq-label">🎯 핵심 유도 질문 (답안 차이 좁히기):</span>
-                    <p>{skill4AiRes.guideQuestion || "개인의 도덕성 문제 외에 '근로기준법'이나 근로감독 등 법·제도적 구조 원인을 포함해 볼까요?"}</p>
-                  </div>
-
-                  {skill4AiRes.recommendedTerms && skill4AiRes.recommendedTerms.length > 0 && (
-                    <div className="rec-terms-chips">
-                      <span>추천 전문 개념어:</span>
-                      {skill4AiRes.recommendedTerms.map((t: string, i: number) => (
-                        <span key={i} className="term-chip">{t}</span>
-                      ))}
-                    </div>
-                  )}
-
-                  {!skill4AiRes.isMastered && skill4AiRes.scaffoldingHint && (
-                    <div className="scaffolding-hint-box">
-                      <div className="sh-header-row">
-                        <span className="sh-label">💡 원인-대안 뼈대:</span>
-                        <button className="autocomplete-apply-btn" onClick={() => handleApplyAutocomplete(skill4AiRes.scaffoldingHint)}>
-                          ⚡ 이 뼈대로 자동완성
-                        </button>
+                  {!coachingCollapsed[4] && (
+                    <div className="coaching-expandable-content">
+                      {/* 일치도 게이지 바 */}
+                      <div className="match-rate-bar-container">
+                        <div className="match-rate-label-row">
+                          <small>모범 답안 일치도 지수</small>
+                          <strong>{skill4AiRes.matchRate || 40}% / 80% 기준</strong>
+                        </div>
+                        <div className="match-rate-progress-track">
+                          <div className="match-rate-progress-fill" style={{ width: `${Math.min(100, skill4AiRes.matchRate || 40)}%`, background: skill4AiRes.isMastered ? "#56e39f" : "var(--gold)" }} />
+                        </div>
                       </div>
-                      <code>{skill4AiRes.scaffoldingHint}</code>
+
+                      <div className="guiding-question-box">
+                        <span className="gq-label">🎯 핵심 유도 질문 (답안 차이 좁히기):</span>
+                        <p>{skill4AiRes.guideQuestion || "개인의 도덕성 문제 외에 '근로기준법'이나 근로감독 등 법·제도적 구조 원인을 포함해 볼까요?"}</p>
+                      </div>
+
+                      {skill4AiRes.recommendedTerms && skill4AiRes.recommendedTerms.length > 0 && (
+                        <div className="rec-terms-chips">
+                          <span>추천 전문 개념어:</span>
+                          {skill4AiRes.recommendedTerms.map((t: string, i: number) => (
+                            <span key={i} className="term-chip">{t}</span>
+                          ))}
+                        </div>
+                      )}
+
+                      {!skill4AiRes.isMastered && skill4AiRes.scaffoldingHint && (
+                        <div className="scaffolding-hint-box">
+                          <div className="sh-header-row">
+                            <span className="sh-label">💡 원인-대안 뼈대 (직접 입력해 보세요):</span>
+                          </div>
+                          <code>{skill4AiRes.scaffoldingHint}</code>
+                        </div>
+                      )}
+
+                      {skill4AiRes.feedback && (
+                        <div className="tutor-feedback-with-avatar">
+                          <div className="npc-role-avatar-img-box zero-micro-avatar">
+                            <img src="/characters/zero_evaluator.jpg" alt="ZERO" className="npc-role-avatar-img" />
+                          </div>
+                          <p className="tutor-feedback-text">
+                            "{skill4AiRes.feedback}"
+                          </p>
+                        </div>
+                      )}
                     </div>
                   )}
-
-                  {skill4AiRes.feedback && <p className="tutor-feedback-text">{skill4AiRes.feedback}</p>}
                 </div>
               )}
 
@@ -2923,7 +2983,7 @@ function SkillLabTrainingView({
             </div>
 
             <div className="s5-input-box">
-              {/* AI 코칭 피드백 */}
+              {/* AI 코칭 피드백 (접어두기 기능 탑재) */}
               {skill5AiRes && (
                 <div className={`ai-tutor-coaching-box ${skill5AiRes.isMastered ? "mastered" : "revising"}`}>
                   <div className="tutor-header-row">
@@ -2933,49 +2993,68 @@ function SkillLabTrainingView({
                       </div>
                       <strong>AI 튜터 ZERO의 종합 논증 평가</strong>
                     </div>
-                    <span className={`status-tag ${skill5AiRes.isMastered ? "playable" : "coming"}`}>
-                      {skill5AiRes.isMastered ? "🎉 80% 이상 마스터 달성!" : `🔥 일치도 ${skill5AiRes.matchRate || 40}% (80% 목표)`}
-                    </span>
-                  </div>
-
-                  {/* 일치도 게이지 바 */}
-                  <div className="match-rate-bar-container">
-                    <div className="match-rate-label-row">
-                      <small>모범 답안 일치도 지수</small>
-                      <strong>{skill5AiRes.matchRate || 40}% / 80% 기준</strong>
-                    </div>
-                    <div className="match-rate-progress-track">
-                      <div className="match-rate-progress-fill" style={{ width: `${Math.min(100, skill5AiRes.matchRate || 40)}%`, background: skill5AiRes.isMastered ? "#56e39f" : "var(--gold)" }} />
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <span className={`status-tag ${skill5AiRes.isMastered ? "playable" : "coming"}`}>
+                        {skill5AiRes.isMastered ? "🎉 80% 이상 마스터 달성!" : `🔥 일치도 ${skill5AiRes.matchRate || 40}% (80% 목표)`}
+                      </span>
+                      <button
+                        className="coach-collapse-toggle-btn"
+                        onClick={() => setCoachingCollapsed((prev) => ({ ...prev, 5: !prev[5] }))}
+                        title={coachingCollapsed[5] ? "코칭 펼치기" : "코칭 접기"}
+                      >
+                        {coachingCollapsed[5] ? "🔽 코칭 펼치기" : "🔼 코칭 접기"}
+                      </button>
                     </div>
                   </div>
 
-                  <div className="guiding-question-box">
-                    <span className="gq-label">🎯 핵심 유도 질문 (답안 차이 좁히기):</span>
-                    <p>{skill5AiRes.guideQuestion || "현황 문제와 구조 원인, 그리고 헌법 기반 실천 방안의 3단 연결 구조를 갖추어 볼까요?"}</p>
-                  </div>
-
-                  {skill5AiRes.recommendedTerms && skill5AiRes.recommendedTerms.length > 0 && (
-                    <div className="rec-terms-chips">
-                      <span>추천 전문 개념어:</span>
-                      {skill5AiRes.recommendedTerms.map((t: string, i: number) => (
-                        <span key={i} className="term-chip">{t}</span>
-                      ))}
-                    </div>
-                  )}
-
-                  {!skill5AiRes.isMastered && skill5AiRes.scaffoldingHint && (
-                    <div className="scaffolding-hint-box">
-                      <div className="sh-header-row">
-                        <span className="sh-label">💡 3단 구조 힌트:</span>
-                        <button className="autocomplete-apply-btn" onClick={() => handleApplyAutocomplete(skill5AiRes.scaffoldingHint)}>
-                          ⚡ 이 뼈대로 자동완성
-                        </button>
+                  {!coachingCollapsed[5] && (
+                    <div className="coaching-expandable-content">
+                      {/* 일치도 게이지 바 */}
+                      <div className="match-rate-bar-container">
+                        <div className="match-rate-label-row">
+                          <small>모범 답안 일치도 지수</small>
+                          <strong>{skill5AiRes.matchRate || 40}% / 80% 기준</strong>
+                        </div>
+                        <div className="match-rate-progress-track">
+                          <div className="match-rate-progress-fill" style={{ width: `${Math.min(100, skill5AiRes.matchRate || 40)}%`, background: skill5AiRes.isMastered ? "#56e39f" : "var(--gold)" }} />
+                        </div>
                       </div>
-                      <code>{skill5AiRes.scaffoldingHint}</code>
+
+                      <div className="guiding-question-box">
+                        <span className="gq-label">🎯 핵심 유도 질문 (답안 차이 좁히기):</span>
+                        <p>{skill5AiRes.guideQuestion || "현황 문제와 구조 원인, 그리고 헌법 기반 실천 방안의 3단 연결 구조를 갖추어 볼까요?"}</p>
+                      </div>
+
+                      {skill5AiRes.recommendedTerms && skill5AiRes.recommendedTerms.length > 0 && (
+                        <div className="rec-terms-chips">
+                          <span>추천 전문 개념어:</span>
+                          {skill5AiRes.recommendedTerms.map((t: string, i: number) => (
+                            <span key={i} className="term-chip">{t}</span>
+                          ))}
+                        </div>
+                      )}
+
+                      {!skill5AiRes.isMastered && skill5AiRes.scaffoldingHint && (
+                        <div className="scaffolding-hint-box">
+                          <div className="sh-header-row">
+                            <span className="sh-label">💡 3단 구조 힌트 (직접 입력해 보세요):</span>
+                          </div>
+                          <code>{skill5AiRes.scaffoldingHint}</code>
+                        </div>
+                      )}
+
+                      {skill5AiRes.feedback && (
+                        <div className="tutor-feedback-with-avatar">
+                          <div className="npc-role-avatar-img-box zero-micro-avatar">
+                            <img src="/characters/zero_evaluator.jpg" alt="ZERO" className="npc-role-avatar-img" />
+                          </div>
+                          <p className="tutor-feedback-text">
+                            "{skill5AiRes.feedback}"
+                          </p>
+                        </div>
+                      )}
                     </div>
                   )}
-
-                  {skill5AiRes.feedback && <p className="tutor-feedback-text">{skill5AiRes.feedback}</p>}
                 </div>
               )}
 
@@ -3197,20 +3276,17 @@ function SkillLabTrainingView({
                     <div className="chat-bubble-content">
                       <p className="chat-bubble-text">{msg.text}</p>
 
-                      {/* ✍️ 문장 자동완성 추천 카드 */}
+                      {/* 💡 추천 문장 참고 카드 (자동완성 대신 직접 작성 유도) */}
                       {msg.suggestedSentence && (
                         <div className="suggested-sentence-card">
                           <div className="card-top-title">
                             <Lightbulb size={14} color="var(--gold)" weight="fill" />
-                            <strong>모범 답안 수준 추천 문장:</strong>
+                            <strong>모범 답안 수준 추천 문장 (참고용):</strong>
                           </div>
                           <p className="sentence-body">"{msg.suggestedSentence}"</p>
-                          <button
-                            className="apply-autocomplete-action-btn"
-                            onClick={() => handleApplyAutocomplete(msg.suggestedSentence!)}
-                          >
-                            ✍️ 내 답안창에 자동완성 적용하기
-                          </button>
+                          <small style={{ color: "rgba(255,255,255,0.7)", fontSize: "11px", marginTop: "4px", display: "block" }}>
+                            ※ 위 문장을 참고하여 내 답안창에 직접 타이핑해 보세요!
+                          </small>
                         </div>
                       )}
 
