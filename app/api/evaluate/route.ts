@@ -87,7 +87,7 @@ export async function POST(req: Request) {
   "improvedExample": "모범 문장 예시"
 }`;
 
-        const models = ["gemini-2.0-flash", "gemini-1.5-flash"];
+        const models = ["gemini-flash-latest", "gemini-3.7-flash", "gemini-3.5-flash", "gemini-pro-latest"];
         for (const model of models) {
           try {
             const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
