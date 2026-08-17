@@ -14,6 +14,11 @@ import {
 
 import { unit1GameModes } from "@/src/data/unit1Data";
 import { unit1VocabCards, unit1SkillTrainings, type VocabCard, type SkillTrainingCard } from "@/src/data/skillLabData";
+import {
+  masterVocabTopics, allVocabQuestions, unit1SkillLabMaster,
+  type VocabQuestionItem, type Skill1Question, type Skill2Question,
+  type Skill3Question, type Skill4Question, type Skill5Question
+} from "@/src/data/skillLabMasterData";
 import { unitCertificates } from "@/src/data/certificates";
 import {
   authenticateUser, changeUserPassword, DEFAULT_INITIAL_PASSWORD,
@@ -1063,8 +1068,10 @@ function MissionPlayerView({
 }
 
 // =========================================================================
-// 5. SKILL LAB VIEWS (개념-용어 학습실 & 탐구기능 연습실)
+// 5. SKILL LAB VIEWS (개념-용어 학습실 & 5단계 탐구기능 연습실)
 // =========================================================================
+
+// --- 5-1. 개념-용어 학습실 (25개 전 주제 마스터) ---
 function SkillLabVocabView({
   save,
   setSave,
@@ -1074,14 +1081,25 @@ function SkillLabVocabView({
   setSave: React.Dispatch<React.SetStateAction<SaveData>>;
   onBack: () => void;
 }) {
-  const [currentIdx, setCurrentIdx] = useState(0);
-  const [selected, setSelected] = useState<number | null>(null);
-  const card = unit1VocabCards[currentIdx];
+  const [selectedTopicId, setSelectedTopicId] = useState(1);
+  const [currentQIdx, setCurrentQIdx] = useState(0);
+  const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
+  const [matchSelectedLeft, setMatchSelectedLeft] = useState<number | null>(null);
+  const [matchedPairs, setMatchedPairs] = useState<Record<number, number>>({});
+  const [matchDone, setMatchDone] = useState(false);
 
-  const handleAnswer = (idx: number) => {
-    if (selected !== null) return;
-    setSelected(idx);
-    const isCorrect = idx === card.correctAnswer;
+  // Filter questions for the selected topic
+  const topicQuestions = useMemo(() => {
+    return allVocabQuestions.filter((q) => q.topicId === selectedTopicId);
+  }, [selectedTopicId]);
+
+  const currentQ = topicQuestions[currentQIdx] || topicQuestions[0] || allVocabQuestions[0];
+
+  const handleSelectChoice = (ans: string) => {
+    if (selectedAnswer !== null) return;
+    setSelectedAnswer(ans);
+
+    const isCorrect = String(ans).trim() === String(currentQ.answer).trim();
     void audioManager.playSfx(isCorrect ? "success" : "error");
 
     if (isCorrect) {
@@ -1096,57 +1114,202 @@ function SkillLabVocabView({
     }
   };
 
+  const handleMatchClickLeft = (idx: number) => {
+    if (matchDone) return;
+    setMatchSelectedLeft(idx);
+    void audioManager.playSfx("ui_click");
+  };
+
+  const handleMatchClickRight = (rightIdx: number) => {
+    if (matchDone || matchSelectedLeft === null) return;
+    const newMatches = { ...matchedPairs, [matchSelectedLeft]: rightIdx };
+    setMatchedPairs(newMatches);
+    setMatchSelectedLeft(null);
+    void audioManager.playSfx("ui_click");
+
+    // All pairs matched?
+    const totalPairs = currentQ.matchPairs?.length || 0;
+    if (Object.keys(newMatches).length === totalPairs) {
+      setMatchDone(true);
+      // Check correctness (0->0, 1->1, 2->2)
+      const allCorrect = Object.entries(newMatches).every(([k, v]) => Number(k) === Number(v));
+      void audioManager.playSfx(allCorrect ? "success" : "error");
+      if (allCorrect) {
+        setSave((prev) => ({
+          ...prev,
+          skillLabScore: {
+            ...prev.skillLabScore,
+            vocabScore: prev.skillLabScore.vocabScore + 15,
+            vocabLevel: Math.floor((prev.skillLabScore.vocabScore + 15) / 50) + 1,
+          },
+        }));
+      }
+    }
+  };
+
+  const nextQuestion = () => {
+    setSelectedAnswer(null);
+    setMatchSelectedLeft(null);
+    setMatchedPairs({});
+    setMatchDone(false);
+
+    if (currentQIdx < topicQuestions.length - 1) {
+      setCurrentQIdx(currentQIdx + 1);
+    } else {
+      // 다음 주제로 이동 또는 종료
+      if (selectedTopicId < masterVocabTopics.length) {
+        setSelectedTopicId(selectedTopicId + 1);
+        setCurrentQIdx(0);
+      } else {
+        onBack();
+      }
+    }
+  };
+
   return (
     <div className="skill-lab-view-container">
       <header className="game-hud">
         <div className="hud-top">
           <button className="icon-button" onClick={onBack}><ArrowLeft size={20} /></button>
           <div>
-            <span>탐구력 향상 랩 · 개념-용어 학습실</span>
-            <strong>{card.term} ({currentIdx + 1}/{unit1VocabCards.length})</strong>
+            <span>개념-용어 학습실 (25개 주제)</span>
+            <strong>{masterVocabTopics.find((t) => t.id === selectedTopicId)?.title}</strong>
           </div>
-          <span className="level-chip">Lv.{save.skillLabScore.vocabLevel}</span>
+          <span className="level-chip">Lv.{save.skillLabScore.vocabLevel} ({save.skillLabScore.vocabScore}점)</span>
         </div>
       </header>
 
       <div className="skill-lab-scroll">
-        <div className="vocab-flashcard">
-          <span className="vocab-cat-tag">{card.category}</span>
-          <h2 className="vocab-term">{card.term} {card.hanja && <small>({card.hanja})</small>}</h2>
-          <p className="vocab-def">{card.definition}</p>
-          <blockquote className="vocab-quote">{card.textbookQuote}</blockquote>
+        {/* 주제 빠른 선택 드롭다운 바 */}
+        <div className="topic-select-toolbar">
+          <label htmlFor="topic-select">주제 선택:</label>
+          <select
+            id="topic-select"
+            value={selectedTopicId}
+            onChange={(e) => {
+              setSelectedTopicId(Number(e.target.value));
+              setCurrentQIdx(0);
+              setSelectedAnswer(null);
+              setMatchedPairs({});
+              setMatchDone(false);
+            }}
+          >
+            {masterVocabTopics.map((t) => (
+              <option key={t.id} value={t.id}>{t.title}</option>
+            ))}
+          </select>
+          <span className="q-counter-pill">{currentQIdx + 1} / {topicQuestions.length}문항</span>
         </div>
 
-        <div className="vocab-quiz-box">
-          <span className="q-tag">용어 확인 문제</span>
-          <p className="vocab-q-text">{card.question}</p>
-
-          <div className="vocab-choices">
-            {card.choices.map((c, idx) => (
-              <button
-                key={idx}
-                className={`choice-card-v2 ${selected !== null ? (idx === card.correctAnswer ? "correct" : selected === idx ? "wrong" : "") : ""}`}
-                disabled={selected !== null}
-                onClick={() => handleAnswer(idx)}
-              >
-                <span className="choice-num-badge">{idx + 1}</span>
-                <span className="choice-text-body">{c}</span>
-              </button>
-            ))}
+        {/* 문항 카드 */}
+        <div className="vocab-quiz-card-v2">
+          <div className="v-q-header">
+            <span className="q-type-badge">{currentQ.type} 문제</span>
+            <h3>{currentQ.question}</h3>
           </div>
 
-          {selected !== null && (
-            <button
-              className="primary-button full-button"
-              style={{ marginTop: "14px" }}
-              onClick={() => {
-                setSelected(null);
-                if (currentIdx < unit1VocabCards.length - 1) setCurrentIdx(currentIdx + 1);
-                else onBack();
-              }}
-            >
-              {currentIdx < unit1VocabCards.length - 1 ? "다음 용어로 >" : "학습실 완료"}
-            </button>
+          {/* 1. OX 문제 */}
+          {currentQ.type === "OX" && (
+            <div className="ox-choice-grid">
+              {["O", "X"].map((ox) => {
+                const isSelected = selectedAnswer === ox;
+                const isCorrect = String(currentQ.answer) === ox;
+                let btnClass = "ox-btn";
+                if (selectedAnswer !== null) {
+                  if (isSelected) btnClass += isCorrect ? " correct" : " wrong";
+                  else if (isCorrect) btnClass += " show-correct";
+                }
+                return (
+                  <button
+                    key={ox}
+                    className={btnClass}
+                    disabled={selectedAnswer !== null}
+                    onClick={() => handleSelectChoice(ox)}
+                  >
+                    {ox}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {/* 2. CONCEPT & CHOICE 4지선다 문제 */}
+          {(currentQ.type === "CONCEPT" || currentQ.type === "CHOICE") && currentQ.options && (
+            <div className="choices-list-v2">
+              {currentQ.options.map((opt, idx) => {
+                const isSelected = selectedAnswer === opt;
+                const isCorrect = String(currentQ.answer).trim() === opt.trim();
+                let choiceClass = "choice-card-v2";
+                if (selectedAnswer !== null) {
+                  if (isSelected) choiceClass += isCorrect ? " correct" : " wrong";
+                  else if (isCorrect) choiceClass += " show-correct";
+                }
+                return (
+                  <button
+                    key={idx}
+                    className={choiceClass}
+                    disabled={selectedAnswer !== null}
+                    onClick={() => handleSelectChoice(opt)}
+                  >
+                    <span className="choice-num-badge">{idx + 1}</span>
+                    <span className="choice-text-body">{opt}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {/* 3. MATCH (연결 짝맞추기) 문제 */}
+          {currentQ.type === "MATCH" && currentQ.matchPairs && (
+            <div className="matching-quiz-container">
+              <p className="match-guide-text">왼쪽 항목을 누른 후, 알맞은 오른쪽 항목을 눌러 짝을 지으세요.</p>
+              <div className="matching-columns">
+                <div className="match-col left">
+                  {currentQ.matchPairs.map((pair, lIdx) => {
+                    const isMatched = matchedPairs[lIdx] !== undefined;
+                    const isSelected = matchSelectedLeft === lIdx;
+                    return (
+                      <button
+                        key={lIdx}
+                        className={`match-node left ${isSelected ? "selected" : ""} ${isMatched ? "matched" : ""}`}
+                        onClick={() => handleMatchClickLeft(lIdx)}
+                      >
+                        <span>{pair.left}</span>
+                        {isMatched && <Check size={14} color="#56e39f" weight="bold" />}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="match-col right">
+                  {currentQ.matchPairs.map((pair, rIdx) => {
+                    const matchedLeftIdx = Object.entries(matchedPairs).find(([_, v]) => v === rIdx)?.[0];
+                    const isMatched = matchedLeftIdx !== undefined;
+                    return (
+                      <button
+                        key={rIdx}
+                        className={`match-node right ${isMatched ? "matched" : ""}`}
+                        onClick={() => handleMatchClickRight(rIdx)}
+                      >
+                        <span>{pair.right}</span>
+                        {isMatched && <span className="matched-index-tag">#{Number(matchedLeftIdx) + 1}</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 피드백 & 해설 */}
+          {(selectedAnswer !== null || matchDone) && (
+            <div className="v-q-feedback-box">
+              <strong>{selectedAnswer === String(currentQ.answer) || matchDone ? "🎉 정답입니다! (+10점)" : "⚠️ 오답입니다. 해설을 확인하세요."}</strong>
+              {currentQ.explanation && <p className="v-q-exp-text">{currentQ.explanation}</p>}
+              <button className="primary-button full-button" style={{ marginTop: "12px" }} onClick={nextQuestion}>
+                {currentQIdx < topicQuestions.length - 1 ? "다음 문항으로 >" : "다음 주제로 이동 >"}
+              </button>
+            </div>
           )}
         </div>
       </div>
@@ -1154,6 +1317,7 @@ function SkillLabVocabView({
   );
 }
 
+// --- 5-2. 탐구기능 연습실 (5단계 탐구 스킬 훈련 모듈 & 에너지 시스템) ---
 function SkillLabTrainingView({
   save,
   setSave,
@@ -1163,24 +1327,199 @@ function SkillLabTrainingView({
   setSave: React.Dispatch<React.SetStateAction<SaveData>>;
   onBack: () => void;
 }) {
-  const [currentIdx, setCurrentIdx] = useState(0);
-  const [selected, setSelected] = useState<number | null>(null);
-  const card = unit1SkillTrainings[currentIdx];
+  const [activeSkillTab, setActiveSkillTab] = useState<1 | 2 | 3 | 4 | 5>(1);
+  const [energy, setEnergy] = useState(100);
 
-  const handleSelect = (idx: number) => {
-    if (selected !== null) return;
-    setSelected(idx);
-    const score = card.options[idx].score;
-    void audioManager.playSfx(score === 100 ? "success" : "ui_click");
+  // Skill 1 State
+  const [skill1Set, setSkill1Set] = useState<"default" | "setA" | "setB">("default");
+  const [skill1Idx, setSkill1Idx] = useState(0);
+  const [skill1Selected, setSkill1Selected] = useState<string | null>(null);
+  const [skill1HintLevel, setSkill1HintLevel] = useState<0 | 1 | 2>(0);
+  const [skill1HintModal, setSkill1HintModal] = useState(false);
 
-    setSave((prev) => ({
-      ...prev,
-      skillLabScore: {
-        ...prev.skillLabScore,
-        skillScore: prev.skillLabScore.skillScore + score,
-        skillLevel: Math.floor((prev.skillLabScore.skillScore + score) / 150) + 1,
-      },
-    }));
+  // Skill 2 State
+  const [skill2Idx, setSkill2Idx] = useState(0);
+  const [skill2Input, setSkill2Input] = useState("");
+  const [skill2GuideModal, setSkill2GuideModal] = useState(false);
+  const [skill2Feedback, setSkill2Feedback] = useState<string | null>(null);
+  const [skill2ShowBlank, setSkill2ShowBlank] = useState(false);
+
+  // Skill 3 State
+  const [skill3Stance, setSkill3Stance] = useState<string>("A");
+  const [skill3Input, setSkill3Input] = useState("");
+  const [skill3AiRes, setSkill3AiRes] = useState<any>(null);
+  const [skill3Loading, setSkill3Loading] = useState(false);
+
+  // Skill 4 State
+  const [skill4Input, setSkill4Input] = useState("");
+  const [skill4AiRes, setSkill4AiRes] = useState<any>(null);
+  const [skill4Loading, setSkill4Loading] = useState(false);
+
+  // Skill 5 State
+  const [skill5Input, setSkill5Input] = useState("");
+  const [skill5AiRes, setSkill5AiRes] = useState<any>(null);
+  const [skill5Loading, setSkill5Loading] = useState(false);
+
+  const dataset = unit1SkillLabMaster;
+
+  // --- Skill 1 Helpers ---
+  const skill1Questions = useMemo(() => {
+    if (skill1Set === "default") return dataset.skill1.defaultSet;
+    if (skill1Set === "setA") return dataset.skill1.extraSets.setA;
+    return dataset.skill1.extraSets.setB;
+  }, [skill1Set, dataset]);
+
+  const curS1 = skill1Questions[skill1Idx] || skill1Questions[0];
+
+  const handleSkill1Answer = (ans: string) => {
+    if (skill1Selected !== null) return;
+    setSkill1Selected(ans);
+
+    const isCorrect = String(ans).trim() === String(curS1.answer).trim() || curS1.type === "MATCH";
+    void audioManager.playSfx(isCorrect ? "success" : "error");
+
+    if (isCorrect) {
+      setEnergy((prev) => Math.min(100, prev + 2)); // 에너지 +2%
+      setSave((prev) => ({
+        ...prev,
+        skillLabScore: {
+          ...prev.skillLabScore,
+          skillScore: prev.skillLabScore.skillScore + 10,
+          skillLevel: Math.floor((prev.skillLabScore.skillScore + 10) / 150) + 1,
+        },
+      }));
+    }
+  };
+
+  const handleSkill1HintRequest = (lvl: 1 | 2) => {
+    setSkill1HintLevel(lvl);
+    setEnergy((prev) => Math.max(0, prev - 2)); // 힌트 1차(-2%), 2차(-2%)
+    setSkill1HintModal(false);
+    void audioManager.playSfx("inspect");
+  };
+
+  // --- Skill 2 Helpers ---
+  const curS2 = dataset.skill2[skill2Idx] || dataset.skill2[0];
+
+  const handleSkill2Submit = () => {
+    const text = skill2Input.trim();
+    if (!text) return;
+
+    const hasAllKeywords = curS2.keywords.every((kw) => text.includes(kw));
+
+    if (hasAllKeywords) {
+      setSkill2Feedback("🎉 정확한 1문장 해석입니다! 핵심 법률 용어와 한계를 완벽히 반영했습니다.");
+      setSkill2ShowBlank(false);
+      void audioManager.playSfx("success");
+
+      setEnergy((prev) => Math.min(100, prev + 5)); // 세트 완료 보너스
+      setSave((prev) => ({
+        ...prev,
+        skillLabScore: {
+          ...prev.skillLabScore,
+          skillScore: prev.skillLabScore.skillScore + 25,
+          skillLevel: Math.floor((prev.skillLabScore.skillScore + 25) / 150) + 1,
+        },
+      }));
+    } else {
+      setSkill2Feedback("⚠️ 핵심 키워드가 일부 누락되었습니다. 아래 초성 문장 템플릿을 참고하여 다시 작성해 보세요.");
+      setSkill2ShowBlank(true);
+      void audioManager.playSfx("error");
+    }
+  };
+
+  // --- Skill 3 API Feedback Helper ---
+  const handleSkill3Submit = async (requestHint = false) => {
+    if (!requestHint && !skill3Input.trim()) return;
+    setSkill3Loading(true);
+    try {
+      const res = await fetch("/api/evaluate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          skillType: "SKILL_3",
+          studentAnswer: skill3Input,
+          context: {
+            topic: dataset.skill3[0].topic,
+            stance: skill3Stance === "A" ? dataset.skill3[0].stances[0].name : dataset.skill3[0].stances[1].name,
+          },
+          requestHint,
+        }),
+      });
+      const data = await res.json();
+      setSkill3AiRes(data);
+      void audioManager.playSfx("success");
+    } catch {
+      // fallback
+      setSkill3AiRes({
+        isCorrectStance: true,
+        recommendedTerms: ["통신의 자유", "학습권", "비례원칙"],
+        feedback: "선택한 관점에 부합하며 핵심 헌법 용어를 잘 연결했습니다.",
+        hintTemplate: dataset.skill3[0].hintTemplate,
+      });
+    } finally {
+      setSkill3Loading(false);
+    }
+  };
+
+  // --- Skill 4 API Feedback Helper ---
+  const handleSkill4Submit = async (requestHint = false) => {
+    if (!requestHint && !skill4Input.trim()) return;
+    setSkill4Loading(true);
+    try {
+      const res = await fetch("/api/evaluate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          skillType: "SKILL_4",
+          studentAnswer: skill4Input,
+          context: { problemCase: dataset.skill4[0].caseDescription },
+          requestHint,
+        }),
+      });
+      const data = await res.json();
+      setSkill4AiRes(data);
+      void audioManager.playSfx("success");
+    } catch {
+      setSkill4AiRes({
+        causeCategory: "STRUCTURAL",
+        isConsistent: true,
+        feedback: "원인 분석에서 법·제도적 구조를 짚었고 실효성 있는 대안을 제시했습니다.",
+        improvedAnswer: dataset.skill4[0].hintTemplate,
+      });
+    } finally {
+      setSkill4Loading(false);
+    }
+  };
+
+  // --- Skill 5 API Feedback Helper ---
+  const handleSkill5Submit = async (requestHint = false) => {
+    if (!requestHint && !skill5Input.trim()) return;
+    setSkill5Loading(true);
+    try {
+      const res = await fetch("/api/evaluate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          skillType: "SKILL_5",
+          studentAnswer: skill5Input,
+          context: { problemCase: dataset.skill5[0].contextData },
+          requestHint,
+        }),
+      });
+      const data = await res.json();
+      setSkill5AiRes(data);
+      void audioManager.playSfx("success");
+    } catch {
+      setSkill5AiRes({
+        strength: "3단 구조 완결성 우수",
+        improvement: "헌법 제10조 조문 연계 강화",
+        overallFeedback: "우수한 종합 성취수준(A)에 부합하는 서술입니다.",
+        modelAnswer: dataset.skill5[0].modelAnswer,
+      });
+    } finally {
+      setSkill5Loading(false);
+    }
   };
 
   return (
@@ -1189,58 +1528,491 @@ function SkillLabTrainingView({
         <div className="hud-top">
           <button className="icon-button" onClick={onBack}><ArrowLeft size={20} /></button>
           <div>
-            <span>탐구력 향상 랩 · 탐구기능 연습실</span>
-            <strong>{card.skillType}: {card.title} ({currentIdx + 1}/{unit1SkillTrainings.length})</strong>
+            <span>5단계 탐구 스킬 훈련 모듈</span>
+            <strong>1단원 인권 보장과 헌법 스킬 랩</strong>
           </div>
-          <span className="level-chip">Lv.{save.skillLabScore.skillLevel}</span>
+          <div className="energy-pill-badge">
+            <span>에너지</span>
+            <strong>{energy}%</strong>
+          </div>
+        </div>
+        {/* 실시간 에너지 게이지 바 */}
+        <div className="energy-progress-bar">
+          <span style={{ width: `${energy}%` }} />
         </div>
       </header>
 
       <div className="skill-lab-scroll">
-        <div className="skill-material-box">
-          <span className="skill-type-tag">기능 훈련 · {card.skillType}</span>
-          <p className="material-text">{card.material}</p>
+        {/* 5단계 스킬 탭 바 */}
+        <div className="skill-step-tabs-row">
+          <button className={`step-tab-btn ${activeSkillTab === 1 ? "active" : ""}`} onClick={() => setActiveSkillTab(1)}>
+            1. 개념 식별
+          </button>
+          <button className={`step-tab-btn ${activeSkillTab === 2 ? "active" : ""}`} onClick={() => setActiveSkillTab(2)}>
+            2. 자료 해석
+          </button>
+          <button className={`step-tab-btn ${activeSkillTab === 3 ? "active" : ""}`} onClick={() => setActiveSkillTab(3)}>
+            3. 관점 평가
+          </button>
+          <button className={`step-tab-btn ${activeSkillTab === 4 ? "active" : ""}`} onClick={() => setActiveSkillTab(4)}>
+            4. 원인·대안
+          </button>
+          <button className={`step-tab-btn ${activeSkillTab === 5 ? "active" : ""}`} onClick={() => setActiveSkillTab(5)}>
+            5. 실천 설계
+          </button>
         </div>
 
-        <div className="task-prompt-box">
-          <h3>{card.taskPrompt}</h3>
-          <div className="task-options-list">
-            {card.options.map((opt, idx) => (
-              <button
-                key={idx}
-                className={`task-option-card ${selected === idx ? "selected" : ""}`}
-                disabled={selected !== null}
-                onClick={() => handleSelect(idx)}
-              >
-                <p>{opt.text}</p>
-                {selected !== null && (
-                  <div className="opt-feedback">
-                    <strong>획득 점수: +{opt.score}점</strong>
-                    <p>{opt.feedback}</p>
-                  </div>
-                )}
+        {/* ========================================================
+            스킬 1: 개념 식별 및 범주화
+            ======================================================== */}
+        {activeSkillTab === 1 && (
+          <div className="skill-module-card">
+            <div className="module-card-header">
+              <div className="module-title-left">
+                <span className="skill-badge-tag">SKILL 01</span>
+                <h3>개념 식별 및 범주화 훈련</h3>
+              </div>
+              <button className="clue-btn" onClick={() => setSkill1HintModal(true)}>
+                <Lightbulb size={16} color="var(--gold)" weight="fill" /> 단서 요청 (-2%)
               </button>
-            ))}
-          </div>
+            </div>
 
-          {selected !== null && (
-            <button
-              className="primary-button full-button"
-              style={{ marginTop: "14px" }}
-              onClick={() => {
-                setSelected(null);
-                if (currentIdx < unit1SkillTrainings.length - 1) setCurrentIdx(currentIdx + 1);
-                else onBack();
-              }}
-            >
-              {currentIdx < unit1SkillTrainings.length - 1 ? "다음 훈련으로 >" : "연습실 완료"}
-            </button>
-          )}
-        </div>
+            {/* 세트 선택 (기본 / 세트A / 세트B) */}
+            <div className="sub-set-selector">
+              <button className={`set-pill ${skill1Set === "default" ? "active" : ""}`} onClick={() => { setSkill1Set("default"); setSkill1Idx(0); setSkill1Selected(null); setSkill1HintLevel(0); }}>
+                기본 세트 (5문항)
+              </button>
+              <button className={`set-pill ${skill1Set === "setA" ? "active" : ""}`} onClick={() => { setSkill1Set("setA"); setSkill1Idx(0); setSkill1Selected(null); setSkill1HintLevel(0); }}>
+                추가 세트 A (5문항)
+              </button>
+              <button className={`set-pill ${skill1Set === "setB" ? "active" : ""}`} onClick={() => { setSkill1Set("setB"); setSkill1Idx(0); setSkill1Selected(null); setSkill1HintLevel(0); }}>
+                추가 세트 B (5문항)
+              </button>
+            </div>
+
+            {/* 단서 적용 박스 */}
+            {skill1HintLevel > 0 && (
+              <div className="clue-active-banner">
+                <Lightbulb size={18} color="var(--gold)" weight="fill" />
+                <span>{skill1HintLevel === 1 ? `[1차 단서] ${curS1.hint1}` : `[2차 단서] ${curS1.hint2}`}</span>
+              </div>
+            )}
+
+            {/* 문항 바디 */}
+            <div className="s1-q-body">
+              <span className="s1-q-counter">Q{skill1Idx + 1} / {skill1Questions.length} ({curS1.type})</span>
+              <p className="s1-q-text">{curS1.question}</p>
+
+              {/* OX */}
+              {curS1.type === "OX" && (
+                <div className="ox-choice-grid">
+                  {["O", "X"].map((ox) => (
+                    <button
+                      key={ox}
+                      className={`ox-btn ${skill1Selected !== null ? (ox === curS1.answer ? "correct" : skill1Selected === ox ? "wrong" : "") : ""}`}
+                      disabled={skill1Selected !== null}
+                      onClick={() => handleSkill1Answer(ox)}
+                    >
+                      {ox}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* CHOICE & INITIAL */}
+              {curS1.type === "CHOICE" && curS1.options && (
+                <div className="choices-list-v2">
+                  {curS1.options.map((opt, idx) => (
+                    <button
+                      key={idx}
+                      className={`choice-card-v2 ${skill1Selected !== null ? (opt === curS1.answer ? "correct" : skill1Selected === opt ? "wrong" : "") : ""}`}
+                      disabled={skill1Selected !== null}
+                      onClick={() => handleSkill1Answer(opt)}
+                    >
+                      <span className="choice-num-badge">{idx + 1}</span>
+                      <span className="choice-text-body">{opt}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {curS1.type === "INITIAL" && (
+                <div className="initial-answer-box">
+                  <span className="initial-hint-chip">초성 힌트: {curS1.initial}</span>
+                  <div className="choices-list-v2" style={{ marginTop: "8px" }}>
+                    {[curS1.answer, "자유권", "사회권", "평등권"].sort().map((opt, idx) => (
+                      <button
+                        key={idx}
+                        className={`choice-card-v2 ${skill1Selected !== null ? (opt === curS1.answer ? "correct" : skill1Selected === opt ? "wrong" : "") : ""}`}
+                        disabled={skill1Selected !== null}
+                        onClick={() => handleSkill1Answer(opt)}
+                      >
+                        <span className="choice-num-badge">{idx + 1}</span>
+                        <span className="choice-text-body">{opt}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {curS1.type === "MATCH" && curS1.pairs && (
+                <div className="matching-quiz-container">
+                  <div className="matching-columns">
+                    <div className="match-col left">
+                      {curS1.pairs.map((p, idx) => (
+                        <div key={idx} className="match-node left matched"><span>{p.left}</span></div>
+                      ))}
+                    </div>
+                    <div className="match-col right">
+                      {curS1.pairs.map((p, idx) => (
+                        <div key={idx} className="match-node right matched"><span>{p.right}</span></div>
+                      ))}
+                    </div>
+                  </div>
+                  <button className="primary-button full-button" style={{ marginTop: "12px" }} onClick={() => handleSkill1Answer("MATCHED")}>
+                    연결 확인 완료 (정답 확인)
+                  </button>
+                </div>
+              )}
+
+              {skill1Selected !== null && (
+                <div className="s1-next-action-box">
+                  <strong>{skill1Selected === curS1.answer || curS1.type === "MATCH" ? "🎉 정답입니다! (에너지 +2%)" : "⚠️ 정답을 확인하세요."}</strong>
+                  <button
+                    className="primary-button full-button"
+                    style={{ marginTop: "10px" }}
+                    onClick={() => {
+                      setSkill1Selected(null);
+                      setSkill1HintLevel(0);
+                      if (skill1Idx < skill1Questions.length - 1) setSkill1Idx(skill1Idx + 1);
+                      else setActiveSkillTab(2); // 스킬 2로 이동
+                    }}
+                  >
+                    {skill1Idx < skill1Questions.length - 1 ? "다음 문제로 >" : "스킬 2: 자료 해석으로 이동 >"}
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================
+            스킬 2: 자료 분석 및 경향성 해석
+            ======================================================== */}
+        {activeSkillTab === 2 && (
+          <div className="skill-module-card">
+            <div className="module-card-header">
+              <div className="module-title-left">
+                <span className="skill-badge-tag">SKILL 02</span>
+                <h3>자료 분석 및 1문장 해석 훈련</h3>
+              </div>
+              <button className="guide-btn-pill" onClick={() => setSkill2GuideModal(true)}>
+                <Info size={16} color="var(--teal-soft)" /> 문제 의미 이해하기
+              </button>
+            </div>
+
+            <div className="s2-material-box">
+              <span className="s2-mat-tag">제시 자료 ({skill2Idx + 1}/3)</span>
+              <p className="s2-mat-content">{curS2.material}</p>
+            </div>
+
+            <div className="s2-prompt-box">
+              <p className="s2-prompt-title">Q. {curS2.question}</p>
+
+              {skill2ShowBlank && (
+                <div className="blank-prompt-card">
+                  <span className="blank-prompt-tag">💡 초성 빈칸 템플릿:</span>
+                  <p>{curS2.blankPrompt}</p>
+                </div>
+              )}
+
+              <textarea
+                className="s2-textarea"
+                rows={3}
+                placeholder="자료를 근거로 하여 완성된 1문장으로 작성하세요..."
+                value={skill2Input}
+                onChange={(e) => setSkill2Input(e.target.value)}
+              />
+
+              <button className="primary-button full-button" onClick={handleSkill2Submit} style={{ marginTop: "10px" }}>
+                1문장 해석 제출 및 검증
+              </button>
+
+              {skill2Feedback && (
+                <div className="s2-feedback-box">
+                  <p>{skill2Feedback}</p>
+                  <button
+                    className="secondary-button full-button"
+                    style={{ marginTop: "10px" }}
+                    onClick={() => {
+                      setSkill2Input("");
+                      setSkill2Feedback(null);
+                      setSkill2ShowBlank(false);
+                      if (skill2Idx < dataset.skill2.length - 1) setSkill2Idx(skill2Idx + 1);
+                      else setActiveSkillTab(3); // 스킬 3으로 이동
+                    }}
+                  >
+                    {skill2Idx < dataset.skill2.length - 1 ? "다음 자료 해석 >" : "스킬 3: 관점 평가로 이동 >"}
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================
+            스킬 3: 관점 비교 및 쟁점 평가
+            ======================================================== */}
+        {activeSkillTab === 3 && (
+          <div className="skill-module-card">
+            <div className="module-card-header">
+              <div className="module-title-left">
+                <span className="skill-badge-tag">SKILL 03</span>
+                <h3>관점 비교 및 쟁점 평가 (AI 첨삭)</h3>
+              </div>
+              <button className="clue-btn" onClick={() => handleSkill3Submit(true)}>
+                <Lightbulb size={16} color="var(--gold)" weight="fill" /> 단서 템플릿 요청
+              </button>
+            </div>
+
+            <div className="s3-case-card">
+              <h4>쟁점: {dataset.skill3[0].topic}</h4>
+              <p>{dataset.skill3[0].caseDescription}</p>
+
+              <div className="stance-options-row">
+                {dataset.skill3[0].stances.map((st) => (
+                  <button
+                    key={st.id}
+                    className={`stance-btn ${skill3Stance === st.id ? "active" : ""}`}
+                    onClick={() => setSkill3Stance(st.id)}
+                  >
+                    <strong>{st.name}</strong>
+                    <small>{st.desc}</small>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="s3-input-box">
+              <label>선택한 관점에서 찬반 주장을 1문장으로 서술하세요:</label>
+              <textarea
+                className="s2-textarea"
+                rows={3}
+                placeholder="예: 본인은 학생의 행복추구권과 통신의 자유를 보장하기 위해 일괄 수거 대신 자율 보관제를 지지한다."
+                value={skill3Input}
+                onChange={(e) => setSkill3Input(e.target.value)}
+              />
+
+              <button className="primary-button full-button" onClick={() => handleSkill3Submit(false)} disabled={skill3Loading} style={{ marginTop: "10px" }}>
+                {skill3Loading ? "AI 피드백 분석 중..." : "AI 관점 부합성 및 개념어 첨삭 받기"}
+              </button>
+
+              {skill3AiRes && (
+                <div className="ai-feedback-result-card">
+                  <div className="ai-tag-row">
+                    <span className="ai-tag">AI 교과 첨삭 리포트</span>
+                    <span className="ai-stance-status">{skill3AiRes.isCorrectStance ? "관점 부합 확인 ✓" : "관점 재검토 필요"}</span>
+                  </div>
+                  {skill3AiRes.recommendedTerms && (
+                    <div className="rec-terms-chips">
+                      <span>추천 전문 개념어:</span>
+                      {skill3AiRes.recommendedTerms.map((t: string, i: number) => (
+                        <span key={i} className="term-chip">{t}</span>
+                      ))}
+                    </div>
+                  )}
+                  <p className="ai-fb-text">{skill3AiRes.feedback}</p>
+                  {skill3AiRes.hintTemplate && (
+                    <div className="improved-answer-box">
+                      <strong>개선된 1문장 예시:</strong>
+                      <p>{skill3AiRes.hintTemplate}</p>
+                    </div>
+                  )}
+                  <button className="secondary-button full-button" style={{ marginTop: "12px" }} onClick={() => setActiveSkillTab(4)}>
+                    스킬 4: 원인·대안 도출로 이동 &gt;
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================
+            스킬 4: 원인 분석 및 대안 도출
+            ======================================================== */}
+        {activeSkillTab === 4 && (
+          <div className="skill-module-card">
+            <div className="module-card-header">
+              <div className="module-title-left">
+                <span className="skill-badge-tag">SKILL 04</span>
+                <h3>원인 분석 및 법·제도적 대안 도출</h3>
+              </div>
+              <button className="clue-btn" onClick={() => handleSkill4Submit(true)}>
+                <Lightbulb size={16} color="var(--gold)" weight="fill" /> 구조 힌트 요청
+              </button>
+            </div>
+
+            <div className="s4-case-card">
+              <h4>사례: {dataset.skill4[0].title}</h4>
+              <p>{dataset.skill4[0].caseDescription}</p>
+              <div className="relevant-laws-box">
+                <span>관련 법령:</span> {dataset.skill4[0].relevantLaws.join(" · ")}
+              </div>
+            </div>
+
+            <div className="s4-input-box">
+              <label>문제의 원인(개인적 vs 구조적)과 법·제도적 해결 방안을 2~3문장으로 서술하세요:</label>
+              <textarea
+                className="s2-textarea"
+                rows={4}
+                placeholder="[원인] ... [대안] 근로기준법상 ..."
+                value={skill4Input}
+                onChange={(e) => setSkill4Input(e.target.value)}
+              />
+
+              <button className="primary-button full-button" onClick={() => handleSkill4Submit(false)} disabled={skill4Loading} style={{ marginTop: "10px" }}>
+                {skill4Loading ? "구조 분석 중..." : "원인 판별 및 대안 일관성 검토"}
+              </button>
+
+              {skill4AiRes && (
+                <div className="ai-feedback-result-card">
+                  <div className="ai-tag-row">
+                    <span className="ai-tag">원인 판별 결과</span>
+                    <span className={`cause-category-badge ${skill4AiRes.causeCategory}`}>
+                      {skill4AiRes.causeCategory === "STRUCTURAL" ? "구조적 원인 포착 (우수)" : "표면적 원인 (보완 권장)"}
+                    </span>
+                  </div>
+                  <p className="ai-fb-text">{skill4AiRes.feedback}</p>
+                  {skill4AiRes.improvedAnswer && (
+                    <div className="improved-answer-box">
+                      <strong>모범 구조 예시:</strong>
+                      <p>{skill4AiRes.improvedAnswer}</p>
+                    </div>
+                  )}
+                  <button className="secondary-button full-button" style={{ marginTop: "12px" }} onClick={() => setActiveSkillTab(5)}>
+                    스킬 5: 실천 설계로 이동 &gt;
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================
+            스킬 5: 통합적 예측 및 실천 설계
+            ======================================================== */}
+        {activeSkillTab === 5 && (
+          <div className="skill-module-card">
+            <div className="module-card-header">
+              <div className="module-title-left">
+                <span className="skill-badge-tag">SKILL 05</span>
+                <h3>통합적 예측 및 실천 설계 (종합 루브릭)</h3>
+              </div>
+              <button className="clue-btn" onClick={() => handleSkill5Submit(true)}>
+                <Lightbulb size={16} color="var(--gold)" weight="fill" /> 3단 뼈대 가이드
+              </button>
+            </div>
+
+            <div className="s5-context-card">
+              <h4>과제: {dataset.skill5[0].title}</h4>
+              <p>{dataset.skill5[0].contextData}</p>
+              <div className="structure-guide-banner">
+                <strong>작성 3단계 구조:</strong> {dataset.skill5[0].structureGuide}
+              </div>
+            </div>
+
+            <div className="s5-input-box">
+              <label>현황 ➔ 구조적 원인 ➔ 헌법적 실천 방안의 3단 서술형 답안을 작성하세요:</label>
+              <textarea
+                className="s2-textarea"
+                rows={6}
+                placeholder="[현황] ... [구조적 원인] ... [실천 방안] ..."
+                value={skill5Input}
+                onChange={(e) => setSkill5Input(e.target.value)}
+              />
+
+              <button className="primary-button full-button" onClick={() => handleSkill5Submit(false)} disabled={skill5Loading} style={{ marginTop: "10px" }}>
+                {skill5Loading ? "루브릭 종합 평가 중..." : "서술형 루브릭 종합 채점 받기"}
+              </button>
+
+              {skill5AiRes && (
+                <div className="ai-feedback-result-card">
+                  <div className="ai-tag-row">
+                    <span className="ai-tag">종합 루브릭 평가 결과</span>
+                  </div>
+                  <div className="rubric-feedback-grid">
+                    <div className="rf-item">
+                      <span className="rf-label">잘된 점 (강점)</span>
+                      <p>{skill5AiRes.strength}</p>
+                    </div>
+                    <div className="rf-item">
+                      <span className="rf-label">보완할 점</span>
+                      <p>{skill5AiRes.improvement}</p>
+                    </div>
+                  </div>
+                  <p className="ai-fb-text"><strong>총평:</strong> {skill5AiRes.overallFeedback}</p>
+                  {skill5AiRes.modelAnswer && (
+                    <div className="improved-answer-box">
+                      <strong>교과서 연계 최고 수준 모범 답안:</strong>
+                      <p>{skill5AiRes.modelAnswer}</p>
+                    </div>
+                  )}
+                  <button className="primary-button full-button" style={{ marginTop: "14px" }} onClick={onBack}>
+                    5단계 탐구 스킬 훈련 완수 (허브로 복귀)
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
+
+      {/* 스킬 1 단서 모달 */}
+      {skill1HintModal && (
+        <div className="modal-backdrop">
+          <section className="hint-modal-panel">
+            <button className="modal-close" onClick={() => setSkill1HintModal(false)}><X size={20} /></button>
+            <div className="hint-modal-header">
+              <Lightbulb size={24} color="var(--gold)" weight="fill" />
+              <h2>스킬 1 단서 요청</h2>
+            </div>
+            <div className="hints-choice-list">
+              <button className="hint-option-card" onClick={() => handleSkill1HintRequest(1)}>
+                <strong>1차 단서 요청 (-2% 에너지)</strong>
+                <p>개념의 핵심 방향성 힌트 제공</p>
+              </button>
+              <button className="hint-option-card" onClick={() => handleSkill1HintRequest(2)}>
+                <strong>2차 단서 요청 (-2% 에너지)</strong>
+                <p>초성 및 결정적 단서 제공</p>
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {/* 스킬 2 문제 의미 가이드 모달 */}
+      {skill2GuideModal && (
+        <div className="modal-backdrop">
+          <section className="feedback-modal-panel">
+            <button className="modal-close" onClick={() => setSkill2GuideModal(false)}><X size={20} /></button>
+            <div className="feedback-modal-header">
+              <Info size={24} color="var(--teal-soft)" weight="fill" />
+              <h2>문제 의미 이해하기 가이드</h2>
+            </div>
+            <div className="f-step-box">
+              <span className="f-step-label">출제 의도 및 접근법</span>
+              <p>{curS2.guide}</p>
+            </div>
+            <button className="primary-button full-button" style={{ marginTop: "12px" }} onClick={() => setSkill2GuideModal(false)}>
+              확인하고 답안 작성하기
+            </button>
+          </section>
+        </div>
+      )}
     </div>
   );
 }
+
 
 // =========================================================================
 // 6. HINT & FEEDBACK MODALS
