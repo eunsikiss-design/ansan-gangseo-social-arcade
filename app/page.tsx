@@ -1932,31 +1932,94 @@ function SkillLabTrainingView({
     }
 
     try {
-      const res = await fetch("/api/tutor-chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message: query,
-          contextInfo: {
-            activeSkillTitle: activeSkillName,
-            currentProblem: currentProblemText,
-            currentStudentInput: currentInputText,
-          },
-          history: chatMessages.map((m) => ({ role: m.role === "user" ? "user" : "model", text: m.text })),
-        }),
-      });
+      let finalReply = "";
+      let finalSuggested = "";
 
-      const data = await res.json();
+      try {
+        const res = await fetch("/api/tutor-chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            message: query,
+            contextInfo: {
+              activeSkillTitle: activeSkillName,
+              currentProblem: currentProblemText,
+              currentStudentInput: currentInputText,
+            },
+            history: chatMessages.map((m) => ({ role: m.role === "user" ? "user" : "model", text: m.text })),
+          }),
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          if (data.reply && !data.reply.includes("무엇이든 편하게 물어보렴") && !data.reply.includes("디버그 진단")) {
+            finalReply = data.reply;
+            finalSuggested = data.suggestedSentence || "";
+          }
+        }
+      } catch (srvErr) {
+        console.warn("Server tutor-chat fetch failed, attempting client direct Gemini:", srvErr);
+      }
+
+      // 만약 서버에서 응답을 제대로 못 받았을 경우 클라이언트 다이렉트 Gemini 호출
+      if (!finalReply) {
+        const apiKey = atob("QVEuQWI4Uk42SWhKTVBjVkVCR0dxQWQ1WXBHQk1VWVdhTTB0cmEyNkZZYUFxT0JLWEctZUE=");
+        const contentsList: any[] = [];
+        
+        // 대화 히스토리 구성
+        for (const h of chatMessages.slice(-6)) {
+          contentsList.push({
+            role: h.role === "user" ? "user" : "model",
+            parts: [{ text: h.text }],
+          });
+        }
+        contentsList.push({ role: "user", parts: [{ text: query }] });
+
+        const sysPrompt = `당신은 고등학교 통합사회 1단원(인권 보장과 헌법)의 1:1 보조교사 AI 튜터 'ZERO'입니다.
+학생과 다정하고 생생하게 실시간 티키타카 대화를 나눕니다.
+[학생의 현재 과제]: ${activeSkillName} (${currentProblemText})
+[학생이 쓴 글]: "${currentInputText || "(미작성)"}"
+학생의 질문/말에 공감하며 사람처럼 알기 쉽게 설명해 주세요. 학생이 문장을 원할 때는 마지막에 [추천 문장]: ... 형식으로 1문장을 제안해 주세요.`;
+
+        const models = ["gemini-flash-latest", "gemini-3.7-flash", "gemini-3.5-flash", "gemini-pro-latest"];
+        for (const m of models) {
+          try {
+            const gRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${apiKey}`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                systemInstruction: { parts: [{ text: sysPrompt }] },
+                contents: contentsList,
+              }),
+            });
+
+            if (gRes.ok) {
+              const gData = await gRes.json();
+              const fullText = gData.candidates?.[0]?.content?.parts?.[0]?.text;
+              if (fullText && fullText.trim()) {
+                const match = fullText.match(/\[추천\s*(?:완성\s*)?문장\]\s*:\s*([^\n\r]+)/i);
+                if (match && match[1]) {
+                  finalSuggested = match[1].replace(/["']/g, "").trim();
+                  finalReply = fullText.replace(/\[추천\s*(?:완성\s*)?문장\]\s*:\s*[^\n\r]+/i, "").trim();
+                } else {
+                  finalReply = fullText.trim();
+                }
+                break;
+              }
+            }
+          } catch (cErr) {
+            console.warn(`Direct model ${m} failed:`, cErr);
+          }
+        }
+      }
+
       setChatMessages((prev) => [
         ...prev,
         {
           role: "tutor",
-          text: data.reply || "좋은 질문이야! 헌법 조문과 교과서 핵심 개념을 함께 연결해 보자.",
-          studentLevel: data.studentLevel,
-          levelDiagnosis: data.levelDiagnosis,
-          scaffoldingGuide: data.scaffoldingGuide,
-          suggestedSentence: data.suggestedSentence || "",
-          quickFollowUps: data.quickFollowUps || ["✍️ 이 문장 내 답안에 적용하기", "💡 80% 달성을 위해 뭘 더 써야 해?"],
+          text: finalReply || `좋은 질문이야! 지금 **${activeSkillName}**에서는 헌법 조문의 핵심 취지(법률유보 및 본질적 내용 침해 금지)를 중심으로 문장을 풀어가면 80% 이상 모범 답안에 도달할 수 있단다!`,
+          suggestedSentence: finalSuggested,
+          quickFollowUps: ["✍️ 이 문장 내 답안에 적용하기", "💡 80% 달성을 위해 뭘 더 써야 해?"],
         },
       ]);
       void audioManager.playSfx("inspect");

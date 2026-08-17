@@ -1,20 +1,18 @@
 import { NextResponse } from "next/server";
 
-export async function POST(req: any) {
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+
+export async function POST(req: Request) {
   try {
     let body: any = {};
-
-    if (req.body && typeof req.body === "object" && typeof req.body.getReader !== "function") {
-      body = req.body;
-    } else {
+    try {
+      body = await req.json();
+    } catch {
       try {
-        body = await req.json();
-      } catch {
-        try {
-          const t = await req.text();
-          body = t ? JSON.parse(t) : {};
-        } catch {}
-      }
+        const text = await req.text();
+        body = text ? JSON.parse(text) : {};
+      } catch {}
     }
 
     const { message, contextInfo, history = [] } = body || {};
