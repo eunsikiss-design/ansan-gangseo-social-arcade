@@ -29,7 +29,7 @@ import {
   SourceDetailTemplate, StatusBadge, TemplateHeading, ZeroChallengeTemplate,
 } from "@/src/components/GameTemplates";
 
-const SAVE_KEY = "social-arcade-save-v5";
+const SAVE_KEY = "social-arcade-save-v6";
 const baseIndicators: SocialIndicators = { humanRights: 52, fairness: 50, economy: 50, peace: 55, sustainability: 48, trust: 50 };
 
 const defaultStudent: StudentProfile = {
