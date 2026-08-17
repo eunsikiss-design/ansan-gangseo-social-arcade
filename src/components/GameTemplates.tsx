@@ -44,7 +44,7 @@ export function CharacterPortrait({
 
 function CharacterPortraitAsset({
   characterId,
-  expression,
+  expression = "default",
   position,
   pose,
   size = "md",
@@ -52,27 +52,33 @@ function CharacterPortraitAsset({
   className = "",
 }: {
   characterId: CharacterId;
-  expression: CharacterExpression;
+  expression?: CharacterExpression;
   position: CharacterPosition;
   pose: string;
   size?: "avatar" | "sm" | "md" | "lg" | "bust" | "full";
   label: boolean;
   className?: string;
 }) {
-  const [assetStep, setAssetStep] = useState(0);
-  const [loaded, setLoaded] = useState(false);
+  const [assetIndex, setAssetIndex] = useState(0);
+  const [hasError, setHasError] = useState(false);
 
-  // Candidate image paths with graceful cascading fallback
   const sources = [
     `/assets/characters/${characterId}/${characterId}_${expression}.png`,
     `/assets/characters/${characterId}/${characterId}_default.png`,
     `/assets/characters/${characterId}/${characterId}_${expression}.webp`,
     `/assets/characters/${characterId}/${characterId}_default.webp`,
     `/assets/characters/${characterId}/${characterId}.png`,
-    "/assets/characters/common/silhouette.webp",
   ];
 
-  const hasAsset = assetStep < sources.length;
+  const currentSrc = sources[assetIndex];
+
+  const handleError = () => {
+    if (assetIndex < sources.length - 1) {
+      setAssetIndex((prev) => prev + 1);
+    } else {
+      setHasError(true);
+    }
+  };
 
   return (
     <figure
@@ -82,22 +88,17 @@ function CharacterPortraitAsset({
       data-pose={pose}
       aria-label={`${characterNames[characterId] || characterId} ${expression} 표정`}
     >
-      {/* Dynamic fallback candidates handled with smooth loading */}
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      {hasAsset && (
+      {!hasError && currentSrc ? (
+        /* eslint-disable-next-line @next/next/no-img-element */
         <img
-          src={sources[assetStep]}
+          key={currentSrc}
+          src={currentSrc}
           alt={characterNames[characterId] || characterId}
           aria-hidden="true"
-          className={`character-image ${loaded ? "loaded" : "loading"}`}
-          onLoad={() => setLoaded(true)}
-          onError={() => {
-            setLoaded(false);
-            setAssetStep((step) => step + 1);
-          }}
+          className="character-image loaded"
+          onError={handleError}
         />
-      )}
-      {!loaded && (
+      ) : (
         <div className="character-fallback" aria-hidden="true">
           <span className="character-halo" />
           <span className="character-head">

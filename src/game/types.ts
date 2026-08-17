@@ -35,6 +35,17 @@ export interface EvidenceCardData {
   relatedConceptIds: string[];
   reliability: number;
   image?: string;
+  textbookPage?: string;
+  textbookQuote?: string;
+  applicationCase?: string;
+  studyTip?: string;
+}
+
+export interface DialogueOption {
+  question: string;
+  answerSpeaker: string;
+  answerText: string;
+  textbookRef?: string;
 }
 
 export interface MissionStep {
@@ -48,6 +59,13 @@ export interface MissionStep {
   choices?: string[];
   answer?: number;
   evidenceIds?: string[];
+  dialogueOptions?: DialogueOption[];
+  textbookSource?: {
+    page: string;
+    section: string;
+    quote: string;
+    memo: string;
+  };
 }
 
 export interface Mission {
