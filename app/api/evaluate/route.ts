@@ -76,27 +76,36 @@ export async function POST(req: Request) {
   "improvedExample": "학생 답안을 바탕으로 교과 개념을 살려 완성한 모범 문장 예시"
 }`;
 
-        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: { responseMimeType: "application/json" }
-          })
-        });
+        // 1순위 gemini-2.0-flash, 2순위 gemini-1.5-flash 지원
+        const models = ["gemini-2.0-flash", "gemini-1.5-flash"];
+        for (const model of models) {
+          try {
+            const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                contents: [{ parts: [{ text: prompt }] }],
+                generationConfig: { responseMimeType: "application/json" }
+              })
+            });
 
-        if (res.ok) {
-          const data = await res.json();
-          const jsonText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-          if (jsonText) {
-            const parsed = JSON.parse(jsonText);
-            return NextResponse.json(parsed);
+            if (res.ok) {
+              const data = await res.json();
+              const jsonText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+              if (jsonText) {
+                const parsed = JSON.parse(jsonText);
+                return NextResponse.json(parsed);
+              }
+            }
+          } catch (mErr) {
+            console.warn(`Gemini model ${model} failed, trying next:`, mErr);
           }
         }
       } catch (geminiErr) {
         console.warn("Gemini API interactive coach failed, fallback to smart rule engine:", geminiErr);
       }
     }
+
 
     // 3. 전문 로컬 규칙 튜터 엔진 (다회차 스마트 코칭 지원)
     return evaluateLocallyIterative(skillType, answerText, context);
