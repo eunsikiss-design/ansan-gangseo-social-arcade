@@ -10,7 +10,6 @@ const UNIT1_RUBRICS: Record<string, {
   passageText: string;
   modelAnswer: string;
   requiredConcepts: string[];
-  pedagogicalGoal: string;
 }> = {
   STEP_2: {
     title: "STEP 2. 자료 해석 (헌법 제37조 제2항 분석)",
@@ -18,7 +17,6 @@ const UNIT1_RUBRICS: Record<string, {
     passageText: "[헌법 제37조 제2항] 국민의 모든 자유와 권리는 국가안전보장·질서유지 또는 공공복리를 위하여 필요한 경우에 한하여 법률로써 제한할 수 있으며, 제한하는 경우에도 자유와 권리의 본질적인 내용을 침해할 수 없다.",
     modelAnswer: "기본권을 제한할 때는 반드시 국회가 제정한 법률에 근거해야 하며, 어떠한 경우에도 자유와 권리의 본질적인 내용을 침해할 수 없다.",
     requiredConcepts: ["국회가 제정한 법률(법률유보)", "목적의 정당성(국가안전보장·질서유지·공공복리)", "본질적인 내용 침해 금지(실질적 한계)"],
-    pedagogicalGoal: "기본권 제한의 형식적 요건(법률)과 실질적 한계(본질적 내용 침해 금지)를 유기적으로 연결하여 1문장으로 구성하도록 유도"
   },
   STEP_3: {
     title: "STEP 3. 관점 평가 (휴대전화 수거 쟁점)",
@@ -26,7 +24,6 @@ const UNIT1_RUBRICS: Record<string, {
     passageText: "[교내 휴대전화 일괄 수거 쟁점] A관점: 헌법 제10조 행복추구권, 제18조 통신의 자유, 비례의 원칙. B관점: 수업권 및 학습권 보장, 교내 면학 분위기 조성.",
     modelAnswer: "본인은 학생의 행복추구권과 통신의 자유를 존중하기 위해 일괄 수거 학칙 대신 쉬는 시간 자율 보관제를 지지한다.",
     requiredConcepts: ["헌법상 기본권(통신의 자유, 행복추구권 또는 학습권)", "비례의 원칙", "자율적 협약/규범"],
-    pedagogicalGoal: "단순한 찬반을 넘어 헌법상 기본권 가치와 비례원칙에 기반한 합리적 대안을 1문장으로 서술하도록 유도"
   },
   STEP_4: {
     title: "STEP 4. 원인 분석 및 법·제도 대안",
@@ -34,7 +31,6 @@ const UNIT1_RUBRICS: Record<string, {
     passageText: "[청소년 배달 노동 실태] 서면 근로계약서 미작성, 불시 근로감독 부족, 배달 대행 플랫폼의 위험 외주화 및 안전 교육 부재.",
     modelAnswer: "청소년 노동인권 침해는 행정 감독 미비라는 구조적 원인에서 기인하므로, 근로기준법상 서면계약 체결을 의무화하고 불시 점검을 강화해야 한다.",
     requiredConcepts: ["개인 부주의가 아닌 구조적 원인(관리감독 미비, 플랫폼 위험 외주화)", "근로기준법상 표준근로계약서 작성 의무화", "상시 근로감독 강화"],
-    pedagogicalGoal: "개인 윤리 차원을 넘어 법·제도적 구조 원인과 근로기준법 기반 대안의 인과관계를 서술하도록 유도"
   },
   STEP_5: {
     title: "STEP 5. 실천 설계 (3단 논증)",
@@ -42,7 +38,6 @@ const UNIT1_RUBRICS: Record<string, {
     passageText: "[디지털 잊힐 권리] 1단계 현황: 과거 게시물의 영구 저장과 유포로 인한 인격권 침해. 2단계 구조 원인: 플랫폼 기업의 상업적 데이터 독점 및 검색 알고리즘. 3단계 실천 대안: 헌법 제10조 인격권에 기반한 잊힐 권리 법제화 및 검색 배제 청구권 도입.",
     modelAnswer: "디지털 정보의 영구 저장으로 헌법 제10조 인격권이 침해되는 원인은 플랫폼 기업의 데이터 독점에 있으므로, 잊힐 권리를 법제화하여 검색 배제 청구권을 보장해야 한다.",
     requiredConcepts: ["1단계 현황: 헌법 제10조 인격권 침해", "2단계 원인: 플랫폼 기업의 데이터 독점", "3단계 대안: 잊힐 권리 법제화 및 검색 배제 청구권"],
-    pedagogicalGoal: "현황, 구조적 원인, 헌법 기반 실천 방안이 매끄럽게 연결되는 3단 논증 구조를 완성하도록 유도"
   }
 };
 
@@ -71,66 +66,50 @@ export async function POST(req: Request) {
       });
     }
 
-    // 유효한 히스토리 추출
-    const rawTurns: { role: string; text: string }[] = [];
-    for (const h of history) {
+    // 시스템 프롬프트: 유연하고 지적이며 자연스러운 페르소나
+    const systemInstruction = `당신은 고등학교 1학년 통합사회 1단원(인권 보장과 헌법)의 1:1 보조교사 AI 튜터 'ZERO'입니다.
+학생과 진짜 사람처럼 유쾌하고 깊이 있게 티키타카 대화를 나눕니다.
+
+[대화 원칙]:
+1. 학생의 질문과 맥락에 맞추어 생생하고 구체적인 실생활 예시를 들어 알기 쉽게 설명하세요.
+2. 이미 대화가 진행 중일 때 정형화된 인사말이나 문제 소개("반가워요", "두 가지만 찾아보자")를 절대로 되풀이하지 마세요.
+3. 학생이 쓴 문장이 있으면 칭찬과 함께 핵심 개념어를 다듬어주세요.
+4. 필요할 경우 답변 맨 마지막에 학생이 답안창에 복사/적용할 수 있는 1문장을 아래 형식으로 제안해 주세요:
+   [추천 문장]: 여기에 완성도 높은 모범 문장 작성
+5. '80%' 같은 기계적인 수치는 직접 말하지 마세요.`;
+
+    // 멀티턴 대화 히스토리 구성
+    const contentsList: any[] = [];
+
+    // 유효한 히스토리 추가
+    let lastRole: string | null = null;
+    for (const h of history.slice(-8)) {
       if (h.text && typeof h.text === "string" && h.text.trim()) {
-        rawTurns.push({
-          role: h.role === "user" ? "user" : "model",
-          text: h.text.trim(),
-        });
+        const role = h.role === "user" ? "user" : "model";
+        if (contentsList.length === 0 && role === "model") {
+          contentsList.push({ role: "user", parts: [{ text: `[탐구 과제: ${rubric.title}]\n선생님, 안녕하세요!` }] });
+        }
+        if (role !== lastRole) {
+          contentsList.push({ role, parts: [{ text: h.text.trim() }] });
+          lastRole = role;
+        }
       }
     }
 
-    // 학생의 최신 발화 결정
+    // 최신 학생 질문 구성
     let latestUserText = userMessage;
     if (actionType === "HINT") {
-      latestUserText = `선생님, 이 문제(${rubric.title})를 어떻게 시작해야 할지 막막해요. 생각의 물꼬를 터줄 수 있는 핵심 힌트 질문을 주세요.`;
+      latestUserText = `[과제: ${rubric.title}]\n선생님, 이 문제를 어떻게 시작해야 할지 막막해요. 생각의 물꼬를 터줄 수 있는 핵심 힌트 질문을 주세요.`;
     } else if (actionType === "SCAFFOLD") {
-      latestUserText = `선생님, 이 문제(${rubric.title})의 문장 구조 뼈대와 초성 힌트를 알려주세요.`;
+      latestUserText = `[과제: ${rubric.title}]\n선생님, 이 문제의 문장 구조 뼈대와 초성 힌트를 알려주세요.`;
     } else if (actionType === "EVALUATE") {
-      latestUserText = `선생님, 제가 작성 중인 답안("${currentStudentInput}")을 모범 답안에 맞추어 정밀 첨삭해 주시고, 더 완성도 높은 문장으로 다듬어 주세요.`;
+      latestUserText = `[과제: ${rubric.title}]\n선생님, 제가 작성 중인 답안("${currentStudentInput}")을 모범 답안("${rubric.modelAnswer}")에 맞추어 정밀 첨삭해 주시고, 더 완성도 높은 문장으로 다듬어 주세요.`;
+    } else if (contentsList.length === 0) {
+      latestUserText = `[현재 풀고 있는 과제: ${rubric.title} / 문제: ${rubric.problemText} / 모범 답안: ${rubric.modelAnswer}]\n${userMessage || "선생님, 도움이 필요해요!"}`;
     }
 
     if (!latestUserText) {
       latestUserText = "선생님, 문제 해결에 도움이 필요해요!";
-    }
-
-    const isOngoing = rawTurns.length > 0;
-    const systemInstruction = `당신은 고등학교 통합사회 1단원(인권 보장과 헌법)의 1:1 전담 보조교사 AI 튜터 'ZERO'입니다.
-진짜 지적이고 다정한 사람 선생님처럼 학생의 질문 맥락에 정확히 맞추어 1:1 대화를 진행합니다.
-
-[현재 학생이 풀고 있는 문항 정보]:
-- 과제명: ${rubric.title}
-- 문제 발문: ${rubric.problemText}
-- 교과서 자료/지문: ${rubric.passageText}
-- 모범 답안: ${rubric.modelAnswer}
-- 핵심 개념: ${rubric.requiredConcepts.join(" / ")}
-- 학생 작성 초안: "${currentStudentInput || "(미작성)"}"
-
-[실시간 대화 필수 규칙]:
-1. **맥락 맞춤형 직접 답변 (반복 절대 금지)**:
-   - 학생이 "예시 들어줘", "왜?", "이게 뭐야?", "어려워" 등 후속 질문을 하면, 상투적인 첫인사("반가워요", "두 가지만 찾아보자")를 절대로 되풀이하지 마세요!
-   - 학생이 물어본 바로 그 개념에 대해 흥미롭고 명쾌한 실생활 예시(집회의 자유, 신체의 자유, 고문 금지 등)를 들어 깊이 있게 설명하세요.
-2. **소크라테스식 격려**:
-   - 학생이 쓴 답안이나 단어가 있으면 칭찬하고, 부족한 개념을 스스로 완성하도록 유도하세요.
-3. **추천 문장 제안**:
-   - 학생이 답안창에 활용할 수 있도록 답변 마지막에 한 줄을 작성하세요:
-     [추천 문장]: 여기에 완성도 높은 1문장 작성
-4. 80% 같은 기계적인 수치는 직접 말하지 마세요.`;
-
-    // 멀티턴 대화 히스토리 엄격 정제 (Gemini 규격: user ➔ model 교대 보장)
-    const contentsList: any[] = [];
-    let lastRole: string | null = null;
-    for (const turn of rawTurns.slice(-8)) {
-      const currentRole = turn.role;
-      if (contentsList.length === 0 && currentRole === "model") {
-        contentsList.push({ role: "user", parts: [{ text: "선생님, 안녕하세요!" }] });
-      }
-      if (currentRole !== lastRole) {
-        contentsList.push({ role: currentRole, parts: [{ text: turn.text }] });
-        lastRole = currentRole;
-      }
     }
 
     if (contentsList.length > 0 && lastRole === "user") {
