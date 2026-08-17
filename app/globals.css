@@ -3576,6 +3576,69 @@ button:disabled { cursor:not-allowed; opacity:.48; }
   font-size: 13.5px;
   color: #ffffff;
 }
+/* 📌 Original Task Instruction Card */
+.original-task-instruction-card {
+  background: linear-gradient(135deg, #092a3d, #061926);
+  border: 1.5px solid #236c96;
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin: 12px 0 14px;
+}
+.task-instruction-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+.task-instruction-badge strong {
+  font-size: 11.5px;
+  color: var(--gold);
+  letter-spacing: 0.5px;
+}
+.task-instruction-text {
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 800;
+  color: #ffffff;
+  line-height: 1.45;
+}
+
+/* 🎯 Match Rate Progress Bar */
+.match-rate-bar-container {
+  background: #041724;
+  border: 1px solid #114261;
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin-bottom: 12px;
+}
+.match-rate-label-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 5px;
+}
+.match-rate-label-row small {
+  font-size: 10px;
+  color: var(--teal-soft);
+  font-weight: 700;
+}
+.match-rate-label-row strong {
+  font-size: 12px;
+  color: var(--gold);
+}
+.match-rate-progress-track {
+  width: 100%;
+  height: 7px;
+  background: #092030;
+  border-radius: 99px;
+  overflow: hidden;
+}
+.match-rate-progress-fill {
+  height: 100%;
+  transition: width 0.4s ease;
+  border-radius: 99px;
+}
+
 
 .guiding-question-box {
   background: #03141f;

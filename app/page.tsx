@@ -2268,9 +2268,16 @@ function SkillLabTrainingView({
               <p className="s2-mat-content">{curS2.material}</p>
             </div>
 
-            <div className="s2-prompt-box">
-              <p className="s2-prompt-title">Q. {curS2.question}</p>
+            {/* 📌 원래 기본 과제 발문 (상시 고정 노출) */}
+            <div className="original-task-instruction-card">
+              <div className="task-instruction-badge">
+                <FileText size={16} color="var(--gold)" />
+                <strong>[기본 과제 발문]</strong>
+              </div>
+              <p className="task-instruction-text">Q. {curS2.question}</p>
+            </div>
 
+            <div className="s2-prompt-box">
               {/* AI 튜터 ZERO의 실시간 코칭 배너 */}
               {skill2AiRes && (
                 <div className={`ai-tutor-coaching-box ${skill2AiRes.isMastered ? "mastered" : "revising"}`}>
@@ -2282,8 +2289,19 @@ function SkillLabTrainingView({
                       <strong>AI 튜터 ZERO의 실시간 코칭</strong>
                     </div>
                     <span className={`status-tag ${skill2AiRes.isMastered ? "playable" : "coming"}`}>
-                      {skill2AiRes.isMastered ? "🎉 정답 마스터 도달!" : "💡 문장 보완 및 재도전"}
+                      {skill2AiRes.isMastered ? "🎉 80% 이상 마스터 달성!" : `🔥 일치도 ${skill2AiRes.matchRate || 40}% (80% 목표)`}
                     </span>
+                  </div>
+
+                  {/* 일치도 게이지 바 */}
+                  <div className="match-rate-bar-container">
+                    <div className="match-rate-label-row">
+                      <small>모범 답안 일치도 지수</small>
+                      <strong>{skill2AiRes.matchRate || 40}% / 80% 기준</strong>
+                    </div>
+                    <div className="match-rate-progress-track">
+                      <div className="match-rate-progress-fill" style={{ width: `${Math.min(100, skill2AiRes.matchRate || 40)}%`, background: skill2AiRes.isMastered ? "#56e39f" : "var(--gold)" }} />
+                    </div>
                   </div>
 
                   <div className="guiding-question-box">
@@ -2312,7 +2330,9 @@ function SkillLabTrainingView({
               )}
 
               <label className="input-field-label">
-                {skill2AiRes && !skill2AiRes.isMastered ? "위 유도 질문과 추천 개념어를 반영하여 문장을 수정하세요:" : "교과서 자료를 근거로 하여 완성된 1문장으로 작성하세요:"}
+                {skill2AiRes && !skill2AiRes.isMastered
+                  ? "💡 AI 튜터의 유도 질문과 추천 개념어를 반영하여 위 [기본 과제] 답안을 80% 이상 완성도로 보강하세요:"
+                  : "위 자료를 근거로 [기본 과제]에 대한 답안을 1문장으로 작성하세요:"}
               </label>
               <textarea
                 className="s2-textarea"
@@ -2421,6 +2441,17 @@ function SkillLabTrainingView({
               </div>
             </div>
 
+            {/* 📌 원래 기본 과제 발문 (상시 고정 노출) */}
+            <div className="original-task-instruction-card">
+              <div className="task-instruction-badge">
+                <FileText size={16} color="var(--gold)" />
+                <strong>[기본 과제 발문]</strong>
+              </div>
+              <p className="task-instruction-text">
+                선택한 관점({skill3Stance === "A" ? "자유권/사생활 보호" : "공동체 학습권/공익"})에서 자신의 주장을 1문장으로 제시하세요.
+              </p>
+            </div>
+
             <div className="s3-input-box">
               {/* AI 튜터 코칭 피드백 */}
               {skill3AiRes && (
@@ -2433,8 +2464,19 @@ function SkillLabTrainingView({
                       <strong>AI 튜터 ZERO의 관점 코칭</strong>
                     </div>
                     <span className={`status-tag ${skill3AiRes.isMastered ? "playable" : "coming"}`}>
-                      {skill3AiRes.isMastered ? "🎉 정답 마스터 도달!" : "💡 개념어 보완 재도전"}
+                      {skill3AiRes.isMastered ? "🎉 80% 이상 마스터 달성!" : `🔥 일치도 ${skill3AiRes.matchRate || 40}% (80% 목표)`}
                     </span>
+                  </div>
+
+                  {/* 일치도 게이지 바 */}
+                  <div className="match-rate-bar-container">
+                    <div className="match-rate-label-row">
+                      <small>모범 답안 일치도 지수</small>
+                      <strong>{skill3AiRes.matchRate || 40}% / 80% 기준</strong>
+                    </div>
+                    <div className="match-rate-progress-track">
+                      <div className="match-rate-progress-fill" style={{ width: `${Math.min(100, skill3AiRes.matchRate || 40)}%`, background: skill3AiRes.isMastered ? "#56e39f" : "var(--gold)" }} />
+                    </div>
                   </div>
 
                   <div className="guiding-question-box">
@@ -2463,7 +2505,9 @@ function SkillLabTrainingView({
               )}
 
               <label className="input-field-label">
-                {skill3AiRes && !skill3AiRes.isMastered ? "위 개념어와 유도 질문을 활용해 문장을 보강하세요:" : "선택한 관점에서 자신의 주장을 1문장으로 제시하세요:"}
+                {skill3AiRes && !skill3AiRes.isMastered
+                  ? "💡 AI 튜터의 유도 질문과 추천 개념어를 반영하여 위 [기본 과제] 답안을 80% 이상 완성도로 보강하세요:"
+                  : "선택한 관점에서 [기본 과제]에 대한 자신의 주장을 1문장으로 제시하세요:"}
               </label>
               <textarea
                 className="s2-textarea"
@@ -2551,6 +2595,17 @@ function SkillLabTrainingView({
               </div>
             </div>
 
+            {/* 📌 원래 기본 과제 발문 (상시 고정 노출) */}
+            <div className="original-task-instruction-card">
+              <div className="task-instruction-badge">
+                <FileText size={16} color="var(--gold)" />
+                <strong>[기본 과제 발문]</strong>
+              </div>
+              <p className="task-instruction-text">
+                문제의 원인(개인적 vs 구조적)과 법·제도적 해결 방안을 2~3문장으로 서술하세요.
+              </p>
+            </div>
+
             <div className="s4-input-box">
               {/* AI 코칭 피드백 */}
               {skill4AiRes && (
@@ -2563,8 +2618,19 @@ function SkillLabTrainingView({
                       <strong>AI 튜터 ZERO의 구조 분석</strong>
                     </div>
                     <span className={`status-tag ${skill4AiRes.isMastered ? "playable" : "coming"}`}>
-                      {skill4AiRes.isMastered ? "🎉 구조적 대안 마스터!" : "💡 법·제도 구조 보완"}
+                      {skill4AiRes.isMastered ? "🎉 80% 이상 마스터 달성!" : `🔥 일치도 ${skill4AiRes.matchRate || 40}% (80% 목표)`}
                     </span>
+                  </div>
+
+                  {/* 일치도 게이지 바 */}
+                  <div className="match-rate-bar-container">
+                    <div className="match-rate-label-row">
+                      <small>모범 답안 일치도 지수</small>
+                      <strong>{skill4AiRes.matchRate || 40}% / 80% 기준</strong>
+                    </div>
+                    <div className="match-rate-progress-track">
+                      <div className="match-rate-progress-fill" style={{ width: `${Math.min(100, skill4AiRes.matchRate || 40)}%`, background: skill4AiRes.isMastered ? "#56e39f" : "var(--gold)" }} />
+                    </div>
                   </div>
 
                   <div className="guiding-question-box">
@@ -2592,9 +2658,10 @@ function SkillLabTrainingView({
                 </div>
               )}
 
-
               <label className="input-field-label">
-                {skill4AiRes && !skill4AiRes.isMastered ? "유도 질문을 바탕으로 법·제도적 구조와 대안을 보강하세요:" : "문제의 원인(개인적 vs 구조적)과 법·제도적 해결 방안을 2~3문장으로 서술하세요:"}
+                {skill4AiRes && !skill4AiRes.isMastered
+                  ? "💡 AI 튜터의 유도 질문과 법적 대안을 반영하여 위 [기본 과제] 답안을 80% 이상 완성도로 보강하세요:"
+                  : "문제의 원인과 법·제도적 해결 방안을 [기본 과제]에 맞추어 2~3문장으로 서술하세요:"}
               </label>
               <textarea
                 className="s2-textarea"
@@ -2679,6 +2746,17 @@ function SkillLabTrainingView({
               </div>
             </div>
 
+            {/* 📌 원래 기본 과제 발문 (상시 고정 노출) */}
+            <div className="original-task-instruction-card">
+              <div className="task-instruction-badge">
+                <FileText size={16} color="var(--gold)" />
+                <strong>[기본 과제 발문]</strong>
+              </div>
+              <p className="task-instruction-text">
+                [현황 ➔ 구조적 원인 ➔ 헌법 기반 실천 방안]을 3단 구조로 서술하세요.
+              </p>
+            </div>
+
             <div className="s5-input-box">
               {/* AI 코칭 피드백 */}
               {skill5AiRes && (
@@ -2691,8 +2769,19 @@ function SkillLabTrainingView({
                       <strong>AI 튜터 ZERO의 종합 논증 평가</strong>
                     </div>
                     <span className={`status-tag ${skill5AiRes.isMastered ? "playable" : "coming"}`}>
-                      {skill5AiRes.isMastered ? "🎉 3단 논증 마스터 완료!" : "💡 3단 뼈대 보완"}
+                      {skill5AiRes.isMastered ? "🎉 80% 이상 마스터 달성!" : `🔥 일치도 ${skill5AiRes.matchRate || 40}% (80% 목표)`}
                     </span>
+                  </div>
+
+                  {/* 일치도 게이지 바 */}
+                  <div className="match-rate-bar-container">
+                    <div className="match-rate-label-row">
+                      <small>모범 답안 일치도 지수</small>
+                      <strong>{skill5AiRes.matchRate || 40}% / 80% 기준</strong>
+                    </div>
+                    <div className="match-rate-progress-track">
+                      <div className="match-rate-progress-fill" style={{ width: `${Math.min(100, skill5AiRes.matchRate || 40)}%`, background: skill5AiRes.isMastered ? "#56e39f" : "var(--gold)" }} />
+                    </div>
                   </div>
 
                   <div className="guiding-question-box">
@@ -2721,7 +2810,9 @@ function SkillLabTrainingView({
               )}
 
               <label className="input-field-label">
-                {skill5AiRes && !skill5AiRes.isMastered ? "유도 질문을 바탕으로 [현황 ➔ 구조 원인 ➔ 실천 방안]을 보강하세요:" : "[현황 -> 구조적 원인 -> 헌법 기반 실천 방안]을 3단 구조로 서술하세요:"}
+                {skill5AiRes && !skill5AiRes.isMastered
+                  ? "💡 AI 튜터의 유도 질문을 바탕으로 위 [기본 과제]의 [현황 ➔ 구조 원인 ➔ 실천 방안]을 80% 이상 완성도로 보강하세요:"
+                  : "[현황 ➔ 구조적 원인 ➔ 헌법 기반 실천 방안]을 [기본 과제]에 맞추어 3단 구조로 서술하세요:"}
               </label>
               <textarea
                 className="s2-textarea"
@@ -2777,6 +2868,7 @@ function SkillLabTrainingView({
             </div>
           </div>
         )}
+
 
 
         {/* 📋 내가 쓴 글 서고 & 질문 다시 보기 모달 */}
