@@ -22,6 +22,23 @@ const MIME_TYPES = {
   ".txt": "text/plain; charset=utf-8",
 };
 
+async function readRequestBody(req) {
+  if (req.method === "GET" || req.method === "HEAD") return undefined;
+
+  if (req.body !== undefined && req.body !== null) {
+    if (Buffer.isBuffer(req.body) || typeof req.body === "string") {
+      return req.body;
+    }
+    return JSON.stringify(req.body);
+  }
+
+  const chunks = [];
+  for await (const chunk of req) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  }
+  return chunks.length ? Buffer.concat(chunks) : undefined;
+}
+
 export default async function handler(req, res) {
   try {
     const host = req.headers.host || "localhost";
@@ -46,7 +63,7 @@ export default async function handler(req, res) {
       }
     }
 
-    // 2. Handle SSR via Vinext Worker
+    // 2. Handle SSR/API via Vinext Worker
     const headers = new Headers();
     for (const [key, val] of Object.entries(req.headers)) {
       if (val !== undefined) {
@@ -58,10 +75,21 @@ export default async function handler(req, res) {
       }
     }
 
-    const request = new Request(url.href, {
+    const body = await readRequestBody(req);
+    if (body !== undefined) {
+      // The body may have been parsed/re-serialized by Vercel, so do not forward
+      // the original byte count/transfer metadata.
+      headers.delete("content-length");
+      headers.delete("transfer-encoding");
+    }
+
+    const requestInit = {
       method: req.method,
       headers,
-    });
+      ...(body !== undefined ? { body, duplex: "half" } : {}),
+    };
+
+    const request = new Request(url.href, requestInit);
 
     const response = await worker.fetch(
       request,
@@ -94,6 +122,7 @@ export default async function handler(req, res) {
     const arrayBuffer = await response.arrayBuffer();
     res.end(Buffer.from(arrayBuffer));
   } catch (error) {
+    console.error("Vercel Vinext adapter failed", error);
     res.statusCode = 500;
     res.setHeader("Content-Type", "text/plain; charset=utf-8");
     res.end(`Internal Server Error: ${error?.message || error}`);
