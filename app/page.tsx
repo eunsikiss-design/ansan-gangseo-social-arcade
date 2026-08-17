@@ -16,6 +16,7 @@ import { unit1GameModes } from "@/src/data/unit1Data";
 import { unit1VocabCards, unit1SkillTrainings, type VocabCard, type SkillTrainingCard } from "@/src/data/skillLabData";
 import {
   masterVocabTopics, allVocabQuestions, unit1SkillLabMaster,
+  unitTopicGroups, unitMemoryCardSets,
   type VocabQuestionItem, type Skill1Question, type Skill2Question,
   type Skill3Question, type Skill4Question, type Skill5Question
 } from "@/src/data/skillLabMasterData";
@@ -964,6 +965,35 @@ function MissionPlayerView({
           )}
         </section>
 
+        {/* Character Guide Banner */}
+        <div className="npc-guide-banner">
+          <div className="npc-avatar-box">
+            <span className="npc-avatar-emoji">
+              {mission.level === 1 || mission.level === 2 ? "📘" : mission.level === 3 || mission.level === 4 ? "🔍" : "⚡"}
+            </span>
+          </div>
+          <div className="npc-speech-bubble">
+            <strong>
+              {mission.level === 1 || mission.level === 2
+                ? "해온 (헌법 수호관)"
+                : mission.level === 3 || mission.level === 4
+                ? "아리 (현장 조사관)"
+                : "ZERO (AI 탐구 튜터)"}
+            </strong>
+            <p>
+              {mission.level === 1
+                ? "헌법 제10조와 인간 존엄성의 헌법적 의미를 꼼꼼히 확인해 보세요."
+                : mission.level === 2
+                ? "제시된 자료의 법령 조문과 판결 요지를 바탕으로 사실관계를 분석하세요."
+                : mission.level === 3
+                ? "단답형 개념어와 헌법 원리를 정확하게 찾아보세요."
+                : mission.level === 4
+                ? "법·제도적 근거를 바탕으로 논리적인 서술형 문장을 완성해 보세요."
+                : "정답에 얽매이지 말고, 당신만의 가치와 창의적인 대안을 자유롭게 펼쳐보세요!"}
+            </p>
+          </div>
+        </div>
+
         {/* 힌트 적용 표시 박스 */}
         {currentHint && (
           <div className="active-hint-banner">
@@ -975,13 +1005,30 @@ function MissionPlayerView({
           </div>
         )}
 
-        {/* Question & Choices */}
+        {/* Question & Choices / Input */}
         <section className="mission-question-card">
           <div className="question-header">
-            <span className="q-label">Q. 핵심 법리 탐구 문제</span>
+            <span className="q-label">
+              {mission.questionType === "SHORT_ANSWER"
+                ? "Q. 단답형 헌법 개념 문제"
+                : mission.questionType === "SUBJECTIVE"
+                ? "Q. 서술형 헌법 논증 과제"
+                : mission.questionType === "OPEN_OPINION"
+                ? "Q. 자유의견 탐구 과제 (AI 튜터링)"
+                : "Q. 핵심 법리 탐구 문제"}
+            </span>
             <h3>{mission.question}</h3>
           </div>
 
+          {/* 초성 힌트 (단답형) */}
+          {mission.questionType === "SHORT_ANSWER" && mission.initialHint && (
+            <div className="initial-hint-banner">
+              <span className="initial-tag">💡 초성 힌트:</span>
+              <strong>{mission.initialHint}</strong>
+            </div>
+          )}
+
+          {/* 4지선다형 선택지 리스트 (길이 균형화 완료) */}
           <div className="choices-list-v2">
             {mission.choices.map((choiceText, idx) => {
               const isSelected = selectedChoice === idx;
@@ -1081,19 +1128,106 @@ function SkillLabVocabView({
   setSave: React.Dispatch<React.SetStateAction<SaveData>>;
   onBack: () => void;
 }) {
-  const [selectedTopicId, setSelectedTopicId] = useState(1);
+  const [selectedUnitId, setSelectedUnitId] = useState<number>(1);
+  const [activeMode, setActiveMode] = useState<"QUIZ" | "CARD_FLIP">("QUIZ");
+  const [selectedTopicId, setSelectedTopicId] = useState<number>(1);
   const [currentQIdx, setCurrentQIdx] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
+
+  // MATCH question state
   const [matchSelectedLeft, setMatchSelectedLeft] = useState<number | null>(null);
-  const [matchedPairs, setMatchedPairs] = useState<Record<number, number>>({});
+  const [matchedPairs, setMatchedPairs] = useState<{ [leftIdx: number]: number }>({});
   const [matchDone, setMatchDone] = useState(false);
 
-  // Filter questions for the selected topic
+  // Memory Card Flip Game State
+  const [flippedCards, setFlippedCards] = useState<number[]>([]);
+  const [matchedCardIds, setMatchedCardIds] = useState<string[]>([]);
+  const [cardDeck, setCardDeck] = useState<
+    { id: string; pairId: string; type: "TERM" | "DEF"; text: string }[]
+  >([]);
+
+  // 현재 단원에 속한 주제 목록
+  const unitTopics = useMemo(() => {
+    return masterVocabTopics.filter((t) => (t as any).unitId === selectedUnitId);
+  }, [selectedUnitId]);
+
+  // 단원 변경 시 첫 번째 주제 자동 선택 & 카드 덱 리셋
+  useEffect(() => {
+    if (unitTopics.length > 0) {
+      setSelectedTopicId(unitTopics[0].id);
+      setCurrentQIdx(0);
+      setSelectedAnswer(null);
+      setMatchedPairs({});
+      setMatchDone(false);
+    }
+  }, [selectedUnitId, unitTopics]);
+
+  // 카드 뒤집기 덱 초기화
+  useEffect(() => {
+    const rawPairs = unitMemoryCardSets[selectedUnitId] || unitMemoryCardSets[1];
+    const cards: { id: string; pairId: string; type: "TERM" | "DEF"; text: string }[] = [];
+    rawPairs.forEach((pair, idx) => {
+      cards.push({ id: `p${idx}_t`, pairId: `p${idx}`, type: "TERM", text: pair.term });
+      cards.push({ id: `p${idx}_d`, pairId: `p${idx}`, type: "DEF", text: pair.def });
+    });
+    // Shuffle
+    cards.sort(() => Math.random() - 0.5);
+    setCardDeck(cards);
+    setFlippedCards([]);
+    setMatchedCardIds([]);
+  }, [selectedUnitId, activeMode]);
+
+  // 카드 뒤집기 핸들러
+  const handleCardClick = (index: number) => {
+    if (flippedCards.length === 2 || flippedCards.includes(index)) return;
+    const card = cardDeck[index];
+    if (matchedCardIds.includes(card.pairId)) return;
+
+    void audioManager.playSfx("ui_click");
+    const newFlipped = [...flippedCards, index];
+    setFlippedCards(newFlipped);
+
+    if (newFlipped.length === 2) {
+      const card1 = cardDeck[newFlipped[0]];
+      const card2 = cardDeck[newFlipped[1]];
+
+      if (card1.pairId === card2.pairId && card1.type !== card2.type) {
+        // Match!
+        void audioManager.playSfx("success");
+        setMatchedCardIds((prev) => [...prev, card1.pairId]);
+        setFlippedCards([]);
+
+        // 점수 보상
+        setSave((prev) => ({
+          ...prev,
+          skillLabScore: {
+            ...prev.skillLabScore,
+            vocabScore: prev.skillLabScore.vocabScore + 15,
+            vocabLevel: Math.floor((prev.skillLabScore.vocabScore + 15) / 50) + 1,
+          },
+        }));
+      } else {
+        // No match
+        void audioManager.playSfx("error");
+        setTimeout(() => {
+          setFlippedCards([]);
+        }, 900);
+      }
+    }
+  };
+
   const topicQuestions = useMemo(() => {
     return allVocabQuestions.filter((q) => q.topicId === selectedTopicId);
   }, [selectedTopicId]);
 
-  const currentQ = topicQuestions[currentQIdx] || topicQuestions[0] || allVocabQuestions[0];
+  const currentQ = topicQuestions[currentQIdx] || topicQuestions[0] || {
+    id: "empty",
+    topicId: 1,
+    topicTitle: "주제 1",
+    type: "OX" as const,
+    question: "준비 중입니다.",
+    answer: "O",
+  };
 
   const handleSelectChoice = (ans: string) => {
     if (selectedAnswer !== null) return;
@@ -1156,9 +1290,9 @@ function SkillLabVocabView({
     if (currentQIdx < topicQuestions.length - 1) {
       setCurrentQIdx(currentQIdx + 1);
     } else {
-      // 다음 주제로 이동 또는 종료
-      if (selectedTopicId < masterVocabTopics.length) {
-        setSelectedTopicId(selectedTopicId + 1);
+      const curIdxInUnit = unitTopics.findIndex((t) => t.id === selectedTopicId);
+      if (curIdxInUnit < unitTopics.length - 1) {
+        setSelectedTopicId(unitTopics[curIdxInUnit + 1].id);
         setCurrentQIdx(0);
       } else {
         onBack();
@@ -1172,146 +1306,251 @@ function SkillLabVocabView({
         <div className="hud-top">
           <button className="icon-button" onClick={onBack}><ArrowLeft size={20} /></button>
           <div>
-            <span>개념-용어 학습실 (25개 주제)</span>
-            <strong>{masterVocabTopics.find((t) => t.id === selectedTopicId)?.title}</strong>
+            <span>개념-용어 학습실</span>
+            <strong>{unitTopicGroups.find((u) => u.unitId === selectedUnitId)?.unitTitle}</strong>
           </div>
-          <span className="level-chip">Lv.{save.skillLabScore.vocabLevel} ({save.skillLabScore.vocabScore}점)</span>
+          <span className="level-chip">체력 점수: {save.skillLabScore.vocabScore}점 (Lv.{save.skillLabScore.vocabLevel})</span>
         </div>
       </header>
 
       <div className="skill-lab-scroll">
-        {/* 주제 빠른 선택 드롭다운 바 */}
-        <div className="topic-select-toolbar">
-          <label htmlFor="topic-select">주제 선택:</label>
-          <select
-            id="topic-select"
-            value={selectedTopicId}
-            onChange={(e) => {
-              setSelectedTopicId(Number(e.target.value));
-              setCurrentQIdx(0);
-              setSelectedAnswer(null);
-              setMatchedPairs({});
-              setMatchDone(false);
-            }}
+        {/* 1. 단원 선택 탭 (1~5단원) */}
+        <div className="unit-selector-tabs-row">
+          {unitTopicGroups.map((u) => (
+            <button
+              key={u.unitId}
+              className={`unit-tab-pill ${selectedUnitId === u.unitId ? "active" : ""}`}
+              onClick={() => setSelectedUnitId(u.unitId)}
+            >
+              <strong>{u.unitId}단원</strong>
+              <small>{u.badgeName}</small>
+            </button>
+          ))}
+        </div>
+
+        {/* 2. 학습 모드 선택: 퀴즈 풀기 vs 카드 뒤집기 */}
+        <div className="vocab-mode-switch-row">
+          <button
+            className={`mode-switch-btn ${activeMode === "QUIZ" ? "active" : ""}`}
+            onClick={() => setActiveMode("QUIZ")}
           >
-            {masterVocabTopics.map((t) => (
-              <option key={t.id} value={t.id}>{t.title}</option>
-            ))}
-          </select>
-          <span className="q-counter-pill">{currentQIdx + 1} / {topicQuestions.length}문항</span>
+            📝 개념 퀴즈 풀기 (OX·선택·매칭)
+          </button>
+          <button
+            className={`mode-switch-btn ${activeMode === "CARD_FLIP" ? "active" : ""}`}
+            onClick={() => setActiveMode("CARD_FLIP")}
+          >
+            🃏 개념 카드 뒤집기 (Memory Match)
+          </button>
         </div>
 
-        {/* 문항 카드 */}
-        <div className="vocab-quiz-card-v2">
-          <div className="v-q-header">
-            <span className="q-type-badge">{currentQ.type} 문제</span>
-            <h3>{currentQ.question}</h3>
-          </div>
-
-          {/* 1. OX 문제 */}
-          {currentQ.type === "OX" && (
-            <div className="ox-choice-grid">
-              {["O", "X"].map((ox) => {
-                const isSelected = selectedAnswer === ox;
-                const isCorrect = String(currentQ.answer) === ox;
-                let btnClass = "ox-btn";
-                if (selectedAnswer !== null) {
-                  if (isSelected) btnClass += isCorrect ? " correct" : " wrong";
-                  else if (isCorrect) btnClass += " show-correct";
-                }
-                return (
-                  <button
-                    key={ox}
-                    className={btnClass}
-                    disabled={selectedAnswer !== null}
-                    onClick={() => handleSelectChoice(ox)}
-                  >
-                    {ox}
-                  </button>
-                );
-              })}
+        {/* =======================
+            모드 1: 개념 퀴즈 풀이
+            ======================= */}
+        {activeMode === "QUIZ" && (
+          <>
+            {/* 주제 드롭다운 툴바 */}
+            <div className="topic-select-toolbar">
+              <label htmlFor="topic-select">주제 선택 ({selectedUnitId}단원):</label>
+              <select
+                id="topic-select"
+                value={selectedTopicId}
+                onChange={(e) => {
+                  setSelectedTopicId(Number(e.target.value));
+                  setCurrentQIdx(0);
+                  setSelectedAnswer(null);
+                  setMatchedPairs({});
+                  setMatchDone(false);
+                }}
+              >
+                {unitTopics.map((t) => (
+                  <option key={t.id} value={t.id}>{t.title}</option>
+                ))}
+              </select>
+              <span className="q-counter-pill">{currentQIdx + 1} / {topicQuestions.length}문항</span>
             </div>
-          )}
 
-          {/* 2. CONCEPT & CHOICE 4지선다 문제 */}
-          {(currentQ.type === "CONCEPT" || currentQ.type === "CHOICE") && currentQ.options && (
-            <div className="choices-list-v2">
-              {currentQ.options.map((opt, idx) => {
-                const isSelected = selectedAnswer === opt;
-                const isCorrect = String(currentQ.answer).trim() === opt.trim();
-                let choiceClass = "choice-card-v2";
-                if (selectedAnswer !== null) {
-                  if (isSelected) choiceClass += isCorrect ? " correct" : " wrong";
-                  else if (isCorrect) choiceClass += " show-correct";
-                }
-                return (
-                  <button
-                    key={idx}
-                    className={choiceClass}
-                    disabled={selectedAnswer !== null}
-                    onClick={() => handleSelectChoice(opt)}
-                  >
-                    <span className="choice-num-badge">{idx + 1}</span>
-                    <span className="choice-text-body">{opt}</span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-
-          {/* 3. MATCH (연결 짝맞추기) 문제 */}
-          {currentQ.type === "MATCH" && currentQ.matchPairs && (
-            <div className="matching-quiz-container">
-              <p className="match-guide-text">왼쪽 항목을 누른 후, 알맞은 오른쪽 항목을 눌러 짝을 지으세요.</p>
-              <div className="matching-columns">
-                <div className="match-col left">
-                  {currentQ.matchPairs.map((pair, lIdx) => {
-                    const isMatched = matchedPairs[lIdx] !== undefined;
-                    const isSelected = matchSelectedLeft === lIdx;
-                    return (
-                      <button
-                        key={lIdx}
-                        className={`match-node left ${isSelected ? "selected" : ""} ${isMatched ? "matched" : ""}`}
-                        onClick={() => handleMatchClickLeft(lIdx)}
-                      >
-                        <span>{pair.left}</span>
-                        {isMatched && <Check size={14} color="#56e39f" weight="bold" />}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <div className="match-col right">
-                  {currentQ.matchPairs.map((pair, rIdx) => {
-                    const matchedLeftIdx = Object.entries(matchedPairs).find(([_, v]) => v === rIdx)?.[0];
-                    const isMatched = matchedLeftIdx !== undefined;
-                    return (
-                      <button
-                        key={rIdx}
-                        className={`match-node right ${isMatched ? "matched" : ""}`}
-                        onClick={() => handleMatchClickRight(rIdx)}
-                      >
-                        <span>{pair.right}</span>
-                        {isMatched && <span className="matched-index-tag">#{Number(matchedLeftIdx) + 1}</span>}
-                      </button>
-                    );
-                  })}
-                </div>
+            {/* 문항 카드 */}
+            <div className="vocab-quiz-card-v2">
+              <div className="v-q-header">
+                <span className="q-type-badge">{currentQ.type} 문제</span>
+                <h3>{currentQ.question}</h3>
               </div>
-            </div>
-          )}
 
-          {/* 피드백 & 해설 */}
-          {(selectedAnswer !== null || matchDone) && (
-            <div className="v-q-feedback-box">
-              <strong>{selectedAnswer === String(currentQ.answer) || matchDone ? "🎉 정답입니다! (+10점)" : "⚠️ 오답입니다. 해설을 확인하세요."}</strong>
-              {currentQ.explanation && <p className="v-q-exp-text">{currentQ.explanation}</p>}
-              <button className="primary-button full-button" style={{ marginTop: "12px" }} onClick={nextQuestion}>
-                {currentQIdx < topicQuestions.length - 1 ? "다음 문항으로 >" : "다음 주제로 이동 >"}
-              </button>
+              {/* 1. OX 문제 */}
+              {currentQ.type === "OX" && (
+                <div className="ox-choice-grid">
+                  {["O", "X"].map((ox) => {
+                    const isSelected = selectedAnswer === ox;
+                    const isCorrect = String(currentQ.answer) === ox;
+                    let btnClass = "ox-btn";
+                    if (selectedAnswer !== null) {
+                      if (isSelected) btnClass += isCorrect ? " correct" : " wrong";
+                      else if (isCorrect) btnClass += " show-correct";
+                    }
+                    return (
+                      <button
+                        key={ox}
+                        className={btnClass}
+                        disabled={selectedAnswer !== null}
+                        onClick={() => handleSelectChoice(ox)}
+                      >
+                        {ox}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* 2. CONCEPT & CHOICE 4지선다 문제 */}
+              {(currentQ.type === "CONCEPT" || currentQ.type === "CHOICE") && currentQ.options && (
+                <div className="choices-list-v2">
+                  {currentQ.options.map((opt, idx) => {
+                    const isSelected = selectedAnswer === opt;
+                    const isCorrect = String(currentQ.answer).trim() === opt.trim();
+                    let choiceClass = "choice-card-v2";
+                    if (selectedAnswer !== null) {
+                      if (isSelected) choiceClass += isCorrect ? " correct" : " wrong";
+                      else if (isCorrect) choiceClass += " show-correct";
+                    }
+                    return (
+                      <button
+                        key={idx}
+                        className={choiceClass}
+                        disabled={selectedAnswer !== null}
+                        onClick={() => handleSelectChoice(opt)}
+                      >
+                        <span className="choice-num-badge">{idx + 1}</span>
+                        <span className="choice-text-body">{opt}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* 3. MATCH (연결 짝맞추기) 문제 */}
+              {currentQ.type === "MATCH" && currentQ.matchPairs && (
+                <div className="matching-quiz-container">
+                  <p className="match-guide-text">왼쪽 항목을 누른 후, 알맞은 오른쪽 항목을 눌러 짝을 지으세요.</p>
+                  <div className="matching-columns">
+                    <div className="match-col left">
+                      {currentQ.matchPairs.map((pair, lIdx) => {
+                        const isMatched = matchedPairs[lIdx] !== undefined;
+                        const isSelected = matchSelectedLeft === lIdx;
+                        return (
+                          <button
+                            key={lIdx}
+                            className={`match-node left ${isSelected ? "selected" : ""} ${isMatched ? "matched" : ""}`}
+                            onClick={() => handleMatchClickLeft(lIdx)}
+                          >
+                            <span>{pair.left}</span>
+                            {isMatched && <Check size={14} color="#56e39f" weight="bold" />}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <div className="match-col right">
+                      {currentQ.matchPairs.map((pair, rIdx) => {
+                        const matchedLeftIdx = Object.entries(matchedPairs).find(([_, v]) => v === rIdx)?.[0];
+                        const isMatched = matchedLeftIdx !== undefined;
+                        return (
+                          <button
+                            key={rIdx}
+                            className={`match-node right ${isMatched ? "matched" : ""}`}
+                            onClick={() => handleMatchClickRight(rIdx)}
+                          >
+                            <span>{pair.right}</span>
+                            {isMatched && <span className="matched-index-tag">#{Number(matchedLeftIdx) + 1}</span>}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* 피드백 & 해설 */}
+              {(selectedAnswer !== null || matchDone) && (
+                <div className="v-q-feedback-box">
+                  <strong>{selectedAnswer === String(currentQ.answer) || matchDone ? "🎉 정답입니다! (+10점)" : "⚠️ 오답입니다. 해설을 확인하세요."}</strong>
+                  {currentQ.explanation && <p className="v-q-exp-text">{currentQ.explanation}</p>}
+                  <button className="primary-button full-button" style={{ marginTop: "12px" }} onClick={nextQuestion}>
+                    {currentQIdx < topicQuestions.length - 1 ? "다음 문항으로 >" : "다음 주제로 이동 >"}
+                  </button>
+                </div>
+              )}
             </div>
-          )}
-        </div>
+          </>
+        )}
+
+        {/* =======================
+            모드 2: 🃏 개념 카드 뒤집기 (Memory Match)
+            ======================= */}
+        {activeMode === "CARD_FLIP" && (
+          <div className="memory-card-game-container">
+            <div className="memory-game-header">
+              <div className="memory-title-left">
+                <span className="skill-badge-tag">MEMORY MATCH</span>
+                <h3>{selectedUnitId}단원 핵심 개념 카드 뒤집기</h3>
+              </div>
+              <span className="memory-score-tag">
+                {matchedCardIds.length} / 4쌍 매칭 완료
+              </span>
+            </div>
+            <p className="memory-guide-desc">
+              카드를 뒤집어 <strong>[개념 용어]</strong>와 알맞은 <strong>[정의 설명]</strong> 짝을 찾아보세요!
+            </p>
+
+            <div className="memory-cards-grid">
+              {cardDeck.map((card, idx) => {
+                const isFlipped = flippedCards.includes(idx);
+                const isMatched = matchedCardIds.includes(card.pairId);
+
+                return (
+                  <div
+                    key={idx}
+                    className={`flip-card-item ${isFlipped ? "flipped" : ""} ${isMatched ? "matched" : ""}`}
+                    onClick={() => handleCardClick(idx)}
+                  >
+                    <div className="flip-card-inner">
+                      {/* 앞면 (숨김) */}
+                      <div className="flip-card-front">
+                        <span className="card-q-mark">?</span>
+                        <small>{card.type === "TERM" ? "개념어" : "설명"}</small>
+                      </div>
+                      {/* 뒷면 (공개) */}
+                      <div className={`flip-card-back ${card.type === "TERM" ? "type-term" : "type-def"}`}>
+                        <span className="card-type-chip">{card.type === "TERM" ? "용어" : "정의"}</span>
+                        <p>{card.text}</p>
+                        {isMatched && <span className="matched-star">✓ 짝맞춤</span>}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {matchedCardIds.length === 4 && (
+              <div className="memory-all-matched-banner">
+                <Trophy size={32} color="#ffd36a" weight="fill" />
+                <div>
+                  <strong>🎉 {selectedUnitId}단원 카드 뒤집기 전 쌍 매칭 완수!</strong>
+                  <p>모든 개념 쌍을 완벽하게 기억했습니다. (+60점 체력 누적 완료)</p>
+                </div>
+                <button
+                  className="primary-button"
+                  onClick={() => {
+                    if (selectedUnitId < 5) setSelectedUnitId(selectedUnitId + 1);
+                    else setSelectedUnitId(1);
+                  }}
+                >
+                  {selectedUnitId < 5 ? `다음 ${selectedUnitId + 1}단원 카드 뒤집기 >` : "1단원으로 다시 플레이"}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

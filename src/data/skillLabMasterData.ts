@@ -11,34 +11,91 @@ export interface VocabQuestionItem {
   explanation?: string;
 }
 
+export interface MemoryCardItem {
+  id: string;
+  pairId: string;
+  type: "TERM" | "DEF";
+  text: string;
+  category: string;
+}
+
+export interface UnitTopicGroup {
+  unitId: number;
+  unitTitle: string;
+  badgeName: string;
+  topicIds: number[];
+}
+
+export const unitTopicGroups: UnitTopicGroup[] = [
+  { unitId: 1, unitTitle: "1단원: 인권 보장과 헌법", badgeName: "인권수호관", topicIds: [1, 2, 3, 4, 5, 6] },
+  { unitId: 2, unitTitle: "2단원: 사회 정의와 불평등", badgeName: "공정정책관", topicIds: [7, 8, 9, 10, 11] },
+  { unitId: 3, unitTitle: "3단원: 시장경제와 지속가능발전", badgeName: "경제전략관", topicIds: [12, 13, 14, 15, 16] },
+  { unitId: 4, unitTitle: "4단원: 세계화와 평화", badgeName: "세계평화관", topicIds: [17, 18, 19, 20, 21] },
+  { unitId: 5, unitTitle: "5단원: 미래와 지속가능한 삶", badgeName: "미래사회설계관", topicIds: [22, 23, 24, 25] },
+];
+
+export const unitMemoryCardSets: Record<number, { term: string; def: string }[]> = {
+  1: [
+    { term: "천부인권", def: "태어나면서부터 하늘로부터 부여받은 자연권" },
+    { term: "바이마르 헌법", def: "1919년 세계 최초로 사회권을 규정한 헌법" },
+    { term: "헌법 제10조", def: "인간의 존엄과 가치 및 국가의 기본권 보장의무" },
+    { term: "법률유보원칙", def: "국민의 기본권 제한은 반드시 국회 제정 법률에 근거" },
+  ],
+  2: [
+    { term: "분배적 정의", def: "사회적 자원과 가치를 공정하게 나누는 원리" },
+    { term: "차등의 원칙", def: "최소 수혜자에게 최대의 이익을 보장하는 원칙 (롤스)" },
+    { term: "적극적 우대조치", def: "과거 차별받은 약자에게 실질적 기회를 보상하는 제도" },
+    { term: "공간 불평등", def: "지역 간 사회기반시설과 주거환경 격차 현상" },
+  ],
+  3: [
+    { term: "보이지 않는 손", def: "시장 가격 기구를 통한 자원의 효율적 배분 (애덤 스미스)" },
+    { term: "외부효과", def: "대가 없이 제3자에게 이익이나 피해를 주는 현상" },
+    { term: "지속가능발전", def: "미래 세대의 필요를 저해하지 않는 경제 성장" },
+    { term: "분산투자", def: "위험을 줄이기 위해 자산을 여러 금융 상품에 배분" },
+  ],
+  4: [
+    { term: "문화 상대주의", def: "각 사회의 문화를 고유한 맥락에서 이해하는 태도" },
+    { term: "소극적 평화", def: "전쟁과 물리적 폭력이 직접적으로 없는 상태" },
+    { term: "적극적 평화", def: "빈곤, 억압, 구조적·문화적 폭력까지 제거된 상태" },
+    { term: "국제형사재판소(ICC)", def: "전쟁범죄 및 인도에 반한 죄를 처벌하는 상설 기구" },
+  ],
+  5: [
+    { term: "인구 피라미드", def: "성별·연령별 인구 구조를 나타낸 통계 도표" },
+    { term: "생태 발자국", def: "인간의 자원 소비를 지구가 감당할 면적으로 환산한 지표" },
+    { term: "기후 정의", def: "기후위기 피해와 감축 책임을 공정하게 분배하는 가치" },
+    { term: "세계시민성", def: "국경을 넘어 인류 보편의 번영과 평화에 기여하는 태도" },
+  ],
+};
+
 // 25개 전 주제 개념-용어 마스터 데이터셋
 export const masterVocabTopics = [
-  { id: 1, title: "주제 1: 인권의 의미와 변화 양상" },
-  { id: 2, title: "주제 2: 현대 사회의 인권" },
-  { id: 3, title: "주제 3: 인권 보장을 위한 헌법의 역할" },
-  { id: 4, title: "주제 4: 시민의 권익 보호를 위한 시민 참여" },
-  { id: 5, title: "주제 5: 국내 인권 문제의 양상과 해결 방안" },
-  { id: 6, title: "주제 6: 세계 인권 문제의 양상과 해결 방안" },
-  { id: 7, title: "주제 7: 정의의 의미와 필요성" },
-  { id: 8, title: "주제 8: 분배적 정의와 교정적 정의" },
-  { id: 9, title: "주제 9: 다양한 정의관의 특징과 적용" },
-  { id: 10, title: "주제 10: 다양한 불평등 현상" },
-  { id: 11, title: "주제 11: 정의로운 사회 실현을 위한 노력" },
-  { id: 12, title: "주제 12: 자본주의의 발달과 시장경제" },
-  { id: 13, title: "주제 13: 합리적 선택의 의미와 한계" },
-  { id: 14, title: "주제 14: 지속가능발전을 위한 시장 참여자의 역할과 책임" },
-  { id: 15, title: "주제 15: 자산 관리와 금융 생활 설계" },
-  { id: 16, title: "주제 16: 국제 분업과 무역" },
-  { id: 17, title: "주제 17: 세계화의 다양한 양상" },
-  { id: 18, title: "주제 18: 세계화의 문제점과 해결 방안" },
-  { id: 19, title: "주제 19: 평화 실현을 위한 국제 사회 행위 주체의 역할" },
-  { id: 20, title: "주제 20: 세계 평화 실현을 위한 우리의 노력" },
-  { id: 21, title: "주제 21: 세계의 인구 현황" },
-  { id: 22, title: "주제 22: 인구 문제와 해결 방안" },
-  { id: 23, title: "주제 23: 자원의 분포와 소비 실태" },
-  { id: 24, title: "주제 24: 기후변화에 대한 대응과 지속가능한 발전" },
-  { id: 25, title: "주제 25: 미래 사회와 세계시민으로서의 삶의 방향" },
+  { id: 1, unitId: 1, title: "주제 1: 인권의 의미와 변화 양상" },
+  { id: 2, unitId: 1, title: "주제 2: 현대 사회의 인권" },
+  { id: 3, unitId: 1, title: "주제 3: 인권 보장을 위한 헌법의 역할" },
+  { id: 4, unitId: 1, title: "주제 4: 시민의 권익 보호를 위한 시민 참여" },
+  { id: 5, unitId: 1, title: "주제 5: 국내 인권 문제의 양상과 해결 방안" },
+  { id: 6, unitId: 1, title: "주제 6: 세계 인권 문제의 양상과 해결 방안" },
+  { id: 7, unitId: 2, title: "주제 7: 정의의 의미와 필요성" },
+  { id: 8, unitId: 2, title: "주제 8: 분배적 정의와 교정적 정의" },
+  { id: 9, unitId: 2, title: "주제 9: 다양한 정의관의 특징과 적용" },
+  { id: 10, unitId: 2, title: "주제 10: 다양한 불평등 현상" },
+  { id: 11, unitId: 2, title: "주제 11: 정의로운 사회 실현을 위한 노력" },
+  { id: 12, unitId: 3, title: "주제 12: 자본주의의 발달과 시장경제" },
+  { id: 13, unitId: 3, title: "주제 13: 합리적 선택의 의미와 한계" },
+  { id: 14, unitId: 3, title: "주제 14: 지속가능발전을 위한 시장 참여자의 역할과 책임" },
+  { id: 15, unitId: 3, title: "주제 15: 자산 관리와 금융 생활 설계" },
+  { id: 16, unitId: 3, title: "주제 16: 국제 분업과 무역" },
+  { id: 17, unitId: 4, title: "주제 17: 세계화의 다양한 양상" },
+  { id: 18, unitId: 4, title: "주제 18: 세계화의 문제점과 해결 방안" },
+  { id: 19, unitId: 4, title: "주제 19: 평화 실현을 위한 국제 사회 행위 주체의 역할" },
+  { id: 20, unitId: 4, title: "주제 20: 세계 평화 실현을 위한 우리의 노력" },
+  { id: 21, unitId: 4, title: "주제 21: 세계의 인구 현황" },
+  { id: 22, unitId: 5, title: "주제 22: 인구 문제와 해결 방안" },
+  { id: 23, unitId: 5, title: "주제 23: 자원의 분포와 소비 실태" },
+  { id: 24, unitId: 5, title: "주제 24: 기후변화에 대한 대응과 지속가능한 발전" },
+  { id: 25, unitId: 5, title: "주제 25: 미래 사회와 세계시민으로서의 삶의 방향" },
 ];
+
 
 export const allVocabQuestions: VocabQuestionItem[] = [
   // ================= 주제 1 =================

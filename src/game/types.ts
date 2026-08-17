@@ -67,6 +67,10 @@ export interface GameMissionData {
     imageUrl?: string;
   };
   question: string;
+  questionType?: "CHOICE" | "SHORT_ANSWER" | "SUBJECTIVE" | "OPEN_OPINION";
+  shortAnswerKey?: string;
+  initialHint?: string;
+  aiPromptGuidance?: string;
   choices: string[];
   correctAnswer: number;
   hints: HintItem[];

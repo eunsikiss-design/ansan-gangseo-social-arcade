@@ -3154,4 +3154,277 @@ button:disabled { cursor:not-allowed; opacity:.48; }
   line-height: 1.5;
 }
 
+/* ====================================================
+   UNIT SELECTOR TABS & MEMORY CARD GAME STYLES
+   ==================================================== */
+.unit-selector-tabs-row {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 6px;
+  scrollbar-width: none;
+  margin-bottom: 10px;
+}
+.unit-tab-pill {
+  flex: 0 0 auto;
+  background: #082133;
+  border: 1px solid #18425a;
+  border-radius: 12px;
+  padding: 8px 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.unit-tab-pill.active {
+  background: #14445d;
+  border-color: var(--gold);
+}
+.unit-tab-pill strong {
+  font-size: 12px;
+  color: #ffffff;
+}
+.unit-tab-pill small {
+  font-size: 9.5px;
+  color: var(--gold);
+}
+
+.vocab-mode-switch-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.mode-switch-btn {
+  flex: 1;
+  background: #061926;
+  border: 1.5px solid #18425a;
+  border-radius: 10px;
+  padding: 10px 8px;
+  color: #8daec0;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.mode-switch-btn.active {
+  border-color: var(--teal);
+  color: #ffffff;
+  background: #0d364d;
+}
+
+/* 🃏 Memory Card Flip Game */
+.memory-card-game-container {
+  background: linear-gradient(145deg, #0d2c3f, #071927);
+  border: 1.5px solid #1b4d6e;
+  border-radius: 20px;
+  padding: 18px 16px;
+}
+.memory-game-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+.memory-title-left h3 {
+  margin: 0;
+  font-size: 16px;
+  color: #ffffff;
+}
+.memory-score-tag {
+  background: #0d4a35;
+  color: #56e39f;
+  font-size: 10.5px;
+  font-weight: 900;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+.memory-guide-desc {
+  margin: 0 0 14px;
+  font-size: 11.5px;
+  color: #b0d4e3;
+}
+.memory-guide-desc strong {
+  color: var(--gold);
+}
+
+.memory-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+@media (max-width: 600px) {
+  .memory-cards-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.flip-card-item {
+  height: 120px;
+  perspective: 1000px;
+  cursor: pointer;
+}
+.flip-card-inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  text-align: center;
+  transition: transform 0.4s;
+  transform-style: preserve-3d;
+}
+.flip-card-item.flipped .flip-card-inner,
+.flip-card-item.matched .flip-card-inner {
+  transform: rotateY(180deg);
+}
+
+.flip-card-front, .flip-card-back {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 10px;
+  box-sizing: border-box;
+}
+
+.flip-card-front {
+  background: linear-gradient(135deg, #10344a, #082133);
+  border: 1.5px solid #1c5275;
+  color: var(--gold);
+}
+.card-q-mark {
+  font-size: 26px;
+  font-weight: 900;
+}
+.flip-card-front small {
+  font-size: 9.5px;
+  color: #8daec0;
+  margin-top: 4px;
+}
+
+.flip-card-back {
+  transform: rotateY(180deg);
+  border: 1.5px solid var(--teal);
+  text-align: center;
+}
+.flip-card-back.type-term {
+  background: #0f3d47;
+}
+.flip-card-back.type-def {
+  background: #102d42;
+}
+.flip-card-item.matched .flip-card-back {
+  border-color: #56e39f;
+  background: #093b2a;
+  box-shadow: 0 0 12px rgba(86, 227, 159, 0.4);
+}
+
+.card-type-chip {
+  font-size: 9px;
+  font-weight: 900;
+  background: rgba(0, 0, 0, 0.4);
+  color: var(--gold);
+  padding: 2px 5px;
+  border-radius: 4px;
+  margin-bottom: 6px;
+}
+.flip-card-back p {
+  margin: 0;
+  font-size: 11px;
+  color: #ffffff;
+  line-height: 1.4;
+  word-break: keep-all;
+}
+.matched-star {
+  font-size: 9px;
+  color: #56e39f;
+  font-weight: 900;
+  margin-top: 4px;
+}
+
+.memory-all-matched-banner {
+  margin-top: 14px;
+  background: linear-gradient(135deg, #093828, #051d14);
+  border: 1.5px solid #56e39f;
+  border-radius: 14px;
+  padding: 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  animation: fadeIn 0.3s ease;
+}
+.memory-all-matched-banner strong {
+  font-size: 13.5px;
+  color: #ffffff;
+  display: block;
+}
+.memory-all-matched-banner p {
+  margin: 3px 0 0;
+  font-size: 11.5px;
+  color: #b9eedc;
+}
+
+/* Character Guide in Mission Player */
+.npc-guide-banner {
+  background: #082133;
+  border: 1px solid #1a4968;
+  border-radius: 14px;
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.npc-avatar-box {
+  background: #143e54;
+  width: 38px;
+  height: 38px;
+  border-radius: 99px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  flex-shrink: 0;
+  border: 1.5px solid var(--gold);
+}
+.npc-speech-bubble strong {
+  font-size: 11px;
+  color: var(--gold);
+  display: block;
+}
+.npc-speech-bubble p {
+  margin: 2px 0 0;
+  font-size: 11.5px;
+  color: #d1ecf5;
+  line-height: 1.45;
+}
+
+.initial-hint-banner {
+  background: #061926;
+  border: 1px dashed var(--gold);
+  border-radius: 10px;
+  padding: 8px 12px;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.initial-tag {
+  font-size: 10.5px;
+  font-weight: 800;
+  color: var(--gold);
+}
+.initial-hint-banner strong {
+  font-size: 13px;
+  color: #ffffff;
+  letter-spacing: 2px;
+}
+
+
 
