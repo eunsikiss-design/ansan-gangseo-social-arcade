@@ -1442,33 +1442,6 @@ function SkillLabVocabView({
           </div>
         </div>
 
-        {/* 1. 단원 선택 탭 (1단원 활성화, 2~5단원 잠금 🔒) */}
-        <div className="unit-selector-tabs-row">
-          {unitTopicGroups.map((u) => {
-            const isUnlocked = u.unitId === 1;
-            return (
-              <button
-                key={u.unitId}
-                className={`unit-tab-pill ${selectedUnitId === u.unitId ? "active" : ""} ${!isUnlocked ? "locked-unit-tab" : ""}`}
-                onClick={() => {
-                  if (isUnlocked) {
-                    setSelectedUnitId(u.unitId);
-                  } else {
-                    setLockModalMsg(`${u.unitId}단원 (${u.badgeName})은 1단원 완료 후 순차적으로 공개됩니다.`);
-                    void audioManager.playSfx("error");
-                  }
-                }}
-              >
-                <div className="unit-tab-header-inline">
-                  <strong>{u.unitId}단원</strong>
-                  {!isUnlocked && <LockKey size={13} color="var(--gold)" weight="fill" />}
-                </div>
-                <small>{isUnlocked ? u.badgeName : "🔒 추후 공개"}</small>
-              </button>
-            );
-          })}
-        </div>
-
         {/* 2. 학습 모드 선택: 퀴즈 풀기 vs 카드 뒤집기 */}
         <div className="vocab-mode-switch-row">
           <button
@@ -1548,31 +1521,31 @@ function SkillLabVocabView({
                 <div className="npc-role-bubble">
                   <div className="role-tag-line">
                     <strong>아리 (단서 지원관)</strong>
-                    <span className="clue-tag">단서 {clueLevel}단계 적용 (-{clueLevel * 2}%)</span>
+                    <span className="clue-step-pill">단서 {clueLevel}단계 적용 (-2%)</span>
                   </div>
                   <p>
                     {clueLevel === 1
-                      ? `[1차 단서] ${currentQ.hint || "교과서 핵심 헌법 조문 및 인권의 보편적 가치에 주목해 보세요."}`
-                      : `[2차 단서] ${currentQ.hint ? `초성 단서: ${currentQ.hint}` : `핵심 개념어: ${String(currentQ.answer).slice(0, 2)}...`}`}
+                      ? `[1차 단서] ${currentQ.clue1 || "교과서 핵심 헌법 조문 및 인권의 보편적 가치에 주목해 보세요."}`
+                      : `[2차 단서] ${currentQ.clue2 || currentQ.explanation || "핵심 판례의 형식적 요건과 실질적 한계 개념을 확인하세요."}`}
                   </p>
                 </div>
               </div>
             )}
 
 
-            {/* 문항 카드 */}
+            {/* 📝 문항 본체 카드 */}
             <div className="vocab-quiz-card-v2">
               <div className="v-q-header">
-                <span className="q-type-badge">{currentQ.type} 문제</span>
-                <h3>{currentQ.question}</h3>
+                <span className="v-q-type-badge">{currentQ.type} 문제</span>
               </div>
+              <p className="v-q-text-body">{currentQ.question}</p>
 
               {/* 1. OX 문제 */}
               {currentQ.type === "OX" && (
                 <div className="ox-choice-grid">
                   {["O", "X"].map((ox) => {
                     const isSelected = selectedAnswer === ox;
-                    const isCorrect = String(currentQ.answer) === ox;
+                    const isCorrect = String(currentQ.answer).trim() === ox;
                     let btnClass = "ox-btn";
                     if (selectedAnswer !== null) {
                       if (isSelected) btnClass += isCorrect ? " correct" : " wrong";
@@ -1696,11 +1669,19 @@ function SkillLabVocabView({
                   {/* 버튼 행: 오답 시 다시 풀기, 정답 시 다음 문항 */}
                   <div className="feedback-actions-row">
                     {isWrongState ? (
-                      <div className="button-row" style={{ width: "100%", marginTop: "10px" }}>
-                        <button className="secondary-button" style={{ flex: 1 }} onClick={handleRetryQuestion}>
+                      <div className="button-row" style={{ width: "100%", marginTop: "10px", gap: "8px" }}>
+                        <button
+                          className="secondary-button"
+                          style={{ flex: 1, whiteSpace: "nowrap", fontSize: "12px", padding: "10px 6px" }}
+                          onClick={handleRetryQuestion}
+                        >
                           🔄 다시 도전하기
                         </button>
-                        <button className="primary-button" style={{ flex: 1 }} onClick={nextQuestion}>
+                        <button
+                          className="primary-button"
+                          style={{ flex: 1, whiteSpace: "nowrap", fontSize: "12px", padding: "10px 6px" }}
+                          onClick={nextQuestion}
+                        >
                           다음 문항으로 &gt;
                         </button>
                       </div>
@@ -2136,12 +2117,14 @@ function SkillLabTrainingView({
             <strong>1단원 인권 보장과 헌법 스킬 랩</strong>
           </div>
           <div className="hud-right-actions">
-            <button className="ai-tutor-call-btn" onClick={() => setTutorChatOpen(true)}>
-              <div className="tutor-call-avatar-box">
-                <img src="/characters/zero_evaluator.jpg" alt="ZERO" />
-              </div>
-              <span>⚡ AI 튜터 ZERO</span>
-            </button>
+            {activeSkillTab >= 2 && (
+              <button className="ai-tutor-call-btn" onClick={() => setTutorChatOpen(true)}>
+                <div className="tutor-call-avatar-box">
+                  <img src="/characters/zero_evaluator.jpg" alt="ZERO" />
+                </div>
+                <span>⚡ AI 튜터 ZERO</span>
+              </button>
+            )}
             <button className="history-review-btn" onClick={() => setHistoryModalOpen(true)}>
               <FileText size={16} color="var(--gold)" />
               <span>내 답안 서고</span>
@@ -3004,22 +2987,75 @@ function SkillLabTrainingView({
           </div>
         )}
 
-        {/* ⚡ 화면 우측 하단 상시 플로팅 AI 튜터 호출 버튼 */}
-        <button className="floating-tutor-fab-btn" onClick={() => setTutorChatOpen(true)}>
-          <div className="fab-avatar-box">
-            <img src="/characters/zero_evaluator.jpg" alt="ZERO" />
-          </div>
-          <div className="fab-text-col">
-            <small>1:1 보조교사</small>
-            <strong>⚡ AI 튜터 호출</strong>
-          </div>
-        </button>
-
         {/* 💬 문장 자동완성 적용 토스트 알림 */}
         {chatToast && (
           <div className="chat-autocomplete-toast">
             <Check size={18} color="#56e39f" weight="bold" />
             <span>{chatToast}</span>
+          </div>
+        )}
+
+        {/* 📖 교과서 원문 및 핵심 판례 해설 모달 */}
+        {skill2GuideModal && (
+          <div className="modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget) setSkill2GuideModal(false); }}>
+            <div className="history-review-modal" style={{ maxWidth: "620px" }}>
+              <div className="history-modal-header">
+                <div className="title-with-icon">
+                  <Info size={22} color="var(--teal)" weight="fill" />
+                  <h3>📖 교과서 원문 및 핵심 조문 해설 (STEP 2)</h3>
+                </div>
+                <button className="modal-close" onClick={() => setSkill2GuideModal(false)}><X size={20} /></button>
+              </div>
+
+              <div className="history-items-scroll">
+                {/* 1. 지문 원문 */}
+                <div className="history-card-item" style={{ borderLeft: "3px solid var(--teal)" }}>
+                  <span className="step-tag">헌법 제37조 제2항 전문</span>
+                  <p style={{ fontSize: "13.5px", lineHeight: "1.6", color: "#e8f7fa", margin: "8px 0 0" }}>
+                    "{curS2.material}"
+                  </p>
+                </div>
+
+                {/* 2. 조항 핵심 3대 분해 구조 */}
+                <div className="history-card-item">
+                  <span className="step-tag" style={{ background: "#1c3548", color: "var(--gold)" }}>핵심 분석 포인트 3가지</span>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "10px" }}>
+                    <div style={{ background: "#06131c", padding: "10px 12px", borderRadius: "8px", border: "1px solid #16364d" }}>
+                      <strong style={{ color: "var(--gold)", fontSize: "12.5px" }}>1. 형식적 요건 (법률유보 원칙)</strong>
+                      <p style={{ fontSize: "12px", color: "#d0e4ee", margin: "4px 0 0", lineHeight: "1.5" }}>
+                        기본권을 제한할 때는 반드시 국민의 대표 기관인 <strong>국회가 제정한 '법률'</strong>에 근거해야 합니다. 행정부의 명령이나 규칙만으로는 제한할 수 없습니다.
+                      </p>
+                    </div>
+
+                    <div style={{ background: "#06131c", padding: "10px 12px", borderRadius: "8px", border: "1px solid #16364d" }}>
+                      <strong style={{ color: "#56e39f", fontSize: "12.5px" }}>2. 목적상 한계 (공익의 정당성)</strong>
+                      <p style={{ fontSize: "12px", color: "#d0e4ee", margin: "4px 0 0", lineHeight: "1.5" }}>
+                        아무 때나 제한할 수 없으며, <strong>국가안전보장, 질서유지, 공공복리</strong>를 위해 '필요한 경우에 한하여' 최소한으로만 제한(비례의 원칙)해야 합니다.
+                      </p>
+                    </div>
+
+                    <div style={{ background: "#06131c", padding: "10px 12px", borderRadius: "8px", border: "1px solid #16364d" }}>
+                      <strong style={{ color: "#ff7aa2", fontSize: "12.5px" }}>3. 실질적 한계 (본질적 내용 침해 금지)</strong>
+                      <p style={{ fontSize: "12px", color: "#d0e4ee", margin: "4px 0 0", lineHeight: "1.5" }}>
+                        제한하더라도 그 권리의 가장 중요한 알맹이인 <strong>'본질적인 내용'</strong>을 없애거나 빈 껍데기로 만들 수는 없습니다.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3. 1문장 서술 작성 가이드 */}
+                <div className="history-card-item" style={{ background: "#041824", border: "1.5px solid var(--gold)" }}>
+                  <span className="step-tag" style={{ background: "var(--gold)", color: "#06131c" }}>💡 1문장 서술 작성 팁</span>
+                  <p style={{ fontSize: "12.5px", color: "#ffffff", fontWeight: 700, margin: "6px 0 0", lineHeight: "1.5" }}>
+                    "기본권은 반드시 <strong>국회가 제정한 법률</strong>에 근거하여 제한해야 하며, 어떠한 경우에도 <strong>본질적인 내용을 침해할 수 없다.</strong>"
+                  </p>
+                </div>
+              </div>
+
+              <button className="primary-button full-button" style={{ marginTop: "12px" }} onClick={() => setSkill2GuideModal(false)}>
+                확인 완료 및 답안 작성하기
+              </button>
+            </div>
           </div>
         )}
 
