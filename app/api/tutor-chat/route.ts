@@ -66,13 +66,13 @@ export async function POST(req: Request) {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
       return NextResponse.json({
-        reply: `안녕! 지금 풀고 있는 **${rubric.title}**에서는 [${rubric.requiredConcepts[0]}] 개념을 중심으로 문장을 세우는 것이 중요하단다. 어떤 점이 가장 궁금하니?`,
+        reply: `지금 **${rubric.title}**에서는 [${rubric.requiredConcepts[0]}] 개념을 중심으로 문장을 세우는 것이 중요하단다. 어떤 점이 가장 궁금하니?`,
         suggestedSentence: rubric.modelAnswer,
       });
     }
 
-    const systemInstruction = `당신은 고등학교 통합사회 1단원(인권 보장과 헌법)의 1:1 보조교사 AI 튜터 'ZERO'입니다.
-학생이 탐구 과제를 해결할 때 해당 문항과 모범 답안을 완벽하게 이해한 상태에서, 학생의 응답 수준을 분석하고 모범 답안에 가깝게 단계별로 사다리를 놓아주는(비계설정, Scaffolding) 피드백을 제공합니다.
+    const systemInstruction = `당신은 고등학교 통합사회 1단원(인권 보장과 헌법)의 1:1 전담 보조교사 AI 튜터 'ZERO'입니다.
+진짜 사람 선생님처럼 학생과 실시간으로 대화를 주고받습니다.
 
 [현재 학생이 풀고 있는 문항 정보]:
 - 과제명: ${rubric.title}
@@ -85,39 +85,59 @@ export async function POST(req: Request) {
 [학생의 현재 작성 상태]:
 - 학생이 작성한 초안: "${currentStudentInput || "(아직 작성하지 않음)"}"
 
-[튜터링 행동 지침]:
-1. **정답을 한 번에 다 알려주지 마세요.** 학생이 쓴 답안에서 잘한 부분을 먼저 칭찬하고, 모범 답안에 도달하기 위해 아직 빠져 있는 1개의 핵심 개념을 스스로 생각해 낼 수 있도록 유도 질문을 던지세요.
-2. **학생의 말과 상황에 100% 공감하고 다정하게 대화하세요.** (선생님 말투: "~단다", "~해 볼까?", "~하면 아주 훌륭한 문장이 완성돼!")
-3. 학생이 쓴 답안이 이미 훌륭하다면 문맥을 더욱 매끄럽게 정제해 주고 칭찬해 주세요.
-4. 답변 본문 마지막 줄에는 학생이 답안창에 [자동완성]으로 적용해 활용할 수 있도록 아래 형식으로 1문장을 제안해 주세요:
-   [추천 문장]: 여기에 학생 수준에 맞춘 완성도 높은 모범 문장 작성
-5. '80%' 같은 기계적인 수치는 직접 언급하지 말고, "모범 답안 수준 완성", "핵심 개념 보강" 등 자연스러운 교육적 표현을 사용하세요.`;
+[절대 지켜야 할 대화 원칙]:
+1. **반복 금지 (가장 중요)**: 이전에 했던 인사말('반가워요!', '선생님과 함께...')이나 문장 설명 템플릿을 절대로 되풀이하지 마세요! 학생의 최근 말('왜?', '?', '더 설명해줘', '어려워' 등)에 즉각 반응하여 한 걸음 더 나아간 새로운 설명이나 실생활 비유를 들어주세요.
+2. **소크라테스식 대화**: 학생이 스스로 생각할 수 있도록 힌트를 쪼개어 알려주고, 학생이 단어를 말하면 "맞아! 그 단어에 이어서..."라며 문장으로 엮어주세요.
+3. **추천 문장 제공**: 답변 본문 맨 마지막에 학생이 답안창에 복사/주입할 수 있도록 한 줄 추가:
+   [추천 문장]: 여기에 완성도 높은 1문장 작성
+4. 기계적인 백분율 수치('80%')는 절대 학생에게 말하지 마세요.`;
 
-    // 멀티턴 contents 구성
+    // 멀티턴 대화 히스토리 엄격 정제 (Gemini 규격: user ➔ model 교대 보장)
     const contentsList: any[] = [];
-    for (const h of history.slice(-6)) {
-      if (h.text && h.text.trim()) {
-        contentsList.push({
+
+    // 유효한 히스토리만 추출
+    const rawTurns: { role: string; text: string }[] = [];
+    for (const h of history) {
+      if (h.text && typeof h.text === "string" && h.text.trim()) {
+        rawTurns.push({
           role: h.role === "user" ? "user" : "model",
-          parts: [{ text: h.text }],
+          text: h.text.trim(),
         });
       }
     }
 
-    // 학생의 액션 또는 질문
-    let queryPrompt = userMessage;
+    // 학생의 최신 발화 결정
+    let latestUserText = userMessage;
     if (actionType === "HINT") {
-      queryPrompt = `선생님, 이 문제(${rubric.title})를 어떻게 시작해야 할지 막막해요. 생각의 물꼬를 터줄 수 있는 핵심 힌트 질문을 주세요.`;
+      latestUserText = `선생님, 이 문제(${rubric.title})를 어떻게 시작해야 할지 막막해요. 생각의 물꼬를 터줄 수 있는 핵심 힌트 질문을 주세요.`;
     } else if (actionType === "SCAFFOLD") {
-      queryPrompt = `선생님, 이 문제(${rubric.title})의 문장 구조 뼈대와 초성 힌트를 알려주세요.`;
+      latestUserText = `선생님, 이 문제(${rubric.title})의 문장 구조 뼈대와 초성 힌트를 알려주세요.`;
     } else if (actionType === "EVALUATE") {
-      queryPrompt = `선생님, 제가 작성 중인 답안("${currentStudentInput}")을 모범 답안에 맞추어 정밀 첨삭해 주시고, 더 완성도 높은 문장으로 다듬어 주세요.`;
+      latestUserText = `선생님, 제가 작성 중인 답안("${currentStudentInput}")을 모범 답안에 맞추어 정밀 첨삭해 주시고, 더 완성도 높은 문장으로 다듬어 주세요.`;
     }
 
-    contentsList.push({
-      role: "user",
-      parts: [{ text: queryPrompt || "선생님, 이 문제 도움 좀 주세요!" }],
-    });
+    if (!latestUserText) {
+      latestUserText = "선생님, 문제 해결에 도움이 필요해요!";
+    }
+
+    // 히스토리에서 맨 앞이 model이면 첫 번째 user 턴을 만들어줌
+    let lastRole: string | null = null;
+    for (const turn of rawTurns.slice(-8)) {
+      const currentRole = turn.role;
+      if (contentsList.length === 0 && currentRole === "model") {
+        contentsList.push({ role: "user", parts: [{ text: "선생님, 안녕하세요!" }] });
+      }
+      if (currentRole !== lastRole) {
+        contentsList.push({ role: currentRole, parts: [{ text: turn.text }] });
+        lastRole = currentRole;
+      }
+    }
+
+    // 마지막 턴이 model이어야 지금 user 메시지를 붙일 수 있음
+    if (contentsList.length > 0 && lastRole === "user") {
+      contentsList.pop(); // 중복 user 방지
+    }
+    contentsList.push({ role: "user", parts: [{ text: latestUserText }] });
 
     const models = ["gemini-flash-latest", "gemini-3.7-flash", "gemini-3.5-flash", "gemini-pro-latest"];
     for (const model of models) {
@@ -157,7 +177,7 @@ export async function POST(req: Request) {
     }
 
     return NextResponse.json({
-      reply: `지금 **${rubric.title}**에서는 [${rubric.requiredConcepts.join(", ")}] 개념을 문장 속에 잘 담아내는 것이 핵심이란다. 네 생각을 1문장으로 시작해 볼까?`,
+      reply: `네 질문("${userMessage}")에 대해 이어서 이야기해 보자면, **${rubric.title}**에서는 [${rubric.requiredConcepts[0]}] 개념을 명확히 명시하는 것이 가장 중요하단다. 지금 생각나는 단어를 한 번 써볼까?`,
       suggestedSentence: rubric.modelAnswer,
       rubricTitle: rubric.title,
     });
