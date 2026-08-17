@@ -2217,6 +2217,7 @@ function SkillLabTrainingView({
             <div className="f-step-box">
               <span className="f-step-label">출제 의도 및 접근법</span>
               <p>{curS2.guide}</p>
+            </div>
             <button className="primary-button full-button" style={{ marginTop: "12px" }} onClick={() => setSkill2GuideModal(false)}>
               확인하고 답안 작성하기
             </button>
