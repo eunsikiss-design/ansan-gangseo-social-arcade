@@ -252,7 +252,6 @@ export default function HomePage() {
         {view === "login" && (
           <LoginScreenView
             onLoginSuccess={handleLoginSuccess}
-            onGuest={() => setView("hub")}
           />
         )}
 
@@ -439,10 +438,8 @@ export default function HomePage() {
 // =========================================================================
 function LoginScreenView({
   onLoginSuccess,
-  onGuest,
 }: {
   onLoginSuccess: (profile: StudentProfile, mustChangePw?: boolean) => void;
-  onGuest: () => void;
 }) {
   const [userId, setUserId] = useState("");
   const [password, setPassword] = useState("");
@@ -530,12 +527,6 @@ function LoginScreenView({
             <UserCheck size={20} weight="bold" />
             탐구관 로그인 및 시작
           </button>
-
-          <div className="login-footer-actions">
-            <button type="button" className="text-button" onClick={onGuest}>
-              로그인 없이 게스트로 둘러보기 &gt;
-            </button>
-          </div>
         </form>
       </div>
     </div>
@@ -1880,6 +1871,42 @@ function SkillLabTrainingView({
     setTimeout(() => setChatToast(""), 3500);
   };
 
+  // 📊 답안 확정 시 구글 스프레드시트에 게임 결과 로그 전송
+  const handleConfirmAndLog = (stepNumber: number) => {
+    if (stepNumber === 2) setSkill2Confirmed(true);
+    else if (stepNumber === 3) setSkill3Confirmed(true);
+    else if (stepNumber === 4) setSkill4Confirmed(true);
+    else if (stepNumber === 5) setSkill5Confirmed(true);
+
+    void audioManager.playSfx("success");
+
+    try {
+      void fetch("/api/sheets-log", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          logType: "GAME_RESULT",
+          data: {
+            studentId: save.studentProfile.studentId,
+            studentName: save.studentProfile.name,
+            schoolName: save.studentProfile.schoolName,
+            gradeClass: `${save.studentProfile.grade} ${save.studentProfile.classNum} ${save.studentProfile.studentNum}`,
+            confirmedStep: `STEP ${stepNumber}`,
+            step2Answer: stepNumber === 2 ? skill2Input : (skill2Input || "(미작성)"),
+            step3Answer: stepNumber === 3 ? skill3Input : (skill3Input || "(미작성)"),
+            step4Answer: stepNumber === 4 ? skill4Input : (skill4Input || "(미작성)"),
+            step5Answer: stepNumber === 5 ? skill5Input : (skill5Input || "(미작성)"),
+            vocabScore: save.skillLabScore.vocabScore,
+            skillScore: save.skillLabScore.skillScore,
+            totalExp: save.exp,
+          },
+        }),
+      });
+    } catch (gErr) {
+      console.warn("Game result sheet log send failed", gErr);
+    }
+  };
+
   // ⚡ 튜터 챗 전송 함수 (보안 격리 & 3대 퀵 비계 액션 완벽 연동)
   const handleSendTutorChat = async (textToSend?: string, actionType?: "HINT" | "SCAFFOLD" | "EVALUATE") => {
     let query = (textToSend || chatInput).trim();
@@ -1944,6 +1971,31 @@ function SkillLabTrainingView({
         },
       ]);
       void audioManager.playSfx("inspect");
+
+      // 📊 구글 스프레드시트 AI 사용 내역 비동기 전송 (백그라운드)
+      try {
+        void fetch("/api/sheets-log", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            logType: "AI_LOG",
+            data: {
+              studentId: save.studentProfile.studentId,
+              studentName: save.studentProfile.name,
+              schoolName: save.studentProfile.schoolName,
+              gradeClass: `${save.studentProfile.grade} ${save.studentProfile.classNum} ${save.studentProfile.studentNum}`,
+              step: activeSkillName,
+              actionType: actionType || "질의응답",
+              userQuery: query,
+              studentInput: currentInputText,
+              aiReply: data.reply || "",
+              suggestedSentence: data.suggestedSentence || "",
+            },
+          }),
+        });
+      } catch (logErr) {
+        console.warn("AI sheet log send failed", logErr);
+      }
     } catch (err) {
       setChatMessages((prev) => [
         ...prev,
@@ -2465,7 +2517,7 @@ function SkillLabTrainingView({
                     {skill2Loading ? "AI 분석 중..." : skill2AiRes && !skill2AiRes.isMastered ? "수정 문장 재제출 및 AI 검증" : "1문장 제출 및 AI 첨삭 받기"}
                   </button>
                   {skill2AiRes && (
-                    <button className="secondary-button" onClick={() => setSkill2Confirmed(true)} style={{ flex: 0.8 }}>
+                    <button className="secondary-button" onClick={() => handleConfirmAndLog(2)} style={{ flex: 0.8 }}>
                       ✍️ 최종 확정하기
                     </button>
                   )}
@@ -2648,7 +2700,7 @@ function SkillLabTrainingView({
                     {skill3Loading ? "AI 피드백 분석 중..." : skill3AiRes && !skill3AiRes.isMastered ? "수정 문장 재제출 및 AI 검증" : "AI 관점 부합성 및 개념어 첨삭 받기"}
                   </button>
                   {skill3AiRes && (
-                    <button className="secondary-button" onClick={() => setSkill3Confirmed(true)} style={{ flex: 0.8 }}>
+                    <button className="secondary-button" onClick={() => handleConfirmAndLog(3)} style={{ flex: 0.8 }}>
                       ✍️ 최종 확정하기
                     </button>
                   )}
@@ -2804,7 +2856,7 @@ function SkillLabTrainingView({
                     {skill4Loading ? "AI 피드백 분석 중..." : skill4AiRes && !skill4AiRes.isMastered ? "수정 문장 재제출 및 AI 검증" : "원인·대안 AI 분석 받기"}
                   </button>
                   {skill4AiRes && (
-                    <button className="secondary-button" onClick={() => setSkill4Confirmed(true)} style={{ flex: 0.8 }}>
+                    <button className="secondary-button" onClick={() => handleConfirmAndLog(4)} style={{ flex: 0.8 }}>
                       ✍️ 최종 확정하기
                     </button>
                   )}
@@ -2960,7 +3012,7 @@ function SkillLabTrainingView({
                     {skill5Loading ? "AI 피드백 분석 중..." : skill5AiRes && !skill5AiRes.isMastered ? "수정 문장 재제출 및 AI 검증" : "실천 설계 AI 종합 첨삭 받기"}
                   </button>
                   {skill5AiRes && (
-                    <button className="secondary-button" onClick={() => setSkill5Confirmed(true)} style={{ flex: 0.8 }}>
+                    <button className="secondary-button" onClick={() => handleConfirmAndLog(5)} style={{ flex: 0.8 }}>
                       ✍️ 최종 확정하기
                     </button>
                   )}
