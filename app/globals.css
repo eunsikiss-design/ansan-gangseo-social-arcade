@@ -4336,6 +4336,45 @@ button:disabled { cursor:not-allowed; opacity:.48; }
   line-height: 1.5;
 }
 
+.tutor-level-diagnosis-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #041a26;
+  border: 1px solid var(--teal);
+  border-radius: 99px;
+  padding: 3px 10px;
+  font-size: 10.5px;
+  color: var(--teal-soft);
+  margin-bottom: 6px;
+}
+.tutor-level-diagnosis-badge strong {
+  color: var(--gold);
+  font-weight: 800;
+}
+
+.tutor-scaffolding-guide-box {
+  margin-top: 8px;
+  background: #041c2c;
+  border-left: 3px solid var(--gold);
+  border-radius: 6px;
+  padding: 8px 12px;
+}
+.scaffold-label {
+  font-size: 10px;
+  font-weight: 900;
+  color: var(--gold);
+  display: block;
+  margin-bottom: 3px;
+}
+.tutor-scaffolding-guide-box p {
+  margin: 0;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #ffffff;
+  line-height: 1.45;
+}
+
 .suggested-sentence-card {
   margin-top: 10px;
   background: #092636;

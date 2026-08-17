@@ -1952,8 +1952,11 @@ function SkillLabTrainingView({
         {
           role: "tutor",
           text: data.reply || "좋은 질문이야! 헌법 조문과 교과서 핵심 개념을 함께 연결해 보자.",
+          studentLevel: data.studentLevel,
+          levelDiagnosis: data.levelDiagnosis,
+          scaffoldingGuide: data.scaffoldingGuide,
           suggestedSentence: data.suggestedSentence || "",
-          quickFollowUps: data.quickFollowUps || ["✍️ 이 문장 내 답안에 적용하기", "📖 다른 조문도 알려줘"],
+          quickFollowUps: data.quickFollowUps || ["✍️ 이 문장 내 답안에 적용하기", "💡 80% 달성을 위해 뭘 더 써야 해?"],
         },
       ]);
       void audioManager.playSfx("inspect");
@@ -3045,14 +3048,30 @@ function SkillLabTrainingView({
                       </div>
                     )}
                     <div className="chat-bubble-content">
+                      {/* 📊 수준 진단 뱃지 */}
+                      {msg.levelDiagnosis && (
+                        <div className="tutor-level-diagnosis-badge">
+                          <CheckCircle2 size={13} color="var(--gold)" />
+                          <span>AI 진단: <strong>{msg.levelDiagnosis}</strong></span>
+                        </div>
+                      )}
+
                       <p className="chat-bubble-text">{msg.text}</p>
+
+                      {/* 🎯 단계별 비계설정 유도 질문 카드 */}
+                      {msg.scaffoldingGuide && (
+                        <div className="tutor-scaffolding-guide-box">
+                          <span className="scaffold-label">🎯 정답을 향한 1단계 비계 질문:</span>
+                          <p>{msg.scaffoldingGuide}</p>
+                        </div>
+                      )}
 
                       {/* ✍️ 문장 자동완성 추천 카드 */}
                       {msg.suggestedSentence && (
                         <div className="suggested-sentence-card">
                           <div className="card-top-title">
                             <Lightbulb size={14} color="var(--gold)" weight="fill" />
-                            <strong>AI 추천 정제 문장:</strong>
+                            <strong>수준 맞춤형 추천 문장 (80% 이상 목표):</strong>
                           </div>
                           <p className="sentence-body">"{msg.suggestedSentence}"</p>
                           <button
