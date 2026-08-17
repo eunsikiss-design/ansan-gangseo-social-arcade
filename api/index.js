@@ -39,6 +39,13 @@ async function readRequestBody(req) {
   return chunks.length ? Buffer.concat(chunks) : undefined;
 }
 
+function stripTutorMarkdown(value) {
+  if (typeof value !== "string") return value;
+  return value
+    .replace(/\*\*/g, "")
+    .replace(/__/g, "");
+}
+
 export default async function handler(req, res) {
   try {
     const host = req.headers.host || "localhost";
@@ -120,7 +127,24 @@ export default async function handler(req, res) {
     }
 
     const arrayBuffer = await response.arrayBuffer();
-    res.end(Buffer.from(arrayBuffer));
+    let responseBuffer = Buffer.from(arrayBuffer);
+
+    if (pathname === "/api/tutor-chat") {
+      try {
+        const payload = JSON.parse(responseBuffer.toString("utf8"));
+        if (payload && typeof payload === "object") {
+          if ("reply" in payload) payload.reply = stripTutorMarkdown(payload.reply);
+          if ("suggestedSentence" in payload) payload.suggestedSentence = stripTutorMarkdown(payload.suggestedSentence);
+          responseBuffer = Buffer.from(JSON.stringify(payload));
+          res.setHeader("Content-Type", "application/json; charset=utf-8");
+          res.setHeader("Content-Length", String(responseBuffer.length));
+        }
+      } catch (sanitizeError) {
+        console.warn("Tutor response markdown cleanup skipped", sanitizeError);
+      }
+    }
+
+    res.end(responseBuffer);
   } catch (error) {
     console.error("Vercel Vinext adapter failed", error);
     res.statusCode = 500;
