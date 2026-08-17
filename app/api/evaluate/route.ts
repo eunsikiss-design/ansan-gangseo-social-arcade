@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
+    const rawText = await req.text();
+    const body = rawText ? JSON.parse(rawText) : {};
     const { skillType, studentAnswer, context, history = [], requestHint } = body;
 
     const answerText = (studentAnswer || "").trim();
