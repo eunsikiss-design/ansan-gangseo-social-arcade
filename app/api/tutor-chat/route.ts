@@ -3,17 +3,41 @@ import { NextResponse } from "next/server";
 export async function POST(req: Request) {
   try {
     let body: any = {};
-    try {
-      body = await req.json();
-    } catch {
+    
+    // 1. req.json()
+    if (typeof (req as any).json === "function") {
       try {
-        const rawText = await req.text();
-        body = rawText ? JSON.parse(rawText) : {};
+        body = await req.json();
       } catch {}
     }
-    const { message, contextInfo, history = [] } = body || {};
+    
+    // 2. req.text()
+    if (!body || Object.keys(body).length === 0) {
+      if (typeof (req as any).text === "function") {
+        try {
+          const t = await req.text();
+          body = t ? JSON.parse(t) : {};
+        } catch {}
+      }
+    }
 
+    // 3. stream buffer
+    if (!body || Object.keys(body).length === 0) {
+      try {
+        const chunks: any[] = [];
+        for await (const chunk of (req as any)) {
+          chunks.push(typeof chunk === "string" ? Buffer.from(chunk) : chunk);
+        }
+        if (chunks.length > 0) {
+          const str = Buffer.concat(chunks).toString("utf-8");
+          body = str ? JSON.parse(str) : {};
+        }
+      } catch {}
+    }
+
+    const { message, contextInfo, history = [] } = body || {};
     const userMessage = (message || "").trim();
+
     if (!userMessage) {
       return NextResponse.json({
         reply: "안녕! 1단원 인권과 헌법 탐구를 함께할 AI 보조교사 ZERO야. 문제를 풀다 막막하거나 궁금한 게 있으면 편하게 이야기해 줘!",
