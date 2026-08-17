@@ -1951,9 +1951,9 @@ function SkillLabTrainingView({
         ...prev,
         {
           role: "tutor",
-          text: data.reply || "생각을 잘 정리해 보자!",
+          text: data.reply || "좋은 질문이야! 헌법 조문과 교과서 핵심 개념을 함께 연결해 보자.",
           suggestedSentence: data.suggestedSentence || "",
-          quickFollowUps: data.quickFollowUps || [],
+          quickFollowUps: data.quickFollowUps || ["✍️ 이 문장 내 답안에 적용하기", "📖 다른 조문도 알려줘"],
         },
       ]);
       void audioManager.playSfx("inspect");
