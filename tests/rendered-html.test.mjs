@@ -20,11 +20,12 @@ test("통합사회 탐구 아케이드 홈을 렌더링한다", async () => {
 
   const html = await response.text();
   assert.match(html, /<title>통합사회 탐구 아케이드 \| 안산강서고<\/title>/);
-  assert.match(html, /안산강서고 1학년/);
-  assert.match(html, /최근 탐구 단계/);
-  assert.match(html, /인권 보장과 헌법/);
-  assert.match(html, /임명 뱃지/);
+  assert.match(html, /안산강서고/);
+  assert.match(html, /탐구 아케이드/);
+  assert.match(html, /학급 아이디/);
   assert.doesNotMatch(html, /codex-preview|Building your site|SkeletonPreview/);
 });
+
+
 
 

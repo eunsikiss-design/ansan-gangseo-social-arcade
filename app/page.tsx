@@ -9,28 +9,24 @@ import {
   Sparkle, SpeakerHigh, SpeakerSlash, Trophy, Warning, X, MagnifyingGlass,
   User, UserCheck, SignOut, Printer, DownloadSimple, Certificate, ShieldCheck,
   Key, IdentificationCard, Eye, Student, ChalkboardTeacher, Sparkle as StarIcon,
+  Lightbulb, ChartBar, CheckSquare, Compass, HandPalm, Scales, ShareNetwork,
 } from "@phosphor-icons/react";
-import { academyRooms, evidenceCatalog, getMissionSteps, missionDialogueQuestions, missions } from "@/src/data/missions";
+
+import { unit1GameModes } from "@/src/data/unit1Data";
+import { unit1VocabCards, unit1SkillTrainings, type VocabCard, type SkillTrainingCard } from "@/src/data/skillLabData";
 import { unitCertificates } from "@/src/data/certificates";
 import {
   authenticateUser, changeUserPassword, DEFAULT_INITIAL_PASSWORD,
   getOrCreateAccount, loadAccounts, parseUserId, updateProfileName,
-  type AccountRecord
 } from "@/src/game/auth";
 import { audioManager, defaultAudioSettings, type AudioSettings } from "@/src/game/audio/AudioManager";
+import { calculateMissionScore, evaluateCompetencyProfile, generatePortfolioDraft } from "@/src/game/evaluator";
 import type {
-  DialogueOption, EvidenceCardData, Mission, MissionStep, SaveData,
-  SocialIndicators, StudentProfile, UnitCertificateInfo
+  GameMissionData, GameModeId, GameModeInfo, HintItem, MissionLevel,
+  PortfolioEntry, SaveData, ScoreBreakdown, StudentProfile, UnitCertificateInfo, UnitId,
 } from "@/src/game/types";
-import {
-  AcademyTemplate, BottomNavigation, CaseBriefingTemplate, CharacterPortrait,
-  DecisionTemplate, DialogueTemplate, EvidenceTemplate, GameHUD, InvestigationTemplate,
-  MainHubTemplate, MissionMapTemplate, PuzzleTemplate, ResultTemplate,
-  SourceDetailTemplate, StatusBadge, TemplateHeading, ZeroChallengeTemplate,
-} from "@/src/components/GameTemplates";
 
-const SAVE_KEY = "social-arcade-save-v6";
-const baseIndicators: SocialIndicators = { humanRights: 52, fairness: 50, economy: 50, peace: 55, sustainability: 48, trust: 50 };
+const SAVE_KEY = "arca-social-save-v7";
 
 const defaultStudent: StudentProfile = {
   studentId: "SC0101",
@@ -44,48 +40,57 @@ const defaultStudent: StudentProfile = {
 };
 
 const blankSave = (): SaveData => ({
-  currentMission: null,
-  currentScene: 0,
-  level: 1,
+  currentUnit: 1,
+  currentGameMode: null,
+  currentLevel: 1,
   exp: 0,
-  indicators: baseIndicators,
-  evidence: ["HUMAN_DIGNITY", "UNIVERSALITY", "NATURAL_RIGHT", "INVIOLABILITY"],
-  completedMissions: ["m01", "m02"],
-  investigatedSources: [],
-  studentChoices: {},
-  decisionHistory: [],
-  mastery: {},
-  academyDrafts: {},
-  reviewConcepts: [],
-  skill: [],
-  achievement: [],
-  attempts: 0,
-  correctAnswers: 0,
-  answerTimes: [],
-  audio: defaultAudioSettings,
-  studentProfile: defaultStudent,
+  overallLevel: 1,
+  completedMissions: [],
+  missionScores: {},
   earnedCertificates: [],
+  portfolioDrafts: [],
+  studentProfile: defaultStudent,
+  audio: defaultAudioSettings,
+  skillLabScore: {
+    vocabLevel: 1,
+    vocabScore: 0,
+    skillLevel: 1,
+    skillScore: 0,
+  },
 });
 
-type View = "login" | "hub" | "map" | "mission" | "academy" | "record";
-type ReturnPoint = { missionId: string; scene: number } | null;
+type ViewMode =
+  | "login"
+  | "hub"
+  | "unit1_dashboard"
+  | "mission_player"
+  | "skill_lab_vocab"
+  | "skill_lab_skill"
+  | "portfolio_view";
 
 export default function HomePage() {
   const [save, setSave] = useState<SaveData>(blankSave);
-  const [view, setView] = useState<View>("hub");
+  const [view, setView] = useState<ViewMode>("login");
   const [hydrated, setHydrated] = useState(false);
+
+  // Selected Active Mission State
+  const [activeModeId, setActiveModeId] = useState<GameModeId>("case_challenge");
+  const [activeMission, setActiveMission] = useState<GameMissionData>(unit1GameModes[0].missions[0]);
+  const [selectedChoice, setSelectedChoice] = useState<number | null>(null);
+  const [activeHintLevel, setActiveHintLevel] = useState<number>(0);
+  const [hintModalOpen, setHintModalOpen] = useState(false);
+  const [scoreResult, setScoreResult] = useState<ScoreBreakdown | null>(null);
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+
+  // General Modals
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [introOpen, setIntroOpen] = useState(false);
-  const [vaultOpen, setVaultOpen] = useState(false);
-  const [loginOpen, setLoginOpen] = useState(false);
+  const [loginModalOpen, setLoginModalOpen] = useState(false);
   const [passwordModalOpen, setPasswordModalOpen] = useState(false);
   const [teacherDashOpen, setTeacherDashOpen] = useState(false);
   const [certUnitId, setCertUnitId] = useState<number | null>(null);
-  const [comingSoonMessage, setComingSoonMessage] = useState<string | null>(null);
-  const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
-  const [audio, setAudio] = useState<AudioSettings>(defaultAudioSettings);
-  const [returnPoint, setReturnPoint] = useState<ReturnPoint>(null);
-  const [actComplete, setActComplete] = useState(false);
+  const [comingSoonMsg, setComingSoonMsg] = useState<string | null>(null);
+  const [portfolioOpen, setPortfolioOpen] = useState(false);
 
   // Initialize
   useEffect(() => {
@@ -94,9 +99,11 @@ export default function HomePage() {
       if (stored) {
         const parsed = JSON.parse(stored);
         setSave({ ...blankSave(), ...parsed });
+        if (parsed.studentProfile?.isLoggedIn) {
+          setView("hub");
+        }
       }
     } catch { /* fallback to blank save */ }
-    setAudio(audioManager.load());
     setHydrated(true);
   }, []);
 
@@ -110,23 +117,26 @@ export default function HomePage() {
   // Scroll to top on view changes
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
-  }, [view, save.currentMission, save.currentScene]);
+  }, [view, activeMission]);
 
-  const currentMission = missions.find((item) => item.id === save.currentMission) ?? null;
+  // Unit 1 Completion Check (모든 5개 모드의 레벨 5 완료 확인)
+  const unit1Cleared = useMemo(() => {
+    const totalUnit1Missions = unit1GameModes.flatMap((m) => m.missions).length;
+    const completedCount = save.completedMissions.filter((id) => id.startsWith("u1-")).length;
+    return completedCount >= 5; // 5대 모드 클리어 기준
+  }, [save.completedMissions]);
 
-  // Check earned certificates
+  // Update earned certificate when unit1 is cleared
   useEffect(() => {
-    if (!hydrated) return;
-    const unit1Complete = missions.every((m) => save.completedMissions.includes(m.id));
-    if (unit1Complete && !save.earnedCertificates?.includes(1)) {
+    if (unit1Cleared && !save.earnedCertificates.includes(1)) {
       setSave((prev) => ({
         ...prev,
-        earnedCertificates: [...new Set([...(prev.earnedCertificates || []), 1])],
+        earnedCertificates: [...new Set([...prev.earnedCertificates, 1])],
       }));
     }
-  }, [save.completedMissions, hydrated]);
+  }, [unit1Cleared, save.earnedCertificates]);
 
-  // Stage-specific dynamic BGM Router
+  // Audio Playback based on view
   useEffect(() => {
     if (!hydrated) return;
     if (certUnitId !== null) {
@@ -134,69 +144,19 @@ export default function HomePage() {
       void audioManager.playSfx("cert_fanfare");
       return;
     }
-    if (view === "login") {
+    if (view === "login" || view === "hub") {
       void audioManager.playBgm("main_hub");
-    } else if (view === "hub") {
-      void audioManager.playBgm("main_hub");
-    } else if (view === "map") {
+    } else if (view === "unit1_dashboard") {
       void audioManager.playBgm("mission_map");
-    } else if (view === "academy") {
+    } else if (view === "mission_player") {
+      void audioManager.playBgm("investigation");
+    } else if (view === "skill_lab_vocab" || view === "skill_lab_skill") {
       void audioManager.playBgm("academy");
-    } else if (view === "mission" && currentMission) {
-      const steps = getMissionSteps(currentMission);
-      const step = steps[save.currentScene] ?? steps[0];
-      if (step?.type === "zero") {
-        void audioManager.playBgm("zero_challenge");
-      } else if (step?.type === "result") {
-        void audioManager.playBgm("certificate");
-      } else {
-        void audioManager.playBgm("investigation");
-      }
     }
-  }, [view, save.currentMission, save.currentScene, certUnitId, hydrated, currentMission]);
-
-  const startNew = () => {
-    const next = blankSave();
-    next.currentMission = "m01";
-    if (save.studentProfile) next.studentProfile = save.studentProfile;
-    setSave(next);
-    setActComplete(false);
-    setView("map");
-  };
-
-  const continueGame = () => {
-    if (save.currentMission) {
-      setView("mission");
-    } else {
-      setView("map");
-    }
-  };
-
-  const startMission = (mission: Mission) => {
-    setSave((prev) => ({
-      ...prev,
-      currentMission: mission.id,
-      currentScene: prev.currentMission === mission.id ? prev.currentScene : 0,
-    }));
-    setView("mission");
-    void audioManager.playSfx("case_open");
-  };
-
-  const navigate = (tab: "home" | "challenge" | "record" | "growth") => {
-    setView(tab === "home" ? "hub" : tab === "challenge" ? "map" : tab === "record" ? "record" : "academy");
-  };
-
-  const updateAudio = (next: Partial<AudioSettings>) => {
-    audioManager.update(next);
-    setAudio({ ...audioManager.settings });
-    setSave((prev) => ({ ...prev, audio: { ...prev.audio, ...next } }));
-  };
+  }, [view, certUnitId, hydrated]);
 
   const handleLoginSuccess = (profile: StudentProfile, mustChangePw?: boolean) => {
-    setSave((prev) => ({
-      ...prev,
-      studentProfile: profile,
-    }));
+    setSave((prev) => ({ ...prev, studentProfile: profile }));
     void audioManager.playSfx("success");
     if (mustChangePw) {
       setPasswordModalOpen(true);
@@ -209,149 +169,198 @@ export default function HomePage() {
       ...prev,
       studentProfile: { ...defaultStudent, isLoggedIn: false },
     }));
+    setView("login");
     void audioManager.playSfx("ui_click");
   };
 
+  const startMission = (missionData: GameMissionData) => {
+    setActiveMission(missionData);
+    setActiveModeId(missionData.gameModeId);
+    setSelectedChoice(null);
+    setActiveHintLevel(0);
+    setScoreResult(null);
+    setShowFeedbackModal(false);
+    setView("mission_player");
+    void audioManager.playSfx("case_open");
+  };
+
+  const handleChoiceSubmit = (choiceIdx: number) => {
+    if (scoreResult) return;
+    setSelectedChoice(choiceIdx);
+    const score = calculateMissionScore(activeMission, choiceIdx, activeHintLevel);
+    setScoreResult(score);
+
+    const isCorrect = choiceIdx === activeMission.correctAnswer;
+    void audioManager.playSfx(isCorrect ? "success" : "error");
+
+    // Generate Portfolio Entry
+    const draft = generatePortfolioDraft(activeMission, choiceIdx, score);
+
+    setSave((prev) => {
+      const nextCompleted = isCorrect ? [...new Set([...prev.completedMissions, activeMission.id])] : prev.completedMissions;
+      const nextExp = prev.exp + score.totalScore;
+      return {
+        ...prev,
+        completedMissions: nextCompleted,
+        exp: nextExp,
+        overallLevel: Math.floor(nextExp / 200) + 1,
+        missionScores: {
+          ...prev.missionScores,
+          [activeMission.id]: score,
+        },
+        portfolioDrafts: [draft, ...prev.portfolioDrafts.filter((p) => p.missionTitle !== activeMission.title)],
+      };
+    });
+
+    if (!isCorrect) {
+      setShowFeedbackModal(true);
+    }
+  };
+
+  const handleNextMission = () => {
+    const currentMode = unit1GameModes.find((m) => m.id === activeModeId);
+    if (!currentMode) {
+      setView("unit1_dashboard");
+      return;
+    }
+    const curIdx = currentMode.missions.findIndex((m) => m.id === activeMission.id);
+    if (curIdx < currentMode.missions.length - 1) {
+      startMission(currentMode.missions[curIdx + 1]);
+    } else {
+      setView("unit1_dashboard");
+      void audioManager.playSfx("mission_complete");
+    }
+  };
+
+  const evalProfile = useMemo(() => {
+    return evaluateCompetencyProfile(save.missionScores, save.completedMissions);
+  }, [save.missionScores, save.completedMissions]);
+
   return (
     <main className="arcade-viewport">
-      <div className="arcade-phone" aria-label="안산강서고 1학년 통합사회 탐구 아케이드 홈 화면">
-        {/* VIEW ROUTER */}
+      <div className="arcade-phone" aria-label="안산강서고 1학년 통합사회 탐구 아케이드">
+        {/* ========================================================
+            1. VIEW ROUTER
+            ======================================================== */}
         {view === "login" && (
-          <LoginScreen
+          <LoginScreenView
             onLoginSuccess={handleLoginSuccess}
             onGuest={() => setView("hub")}
           />
         )}
 
         {view === "hub" && (
-          <HubScreen
+          <MainHubScreenView
             save={save}
-            onNew={startNew}
-            onContinue={continueGame}
-            onMap={() => setView("map")}
-            onAcademy={() => setView("academy")}
-            onIntro={() => setIntroOpen(true)}
-            onSettings={() => setSettingsOpen(true)}
-            onOpenVault={() => setVaultOpen(true)}
-            onOpenLogin={() => setLoginOpen(true)}
-            onOpenCert={(unitId) => setCertUnitId(unitId)}
-            onOpenPasswordModal={() => setPasswordModalOpen(true)}
+            unit1Cleared={unit1Cleared}
+            evalProfile={evalProfile}
+            onOpenUnit1={() => setView("unit1_dashboard")}
+            onOpenSkillLabVocab={() => setView("skill_lab_vocab")}
+            onOpenSkillLabSkill={() => setView("skill_lab_skill")}
+            onOpenPortfolio={() => setPortfolioOpen(true)}
+            onOpenCert={(uId) => setCertUnitId(uId)}
+            onOpenLogin={() => setLoginModalOpen(true)}
+            onOpenSettings={() => setSettingsOpen(true)}
+            onOpenIntro={() => setIntroOpen(true)}
             onOpenTeacherDash={() => setTeacherDashOpen(true)}
-            onComingSoon={(msg) => setComingSoonMessage(msg)}
-            onSelectMission={(mId) => {
-              const target = missions.find((m) => m.id === mId);
-              if (target) startMission(target);
-            }}
+            onComingSoon={(msg) => setComingSoonMsg(msg)}
           />
         )}
 
-        {view === "map" && (
-          <MissionMap
-            save={save}
-            onStart={startMission}
-            onBack={() => setView("hub")}
-            onSettings={() => setSettingsOpen(true)}
-            onOpenVault={() => setVaultOpen(true)}
-            onOpenLogin={() => setLoginOpen(true)}
-            onOpenCert={(unitId) => setCertUnitId(unitId)}
-            onComingSoon={(msg) => setComingSoonMessage(msg)}
-          />
-        )}
-
-        {view === "mission" && currentMission && (
-          <MissionPlayer
-            key={`${currentMission.id}-${save.currentScene}`}
-            mission={currentMission}
-            save={save}
-            setSave={setSave}
-            onBack={() => setView("map")}
-            onSettings={() => setSettingsOpen(true)}
-            onAcademy={() => {
-              setReturnPoint({ missionId: currentMission.id, scene: save.currentScene });
-              setView("academy");
-            }}
-            onOpenVault={() => setVaultOpen(true)}
-            onSelectCard={(cId) => setSelectedCardId(cId)}
-            onActComplete={() => {
-              setActComplete(true);
-              setSave((prev) => ({
-                ...prev,
-                earnedCertificates: [...new Set([...(prev.earnedCertificates || []), 1])],
-              }));
-            }}
-          />
-        )}
-
-        {view === "academy" && (
-          <AcademyScreen
-            save={save}
-            setSave={setSave}
-            returnPoint={returnPoint}
-            onReturn={() => {
-              if (returnPoint) {
-                setSave((prev) => ({ ...prev, currentMission: returnPoint.missionId, currentScene: returnPoint.scene }));
-                setView("mission");
-                setReturnPoint(null);
-              } else setView("hub");
-            }}
-          />
-        )}
-
-        {view === "record" && (
-          <RecordScreen
+        {view === "unit1_dashboard" && (
+          <Unit1DashboardView
             save={save}
             onBack={() => setView("hub")}
-            onOpenVault={() => setVaultOpen(true)}
-            onOpenCert={(unitId) => setCertUnitId(unitId)}
+            onStartMission={startMission}
+            onOpenCert={() => setCertUnitId(1)}
+            onOpenPortfolio={() => setPortfolioOpen(true)}
           />
         )}
 
-        {/* BOTTOM NAVIGATION */}
-        {(view === "hub" || view === "map" || view === "academy" || view === "record") && (
-          <BottomNavigation
-            active={view === "map" ? "challenge" : view === "record" ? "record" : view === "academy" ? "growth" : "home"}
-            onNavigate={navigate}
+        {view === "mission_player" && (
+          <MissionPlayerView
+            mission={activeMission}
+            selectedChoice={selectedChoice}
+            scoreResult={scoreResult}
+            activeHintLevel={activeHintLevel}
+            onSelectChoice={handleChoiceSubmit}
+            onOpenHint={() => setHintModalOpen(true)}
+            onNext={handleNextMission}
+            onRetry={() => {
+              setSelectedChoice(null);
+              setScoreResult(null);
+              setShowFeedbackModal(false);
+            }}
+            onBack={() => setView("unit1_dashboard")}
           />
         )}
 
-        {/* MODALS */}
-        {settingsOpen && (
-          <SettingsPanel
-            audio={audio}
-            onChange={updateAudio}
-            onClose={() => setSettingsOpen(false)}
-          />
-        )}
-        {introOpen && (
-          <GameIntroduction
-            onClose={() => setIntroOpen(false)}
-          />
-        )}
-        {vaultOpen && (
-          <CardVaultModal
+        {view === "skill_lab_vocab" && (
+          <SkillLabVocabView
             save={save}
-            onClose={() => setVaultOpen(false)}
-            onSelectCard={(id) => setSelectedCardId(id)}
+            setSave={setSave}
+            onBack={() => setView("hub")}
           />
         )}
-        {selectedCardId && (
-          <CardDetailModal
-            cardId={selectedCardId}
-            onClose={() => setSelectedCardId(null)}
+
+        {view === "skill_lab_skill" && (
+          <SkillLabTrainingView
+            save={save}
+            setSave={setSave}
+            onBack={() => setView("hub")}
           />
         )}
-        {loginOpen && (
+
+        {/* ========================================================
+            2. MODALS & POPUPS
+            ======================================================== */}
+        {hintModalOpen && (
+          <HintModal
+            hints={activeMission.hints}
+            currentHintLevel={activeHintLevel}
+            onSelectHint={(hLevel) => {
+              setActiveHintLevel(hLevel);
+              setHintModalOpen(false);
+              void audioManager.playSfx("inspect");
+            }}
+            onClose={() => setHintModalOpen(false)}
+          />
+        )}
+
+        {showFeedbackModal && (
+          <FeedbackModal
+            feedback={activeMission.feedback}
+            onRetry={() => {
+              setSelectedChoice(null);
+              setScoreResult(null);
+              setShowFeedbackModal(false);
+              void audioManager.playSfx("ui_click");
+            }}
+            onClose={() => setShowFeedbackModal(false)}
+          />
+        )}
+
+        {portfolioOpen && (
+          <PortfolioReportModal
+            save={save}
+            evalProfile={evalProfile}
+            onClose={() => setPortfolioOpen(false)}
+          />
+        )}
+
+        {loginModalOpen && (
           <LoginModal
             currentProfile={save.studentProfile}
             onLoginSuccess={handleLoginSuccess}
             onLogout={handleLogout}
             onOpenPasswordModal={() => {
-              setLoginOpen(false);
+              setLoginModalOpen(false);
               setPasswordModalOpen(true);
             }}
-            onClose={() => setLoginOpen(false)}
+            onClose={() => setLoginModalOpen(false)}
           />
         )}
+
         {passwordModalOpen && save.studentProfile && (
           <PasswordChangeModal
             profile={save.studentProfile}
@@ -363,6 +372,7 @@ export default function HomePage() {
             onClose={() => setPasswordModalOpen(false)}
           />
         )}
+
         {teacherDashOpen && (
           <TeacherDashboardModal
             save={save}
@@ -373,6 +383,7 @@ export default function HomePage() {
             }}
           />
         )}
+
         {certUnitId !== null && (
           <CertificateModal
             save={save}
@@ -380,27 +391,37 @@ export default function HomePage() {
             onClose={() => setCertUnitId(null)}
           />
         )}
-        {comingSoonMessage && (
+
+        {comingSoonMsg && (
           <ComingSoonModal
-            message={comingSoonMessage}
-            onClose={() => setComingSoonMessage(null)}
+            message={comingSoonMsg}
+            onClose={() => setComingSoonMsg(null)}
           />
         )}
-        {actComplete && (
-          <ActComplete
-            onClose={() => { setActComplete(false); setView("map"); }}
-            onOpenCertificate={() => { setActComplete(false); setCertUnitId(1); }}
+
+        {settingsOpen && (
+          <SettingsPanelModal
+            audio={save.audio}
+            onChange={(next) => {
+              audioManager.update(next);
+              setSave((prev) => ({ ...prev, audio: { ...prev.audio, ...next } }));
+            }}
+            onClose={() => setSettingsOpen(false)}
           />
+        )}
+
+        {introOpen && (
+          <GameIntroductionModal onClose={() => setIntroOpen(false)} />
         )}
       </div>
     </main>
   );
 }
 
-// ==========================================
-// 1. LOGIN SCREEN (전용 로그인 뷰)
-// ==========================================
-function LoginScreen({
+// =========================================================================
+// 1. LOGIN SCREEN VIEW
+// =========================================================================
+function LoginScreenView({
   onLoginSuccess,
   onGuest,
 }: {
@@ -411,10 +432,10 @@ function LoginScreen({
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!userId.trim()) {
-      setError("아이디를 입력해 주세요.");
+      setError("학급 아이디를 입력해 주세요.");
       return;
     }
     if (!password) {
@@ -424,7 +445,7 @@ function LoginScreen({
 
     const res = authenticateUser(userId, password);
     if (!res.success || !res.profile) {
-      setError(res.error || "로그인에 실패했습니다.");
+      setError(res.error || "아이디 또는 비밀번호가 올바르지 않습니다.");
       return;
     }
 
@@ -435,19 +456,19 @@ function LoginScreen({
     <div className="login-screen-view">
       <div className="login-screen-card">
         <div className="login-logo-lockup">
-          <div className="logo-school-badge">안산강서고등학교 통합사회 2</div>
+          <div className="logo-school-badge">안산강서고등학교 1학년 통합사회</div>
           <h1 className="login-main-title">
             통합사회<br />
             <span>탐구 아케이드</span>
           </h1>
-          <p className="login-hero-sub">사건을 읽고, 헌법을 탐구하며, 더 나은 사회를 설계하라.</p>
+          <p className="login-hero-sub">사건을 읽고, 헌법을 탐구하며, 수행평가 역량을 완성하라.</p>
         </div>
 
-        <form onSubmit={handleLogin} className="login-form-box">
+        <form onSubmit={handleSubmit} className="login-form-box">
           <div className="form-input-block">
             <label htmlFor="login-id">
               <IdentificationCard size={18} />
-              <span>학급 아이디 (SC학급번호 / 교사: SCT01~10)</span>
+              <span>학급 아이디 (학생: SC학급번호 / 교사: SCT01~10)</span>
             </label>
             <input
               id="login-id"
@@ -483,7 +504,7 @@ function LoginScreen({
               required
             />
             <small className="id-helper-text">
-              ※ 초기 비밀번호는 <code>123456789!</code> 이며, 최초 로그인 시 변경합니다.
+              ※ 초기 비밀번호는 <code>123456789!</code> 이며 최초 로그인 시 변경합니다.
             </small>
           </div>
 
@@ -491,7 +512,7 @@ function LoginScreen({
 
           <button type="submit" className="primary-button full-button login-submit-btn">
             <UserCheck size={20} weight="bold" />
-            탐구관 로그인
+            탐구관 로그인 및 시작
           </button>
 
           <div className="login-footer-actions">
@@ -505,167 +526,122 @@ function LoginScreen({
   );
 }
 
-// ==========================================
-// 2. MAIN HUB SCREEN
-// ==========================================
-function HubScreen({
+// =========================================================================
+// 2. MAIN HUB SCREEN VIEW (단원 선택, 탐구력 향상 랩, 공통주제)
+// =========================================================================
+function MainHubScreenView({
   save,
-  onNew,
-  onContinue,
-  onMap,
-  onAcademy,
-  onIntro,
-  onSettings,
-  onOpenVault,
-  onOpenLogin,
+  unit1Cleared,
+  evalProfile,
+  onOpenUnit1,
+  onOpenSkillLabVocab,
+  onOpenSkillLabSkill,
+  onOpenPortfolio,
   onOpenCert,
-  onOpenPasswordModal,
+  onOpenLogin,
+  onOpenSettings,
+  onOpenIntro,
   onOpenTeacherDash,
   onComingSoon,
-  onSelectMission,
 }: {
   save: SaveData;
-  onNew: () => void;
-  onContinue: () => void;
-  onMap: () => void;
-  onAcademy: () => void;
-  onIntro: () => void;
-  onSettings: () => void;
-  onOpenVault: () => void;
-  onOpenLogin: () => void;
+  unit1Cleared: boolean;
+  evalProfile: any;
+  onOpenUnit1: () => void;
+  onOpenSkillLabVocab: () => void;
+  onOpenSkillLabSkill: () => void;
+  onOpenPortfolio: () => void;
   onOpenCert: (unitId: number) => void;
-  onOpenPasswordModal: () => void;
+  onOpenLogin: () => void;
+  onOpenSettings: () => void;
+  onOpenIntro: () => void;
   onOpenTeacherDash: () => void;
   onComingSoon: (msg: string) => void;
-  onSelectMission: (mId: string) => void;
 }) {
-  const [activeTab, setActiveTab] = useState<"unit" | "theme">("unit");
-  const student = save.studentProfile || defaultStudent;
+  const student = save.studentProfile;
   const isTeacher = student.role === "teacher";
-  const unit1Complete = missions.every((m) => save.completedMissions.includes(m.id));
-
-  // Dynamic Recent Progress Calculation
-  const recentProgress = useMemo(() => {
-    if (unit1Complete) {
-      return {
-        stageName: "1단원 인권 보장과 헌법 탐구 전 과정 완수",
-        subText: "정식 인권수호관 임명장 발급 가능",
-        percent: 100,
-        buttonText: "임명장 열람하기",
-        action: () => onOpenCert(1),
-      };
-    }
-
-    if (save.currentMission) {
-      const mission = missions.find((m) => m.id === save.currentMission);
-      if (mission) {
-        const steps = getMissionSteps(mission);
-        const stepNum = save.currentScene + 1;
-        const totalSteps = steps.length;
-        const pct = Math.min(95, Math.round((stepNum / totalSteps) * 100));
-        const currentStep = steps[save.currentScene];
-        const stepLabel = currentStep?.title || "현장 단서 및 교과 쟁점 조사";
-
-        return {
-          stageName: `M0${mission.number} ${mission.title}`,
-          subText: `${stepLabel} (${stepNum}/${totalSteps}단계)`,
-          percent: pct,
-          buttonText: "이어서 탐구하기",
-          action: onContinue,
-        };
-      }
-    }
-
-    const completedCount = save.completedMissions.length;
-    const nextMission = missions.find((m) => !save.completedMissions.includes(m.id)) || missions[0];
-    const pct = Math.round((completedCount / missions.length) * 100);
-
-    return {
-      stageName: `1단원 M0${nextMission.number} ${nextMission.title}`,
-      subText: `총 ${missions.length}개 사건 중 ${completedCount}개 완수`,
-      percent: pct,
-      buttonText: "사건 착수하기",
-      action: () => onSelectMission(nextMission.id),
-    };
-  }, [save, unit1Complete, onContinue, onOpenCert, onSelectMission]);
 
   const units = [
-    { num: 1, title: "인권 보장과 헌법", status: unit1Complete ? "100% 이수 완료 (임명증 발급)" : `${save.completedMissions.length}/6 사건 해결 중`, available: true },
-    { num: 2, title: "자연환경과 인간", status: "COMING SOON", available: false },
-    { num: 3, title: "생활공간과 사회", status: "COMING SOON", available: false },
-    { num: 4, title: "인권 보장과 헌법 심화", status: "COMING SOON", available: false },
-    { num: 5, title: "시장 경제와 금융", status: "COMING SOON", available: false },
+    {
+      id: 1,
+      title: "1단원: 인권 보장과 헌법",
+      sub: "인권 판례 챌린지 · 기본권 수호대 · 헌법재판",
+      status: unit1Cleared ? "★ 100% 이수 완수" : "🔥 지금 탐구 도전 가능",
+      active: true,
+      badge: "⚖️ 인권수호관",
+    },
+    {
+      id: 2,
+      title: "2단원: 사회 정의와 불평등",
+      sub: "정의의 원탁 · 공정 분배 · 공정 도시",
+      status: "1단원 완료 후 순차 오픈 예정",
+      active: false,
+      badge: "🌿 생태·정의수호관",
+    },
+    {
+      id: 3,
+      title: "3단원: 시장경제와 지속가능발전",
+      sub: "시장 밸런스 · 금융 생존 · 무역 타이쿤",
+      status: "순차 오픈 예정",
+      active: false,
+      badge: "🏙️ 경제기획관",
+    },
+    {
+      id: 4,
+      title: "4단원: 세계화와 평화",
+      sub: "세계도시 · 문화 다양성 · 평화 협상",
+      status: "순차 오픈 예정",
+      active: false,
+      badge: "🏛️ 평화수호관",
+    },
+    {
+      id: 5,
+      title: "5단원: 미래와 지속가능한 삶",
+      sub: "인구 피라미드 · 기후위기 · 미래 도시 2050",
+      status: "순차 오픈 예정",
+      active: false,
+      badge: "📈 미래설계관",
+    },
+  ];
+
+  const crossThemes = [
+    { title: "국내외 인권 문제", icon: "🌍", tag: "인권·세계화 크로스" },
+    { title: "사회·공간 불평등", icon: "🏙️", tag: "정의·도시 크로스" },
+    { title: "현대 세계 무역", icon: "🚢", tag: "시장·국제무역 크로스" },
+    { title: "세계화의 문제점", icon: "⚠️", tag: "문화·환경 크로스" },
+    { title: "국제사회 갈등과 협력", icon: "🕊️", tag: "평화·지속가능 크로스" },
   ];
 
   return (
-    <MainHubTemplate>
-      {/* Hero Section */}
-      <div className="hub-hero">
-        <div className="hub-actions-top">
-          <span className="school-badge">
-            안산강서고 1학년 · 탐구활동 수업 자료
-          </span>
-          <div className="hub-quick-actions">
-            {isTeacher && (
-              <button className="icon-button teacher-dash-btn" onClick={onOpenTeacherDash} title="교사용 관리 대시보드" aria-label="교사용 대시보드">
-                <ChalkboardTeacher size={22} color="#ffd36a" weight="fill" />
-              </button>
-            )}
-            <button className="icon-button student-login-btn" onClick={onOpenLogin} title="학생 로그인 / 프로필" aria-label="학생 로그인">
-              {student.isLoggedIn ? <UserCheck size={21} weight="fill" color="#56e39f" /> : <User size={21} />}
-            </button>
-            <button className="icon-button" onClick={onOpenVault} title="권리 카드 보관소" aria-label="권리 카드 보관소">
-              <Medal size={21} weight="duotone" />
-            </button>
-            <button className="icon-button" onClick={onIntro} aria-label="게임 소개와 교과 연계">
-              <BookOpen size={21} />
-            </button>
-            <button className="icon-button" onClick={onSettings} aria-label="설정">
-              <Gear size={21} />
-            </button>
+    <div className="hub-container-v2">
+      {/* Top Header Bar */}
+      <header className="hub-top-v2">
+        <div className="hub-user-pill" onClick={onOpenLogin}>
+          <span className="user-dot" />
+          <div className="user-info">
+            <strong>{student.isLoggedIn ? `${student.grade} ${student.classNum} ${student.studentNum} ${student.name}` : "게스트 모드"}</strong>
+            <small>{student.studentId} · {student.schoolName}</small>
           </div>
         </div>
 
-        {/* Student Profile Quick Badge */}
-        <div className="student-profile-bar" onClick={onOpenLogin}>
-          <div className="student-bar-left">
-            <span className="student-status-dot" />
-            <strong>
-              {student.isLoggedIn ? (
-                isTeacher ? `[지도교사] ${student.name} (${student.studentId})` : `${student.schoolName} ${student.grade} ${student.classNum} ${student.studentNum}`
-              ) : "게스트 모드"}
-            </strong>
-            <span className="student-name-tag">
-              {student.isLoggedIn ? (isTeacher ? "교과 지도교사" : `${student.name} 수호관`) : "로그인 필요"}
-            </span>
-          </div>
-          <span className="student-login-edit">
-            {student.isLoggedIn ? "계정 설정 >" : "로그인 >"}
-          </span>
+        <div className="hub-top-buttons">
+          {isTeacher && (
+            <button className="icon-button" onClick={onOpenTeacherDash} title="교사용 대시보드"><ChalkboardTeacher size={20} color="#ffd36a" weight="fill" /></button>
+          )}
+          <button className="icon-button" onClick={onOpenPortfolio} title="수행평가 역량 리포트"><ChartBar size={20} color="var(--teal-soft)" /></button>
+          <button className="icon-button" onClick={onOpenIntro} title="게임 가이드"><BookOpen size={20} /></button>
+          <button className="icon-button" onClick={onOpenSettings} title="설정"><Gear size={20} /></button>
         </div>
+      </header>
 
-        {/* Brand Logo & Title Lockup */}
-        <div className="hub-logo-area">
-          <div className="logo-badge-row">
-            <span className="logo-emblem">✦</span>
-            <span className="logo-subtext">ARCA SOCIAL INVESTIGATION</span>
-            <span className="subject-tag">통합사회 2</span>
-          </div>
-          <h1 className="hub-main-title">
-            통합사회<br />
-            <span className="highlight">탐구 아케이드</span>
-          </h1>
-          <p className="hub-slogan">사건을 읽고, 근거를 모아, 더 나은 사회를 설계하라.</p>
-        </div>
-
-        {/* Duo Character Stage */}
-        <div className="hub-character-stage">
-          <CharacterPortrait characterId="haeon" expression="default" position="left" size="md" />
-          <CharacterPortrait characterId="ari" expression="default" position="right" size="md" />
-        </div>
+      {/* Hero Brand Title */}
+      <div className="hub-hero-brand">
+        <span className="hero-emblem">✦ 2026 ARCA SOCIAL INVESTIGATION ✦</span>
+        <h1>통합사회 <span>탐구 아케이드</span></h1>
+        <p>5개 단원과 탐구력 향상 랩을 통해 수행평가 역량을 완성하세요.</p>
       </div>
 
-      {/* DASHBOARD: 단원별 임명 뱃지(Badge) 전시대 */}
+      {/* 단원별 공인 수호관 뱃지 전시대 */}
       <div className="hub-badge-dashboard">
         <div className="badge-dash-header">
           <div className="badge-dash-title">
@@ -673,25 +649,21 @@ function HubScreen({
             <span>단원별 공인 수호관 임명 뱃지</span>
           </div>
           <span className="badge-count-pill">
-            {save.earnedCertificates?.length || (unit1Complete ? 1 : 0)} / 5개 획득
+            {save.earnedCertificates.length} / 5개 획득
           </span>
         </div>
 
         <div className="badge-slots-row">
           {unitCertificates.map((cert) => {
-            const isEarned = (save.earnedCertificates?.includes(cert.unitId)) || (cert.unitId === 1 && unit1Complete);
+            const isEarned = save.earnedCertificates.includes(cert.unitId);
             return (
               <button
                 key={cert.unitId}
                 className={`badge-slot-item ${isEarned ? "earned" : "locked"}`}
                 onClick={() => {
-                  if (isEarned) {
-                    onOpenCert(cert.unitId);
-                  } else {
-                    onComingSoon(`${cert.unitTitle}의 6개 전 과정을 모두 완수하면 [${cert.certName}]과 뱃지가 수여됩니다.`);
-                  }
+                  if (isEarned) onOpenCert(cert.unitId);
+                  else onComingSoon(`${cert.unitTitle} 전 과정을 완수하면 [${cert.certName}]과 뱃지가 수여됩니다.`);
                 }}
-                title={isEarned ? `${cert.badgeName} (임명증 보기)` : `${cert.badgeName} (잠김)`}
               >
                 <div className="badge-icon-box">
                   <span className="badge-icon-emoji">{cert.badgeIcon}</span>
@@ -705,800 +677,747 @@ function HubScreen({
         </div>
       </div>
 
-      {/* Main Tab Toggle */}
-      <div className="hub-mode-tabs">
-        <button
-          className={`mode-tab-btn ${activeTab === "unit" ? "active" : ""}`}
-          onClick={() => setActiveTab("unit")}
-        >
-          단원별 탐구
-        </button>
-        <button
-          className={`mode-tab-btn ${activeTab === "theme" ? "active" : ""}`}
-          onClick={() => {
-            setActiveTab("theme");
-            onComingSoon("공통주제 도전 모드는 준비 중입니다. 1단원 인권 보장과 헌법 탐구를 먼저 도전해 보세요!");
-          }}
-        >
-          공통주제 도전
-        </button>
-      </div>
-
-      <div className="hub-content">
-        {/* Dynamic Recent Progress Card (사용자가 가장 최근에 참여한 마지막 단계 동적 표시) */}
-        <section className="recent-progress-card" aria-label="최근 탐구 진행 현황">
-          <div className="progress-card-top">
-            <span className="progress-tag">RECENT STEP · 최근 탐구 단계</span>
-            <span className="progress-pct-badge">{recentProgress.percent}% 완료</span>
+      {/* 🚀 탐구력 향상 랩 (홈 화면 최상단 연계) */}
+      <section className="skill-lab-section">
+        <div className="section-title-row">
+          <div className="title-with-icon">
+            <Brain size={20} color="var(--gold)" weight="duotone" />
+            <h2>탐구력 향상 랩 (Skill Lab)</h2>
           </div>
-
-          <h3 className="progress-stage-title">{recentProgress.stageName}</h3>
-          <p className="progress-subtext">{recentProgress.subText}</p>
-
-          <div className="progress-track-bar" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={recentProgress.percent}>
-            <div className="progress-fill-glow" style={{ width: `${recentProgress.percent}%` }} />
-          </div>
-
-          <div className="progress-card-actions">
-            <button className="primary-button full-button" onClick={recentProgress.action}>
-              <Play size={17} weight="fill" /> {recentProgress.buttonText} &gt;
-            </button>
-          </div>
-        </section>
-
-        {/* 1단원 바로가기 배너 */}
-        <div className="hub-unit-banner" onClick={onMap}>
-          <div className="unit-banner-left">
-            <span className="unit-badge">UNIT 01</span>
-            <h3>1단원 · 인권 보장과 헌법</h3>
-            <p>기본권 침해 사건을 해결하고 4대 핵심 인권 DNA를 규명하라</p>
-            <span className="unit-status-tag">
-              {unit1Complete ? "★ 1단원 전 과정 이수 완료" : `사건 해결 (${save.completedMissions.length}/6)`}
-            </span>
-          </div>
-          <ArrowRight size={24} className="unit-banner-arrow" />
+          <span className="sub-tag">기초 탐구 역량 훈련실</span>
         </div>
 
-        {/* Units Grid */}
-        <div className="unit-list-grid">
-          {units.map((unit) => (
-            <button
-              key={unit.num}
-              className={`unit-card-button ${unit.available ? "active" : "disabled"}`}
+        <div className="skill-lab-grid">
+          <div className="lab-card" onClick={onOpenSkillLabVocab}>
+            <div className="lab-icon-box">📚</div>
+            <div className="lab-card-body">
+              <strong>개념-용어 학습실</strong>
+              <p>헌법 제10조, 인권 4대 특성, 기본권 유형 10대 핵심 용어 마스터</p>
+              <span className="lab-score-pill">누적 점수: {save.skillLabScore.vocabScore}점 (Lv.{save.skillLabScore.vocabLevel})</span>
+            </div>
+            <ArrowRight size={20} className="lab-arrow" />
+          </div>
+
+          <div className="lab-card" onClick={onOpenSkillLabSkill}>
+            <div className="lab-icon-box">🔍</div>
+            <div className="lab-card-body">
+              <strong>탐구기능 연습실</strong>
+              <p>판례 자료 분석, 인과 추론, 비교 대조, 삼단 논증 설계 트레이닝</p>
+              <span className="lab-score-pill">누적 점수: {save.skillLabScore.skillScore}점 (Lv.{save.skillLabScore.skillLevel})</span>
+            </div>
+            <ArrowRight size={20} className="lab-arrow" />
+          </div>
+        </div>
+      </section>
+
+      {/* 📚 5개 단원 선택 그리드 */}
+      <section className="curriculum-units-section">
+        <div className="section-title-row">
+          <div className="title-with-icon">
+            <BookOpen size={20} color="var(--teal-soft)" weight="duotone" />
+            <h2>교과 단원별 탐구 아케이드</h2>
+          </div>
+          <span className="sub-tag">5개 단원</span>
+        </div>
+
+        <div className="unit-cards-container">
+          {units.map((u) => (
+            <div
+              key={u.id}
+              className={`unit-action-card ${u.active ? "active" : "locked"}`}
               onClick={() => {
-                if (unit.available) onMap();
-                else onComingSoon(`${unit.title} 단원은 준비 중입니다.`);
+                if (u.active) onOpenUnit1();
+                else onComingSoon(`${u.title}은 1단원 마무리 후 순차적으로 공개될 예정입니다.`);
               }}
             >
-              <div className="unit-num-circle">{unit.num}</div>
+              <div className="unit-number-circle">0{u.id}</div>
               <div className="unit-info-col">
-                <strong>{unit.title}</strong>
-                <small>{unit.status}</small>
+                <div className="unit-title-row">
+                  <h3>{u.title}</h3>
+                  <span className={`status-tag ${u.active ? "playable" : "coming"}`}>
+                    {u.status}
+                  </span>
+                </div>
+                <p>{u.sub}</p>
+                <div className="unit-badge-row">
+                  <span className="badge-preview">{u.badge}</span>
+                </div>
               </div>
-              <ArrowRight size={18} />
-            </button>
+              <ArrowRight size={22} className="unit-card-arrow" />
+            </div>
           ))}
         </div>
+      </section>
 
-        {/* Game Introduction Entry */}
-        <button className="game-intro-entry" onClick={onIntro}>
-          <BookOpen size={24} />
-          <div>
-            <strong>게임 가이드 · 교과 연계 안내</strong>
-            <small>세계관 스토리와 탐구 파트너, 평가 루브릭을 확인하세요.</small>
+      {/* 🌐 5대 공통주제 크로스 미션 */}
+      <section className="cross-theme-section">
+        <div className="section-title-row">
+          <div className="title-with-icon">
+            <Compass size={20} color="var(--purple)" weight="duotone" />
+            <h2>공통주제 크로스 미션</h2>
           </div>
-          <ArrowRight size={18} />
-        </button>
+          <span className="sub-tag">단원 융합 탐구</span>
+        </div>
+
+        <div className="cross-theme-scroll">
+          {crossThemes.map((ct, idx) => (
+            <div
+              key={idx}
+              className="theme-card-mini"
+              onClick={() => onComingSoon(`[${ct.title}] 공통주제 크로스 미션은 순차 오픈 준비 중입니다.`)}
+            >
+              <span className="theme-icon">{ct.icon}</span>
+              <strong>{ct.title}</strong>
+              <small>{ct.tag}</small>
+              <span className="theme-badge-award">4대 역량 배지 수여</span>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* 하단 수행평가 포트폴리오 바로가기 */}
+      <div className="portfolio-banner-card" onClick={onOpenPortfolio}>
+        <div className="p-banner-left">
+          <FileText size={28} color="var(--gold)" weight="fill" />
+          <div>
+            <strong>나의 수행평가 포트폴리오 & 역량 리포트</strong>
+            <p>예상 성취수준: <span className="rank-highlight">{evalProfile.overallLevel}등급 ({evalProfile.averageScore}점)</span> · {save.portfolioDrafts.length}개 초안 저장됨</p>
+          </div>
+        </div>
+        <button className="primary-button p-banner-btn">리포트 열람 &gt;</button>
       </div>
-    </MainHubTemplate>
+    </div>
   );
 }
 
-// ==========================================
-// 3. MISSION MAP SCREEN (1단원 사건 선택)
-// ==========================================
-function MissionMap({
+// =========================================================================
+// 3. UNIT 1 DASHBOARD VIEW (1단원 5대 게임 모드 선택기)
+// =========================================================================
+function Unit1DashboardView({
   save,
-  onStart,
   onBack,
-  onSettings,
-  onOpenVault,
-  onOpenLogin,
+  onStartMission,
   onOpenCert,
-  onComingSoon,
+  onOpenPortfolio,
 }: {
   save: SaveData;
-  onStart: (mission: Mission) => void;
   onBack: () => void;
-  onSettings: () => void;
-  onOpenVault: () => void;
-  onOpenLogin: () => void;
-  onOpenCert: (unitId: number) => void;
-  onComingSoon: (msg: string) => void;
+  onStartMission: (m: GameMissionData) => void;
+  onOpenCert: () => void;
+  onOpenPortfolio: () => void;
 }) {
-  const student = save.studentProfile || defaultStudent;
-  const unit1Complete = missions.every((m) => save.completedMissions.includes(m.id));
+  const completedMissions = save.completedMissions;
+  const isUnitComplete = completedMissions.filter((id) => id.startsWith("u1-")).length >= 5;
 
   return (
-    <MissionMapTemplate>
-      <GameHUD
-        missionTitle="1단원 사건 선택 지도"
-        level={save.level}
-        exp={save.exp}
-        onBack={onBack}
-      />
-
-      <div className="map-scroll-container">
-        {/* Student Bar */}
-        <div className="map-student-header">
+    <div className="unit1-dash-container">
+      {/* Top Header */}
+      <header className="game-hud">
+        <div className="hud-top">
+          <button className="icon-button" onClick={onBack} aria-label="메인 허브로"><ArrowLeft size={20} /></button>
           <div>
-            <span className="map-badge-role">인권수호국 현장 조사관</span>
-            <strong>{student.name} ({student.studentId})</strong>
+            <span>1단원 · 인권 보장과 헌법</span>
+            <strong>5대 시그니처 게임 아케이드</strong>
           </div>
-          <button className="icon-button" onClick={onOpenVault} title="권리 카드 보관소">
-            <Medal size={20} weight="duotone" />
-          </button>
+          <div style={{ display: "flex", gap: "6px" }}>
+            <button className="icon-button" onClick={onOpenPortfolio} title="수행평가 포트폴리오"><FileText size={20} weight="duotone" /></button>
+          </div>
         </div>
+      </header>
 
-        {/* 1단원 전체 완수 시 임명증 발급 골드 배너 */}
-        {unit1Complete && (
-          <div className="unit-complete-gold-banner" onClick={() => onOpenCert(1)}>
+      <div className="unit1-dash-content">
+        {/* Unit Completion Gold Banner */}
+        {isUnitComplete && (
+          <div className="unit-complete-gold-banner" onClick={onOpenCert}>
             <div className="gold-banner-left">
               <Trophy size={28} weight="fill" color="#ffd36a" />
               <div>
-                <strong>1단원 전 과정 이수 완수!</strong>
-                <p>정식 인권수호관 임명증을 발급받고 PDF로 저장하세요.</p>
+                <strong>1단원 인권 보장과 헌법 완수!</strong>
+                <p>정식 인권수호관 임명증을 확인하고 PDF로 다운로드하세요.</p>
               </div>
             </div>
-            <button className="gold-cert-btn">
-              <Printer size={16} /> 임명증 보기
-            </button>
+            <button className="gold-cert-btn"><Printer size={16} /> 임명증 보기</button>
           </div>
         )}
 
-        <div className="map-missions-list">
-          {missions.map((mission, idx) => {
-            const isCompleted = save.completedMissions.includes(mission.id);
-            const isCurrent = save.currentMission === mission.id;
-            const isLocked = idx > 0 && !save.completedMissions.includes(missions[idx - 1].id) && !isCompleted;
+        {/* 5대 게임 모드 카드 리스트 */}
+        <div className="game-modes-list">
+          {unit1GameModes.map((mode, mIdx) => {
+            const modeMissions = mode.missions;
+            const completedInMode = modeMissions.filter((m) => completedMissions.includes(m.id)).length;
+            const pct = Math.round((completedInMode / modeMissions.length) * 100);
 
             return (
-              <article
-                key={mission.id}
-                className={`mission-item-card ${isCompleted ? "completed" : isCurrent ? "current" : isLocked ? "locked" : "available"}`}
-              >
-                <div className="mission-card-header">
-                  <span className="mission-code">CASE 00{mission.number}</span>
-                  {isCompleted ? (
-                    <span className="status-pill done"><CheckCircle size={14} weight="fill" /> 해결 완료</span>
-                  ) : isCurrent ? (
-                    <span className="status-pill playing">조사 진행 중</span>
-                  ) : isLocked ? (
-                    <span className="status-pill lock"><LockKey size={14} /> 이전 사건 해결 필요</span>
-                  ) : (
-                    <span className="status-pill ready">착수 가능</span>
-                  )}
-                </div>
-
-                <h3 className="mission-card-title">{mission.title}</h3>
-                <p className="mission-card-sub">{mission.subtitle}</p>
-
-                <div className="mission-card-footer">
-                  <div className="mission-rewards-preview">
-                    <span>+{mission.rewards.exp} EXP</span>
-                    {mission.rewards.skill && <span>스킬: {mission.rewards.skill}</span>}
+              <div key={mode.id} className="game-mode-card">
+                <div className="mode-card-header">
+                  <div className="mode-title-lockup">
+                    <span className="mode-emoji">{mode.iconEmoji}</span>
+                    <div>
+                      <span className="mode-category">GAME MODE 0{mIdx + 1}</span>
+                      <h3>{mode.title}</h3>
+                    </div>
                   </div>
-
-                  <button
-                    className="primary-button mission-start-btn"
-                    disabled={isLocked}
-                    onClick={() => onStart(mission)}
-                  >
-                    {isCompleted ? "다시 탐구하기" : isCurrent ? "이어서 조사" : "사건 착수 >"}
-                  </button>
+                  <span className="mode-progress-badge">{pct}% 달성</span>
                 </div>
-              </article>
+
+                <p className="mode-desc">{mode.description}</p>
+
+                {/* Level Missions Row (Lv1 ~ Lv5) */}
+                <div className="mode-levels-grid">
+                  {modeMissions.map((mission) => {
+                    const isDone = completedMissions.includes(mission.id);
+                    const missionScore = save.missionScores[mission.id]?.totalScore;
+
+                    return (
+                      <button
+                        key={mission.id}
+                        className={`level-step-btn ${isDone ? "done" : "ready"}`}
+                        onClick={() => onStartMission(mission)}
+                      >
+                        <div className="level-btn-top">
+                          <span className="level-tag">{mission.levelName}</span>
+                          {isDone && <CheckCircle size={14} weight="fill" color="#56e39f" />}
+                        </div>
+                        <strong>{mission.title}</strong>
+                        <small>{isDone ? `점수: ${missionScore}점` : "도전하기 >"}</small>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             );
           })}
         </div>
       </div>
-    </MissionMapTemplate>
+    </div>
   );
 }
 
-// ==========================================
-// 4. MISSION PLAYER (사건 단계별 플레이어)
-// ==========================================
-function MissionPlayer({
+// =========================================================================
+// 4. MISSION PLAYER VIEW (100점 채점, 3단계 힌트, 오답 피드백)
+// =========================================================================
+function MissionPlayerView({
   mission,
-  save,
-  setSave,
+  selectedChoice,
+  scoreResult,
+  activeHintLevel,
+  onSelectChoice,
+  onOpenHint,
+  onNext,
+  onRetry,
   onBack,
-  onSettings,
-  onAcademy,
-  onOpenVault,
-  onSelectCard,
-  onActComplete,
 }: {
-  mission: Mission;
-  save: SaveData;
-  setSave: React.Dispatch<React.SetStateAction<SaveData>>;
+  mission: GameMissionData;
+  selectedChoice: number | null;
+  scoreResult: ScoreBreakdown | null;
+  activeHintLevel: number;
+  onSelectChoice: (idx: number) => void;
+  onOpenHint: () => void;
+  onNext: () => void;
+  onRetry: () => void;
   onBack: () => void;
-  onSettings: () => void;
-  onAcademy: () => void;
-  onOpenVault: () => void;
-  onSelectCard: (id: string) => void;
-  onActComplete: () => void;
 }) {
-  const steps = getMissionSteps(mission);
-  const step = steps[save.currentScene] ?? steps[0];
-  const [selected, setSelected] = useState<number | null>(null);
-  const [investigated, setInvestigated] = useState<string[]>([]);
-  const [selectedEvidence, setSelectedEvidence] = useState<string[]>([]);
-  const [elapsed, setElapsed] = useState(0);
-
-  const progress = Math.round(((save.currentScene + 1) / steps.length) * 100);
-
-  useEffect(() => {
-    setSelected(null);
-  }, [save.currentScene]);
-
-  const advance = () => {
-    void audioManager.playSfx("ui_click");
-    setSave((prev) => ({
-      ...prev,
-      currentScene: Math.min(prev.currentScene + 1, steps.length - 1),
-    }));
-  };
-
-  const chooseAnswer = (index: number) => {
-    if (selected !== null) return;
-    setSelected(index);
-    const correct = index === step.answer;
-    void audioManager.playSfx(correct ? "success" : "error");
-    setSave((prev) => ({
-      ...prev,
-      attempts: prev.attempts + 1,
-      correctAnswers: prev.correctAnswers + (correct ? 1 : 0),
-      answerTimes: [...prev.answerTimes, elapsed],
-      reviewConcepts: correct ? prev.reviewConcepts : [...new Set([...prev.reviewConcepts, ...mission.relatedConceptIds])],
-    }));
-  };
-
-  const collectEvidence = (id: string) => {
-    setSave((prev) => ({
-      ...prev,
-      evidence: [...new Set([...prev.evidence, id])],
-    }));
-    void audioManager.playSfx("evidence_found");
-  };
-
-  const completeMission = () => {
-    const goodChoice = save.studentChoices[mission.id] === mission.decisions.length - 1;
-    setSave((prev) => {
-      const firstCompletion = !prev.completedMissions.includes(mission.id);
-      const nextExp = prev.exp + (firstCompletion ? mission.rewards.exp : 0);
-      const newCompleted = [...new Set([...prev.completedMissions, mission.id])];
-      return {
-        ...prev,
-        completedMissions: newCompleted,
-        exp: nextExp,
-        level: Math.floor(nextExp / 150) + 1,
-        currentMission: mission.nextMissionId ?? null,
-        currentScene: 0,
-        indicators: firstCompletion ? {
-          ...prev.indicators,
-          humanRights: Math.min(100, prev.indicators.humanRights + (goodChoice ? 12 : 5)),
-          fairness: Math.min(100, prev.indicators.fairness + (goodChoice ? 6 : 2)),
-          trust: Math.min(100, prev.indicators.trust + (goodChoice ? 8 : 3)),
-        } : prev.indicators,
-        skill: mission.rewards.skill ? [...new Set([...prev.skill, mission.rewards.skill])] : prev.skill,
-        achievement: mission.rewards.title ? [...new Set([...prev.achievement, mission.rewards.title])] : prev.achievement,
-      };
-    });
-    void audioManager.playSfx("mission_complete");
-    if (mission.nextMissionId) {
-      onBack();
-    } else {
-      onActComplete();
-    }
-  };
+  const currentHint = mission.hints.find((h) => h.level === activeHintLevel);
 
   return (
-    <div className={`mission-screen background-${mission.backgrounds[0] || "court"}`}>
+    <div className="mission-player-container">
+      {/* Top HUD */}
       <header className="game-hud">
         <div className="hud-top">
-          <button className="icon-button" onClick={onBack} aria-label="이전 화면"><ArrowLeft size={20} /></button>
+          <button className="icon-button" onClick={onBack} aria-label="목록으로"><ArrowLeft size={20} /></button>
           <div>
-            <span>UNIT 1 · 인권수호국</span>
-            <strong>M0{mission.number} {mission.title}</strong>
+            <span>1단원 · {mission.levelName}</span>
+            <strong>{mission.title}</strong>
           </div>
-          <div style={{ display: "flex", gap: "6px" }}>
-            <button className="icon-button" onClick={onOpenVault} title="카드 보관소"><Medal size={20} weight="duotone" /></button>
-            <button className="level-chip" onClick={onSettings}>LV.{save.level}</button>
-          </div>
-        </div>
-        <div className="mission-progress" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress}>
-          <span style={{ width: `${progress}%` }} />
+          <button className="hint-btn-pill" onClick={onOpenHint}>
+            <Lightbulb size={18} weight="fill" color={activeHintLevel > 0 ? "var(--gold)" : "#8bf2e9"} />
+            <span>{activeHintLevel > 0 ? `${activeHintLevel}단계 힌트 적용 중` : "힌트 보기"}</span>
+          </button>
         </div>
       </header>
 
-      <div className="mission-stage">
-        {/* 1. Case Briefing */}
-        {step.type === "briefing" && (
-          <CaseBriefingTemplate>
-            <TemplateHeading
-              eyebrow={`CASE BRIEFING · 사건 브리핑 (M0${mission.number})`}
-              title={mission.title}
-              description={step.body || mission.subtitle}
-              icon="briefing"
-            />
-            <div className="briefing-info-grid">
-              <div className="briefing-info-item"><span>사건 번호</span><strong>CASE 00{mission.number}</strong></div>
-              <div className="briefing-info-item"><span>담당 부서</span><strong>헌법인권수호국</strong></div>
-              <div className="briefing-info-item"><span>핵심 쟁점</span><strong className="text-gold">{mission.relatedConceptIds.join(", ")}</strong></div>
+      <div className="mission-player-scroll">
+        {/* Scenario & Source Material Card */}
+        <section className="mission-scenario-card">
+          <div className="scenario-meta-row">
+            <span className="competency-chip">{mission.competencyArea}</span>
+            <span className="textbook-ref-chip">📖 {mission.textbookPage}</span>
+          </div>
+
+          <h2 className="scenario-title">{mission.title}</h2>
+          <p className="scenario-body">{mission.scenario}</p>
+
+          {mission.sourceMaterial && (
+            <div className="source-box-v2">
+              <span className="source-box-tag">🔍 교과서 판례 및 조문 자료</span>
+              <h4>{mission.sourceMaterial.title}</h4>
+              <p>{mission.sourceMaterial.content}</p>
+              {mission.sourceMaterial.quote && (
+                <blockquote className="source-quote-v2">{mission.sourceMaterial.quote}</blockquote>
+              )}
             </div>
-            <button className="primary-button full-button" onClick={advance} style={{ marginTop: "16px" }}>
-              현장 조사 및 증언 청취 착수 &gt;
-            </button>
-          </CaseBriefingTemplate>
+          )}
+        </section>
+
+        {/* 힌트 적용 표시 박스 */}
+        {currentHint && (
+          <div className="active-hint-banner">
+            <Lightbulb size={20} weight="fill" color="var(--gold)" />
+            <div>
+              <strong>{currentHint.level}단계 힌트 ({currentHint.penalty === 0 ? "감점 없음" : `-${currentHint.penalty}점`})</strong>
+              <p>{currentHint.text}</p>
+            </div>
+          </div>
         )}
 
-        {/* 2. Dialogue */}
-        {step.type === "dialogue" && (
-          <DialogueTemplate>
-            <TemplateHeading
-              eyebrow="INVESTIGATION DIALOGUE · 진술 청취"
-              title={step.speaker || "사건 관계자 진술"}
-              description="진술을 확인하고 아래 교과서 핵심 탐구 질문을 선택해 보세요."
-              icon="dialogue"
-            />
-            <div className="dialogue-speech-box">
-              <CharacterPortrait characterId={step.scene?.character || "haeon"} expression={step.scene?.expression || "default"} size="md" />
-              <div className="speech-bubble-text">
-                <strong>{step.speaker || "해온 수호관"}</strong>
-                <p>{step.body || step.scene?.text}</p>
-              </div>
-            </div>
+        {/* Question & Choices */}
+        <section className="mission-question-card">
+          <div className="question-header">
+            <span className="q-label">Q. 핵심 법리 탐구 문제</span>
+            <h3>{mission.question}</h3>
+          </div>
 
-            {/* 교과서 핵심 탐구 질문 3가지 */}
-            {step.dialogueOptions && step.dialogueOptions.length > 0 && (
-              <div className="textbook-questions-panel">
-                <span className="questions-title">💡 교과서 연계 핵심 질문을 선택하세요:</span>
-                <div className="questions-list">
-                  {step.dialogueOptions.map((opt, idx) => (
-                    <button
-                      key={idx}
-                      className={`question-opt-card ${selected === idx ? "active" : ""}`}
-                      onClick={() => {
-                        setSelected(idx);
-                        void audioManager.playSfx("ui_click");
-                      }}
-                    >
-                      <span className="q-badge">Q{idx + 1}</span>
-                      <div className="q-content">
-                        <strong>{opt.question}</strong>
-                        {selected === idx && (
-                          <div className="q-reply-box">
-                            <span>{opt.answerSpeaker}:</span>
-                            <p>{opt.answerText}</p>
-                            {opt.textbookRef && <small className="q-textbook-ref">📖 {opt.textbookRef}</small>}
-                          </div>
-                        )}
-                      </div>
-                    </button>
-                  ))}
+          <div className="choices-list-v2">
+            {mission.choices.map((choiceText, idx) => {
+              const isSelected = selectedChoice === idx;
+              const isCorrect = idx === mission.correctAnswer;
+              let choiceClass = "choice-card-v2";
+
+              if (scoreResult) {
+                if (isSelected) {
+                  choiceClass += isCorrect ? " correct" : " wrong";
+                } else if (isCorrect) {
+                  choiceClass += " show-correct";
+                }
+              }
+
+              return (
+                <button
+                  key={idx}
+                  className={choiceClass}
+                  disabled={scoreResult !== null}
+                  onClick={() => onSelectChoice(idx)}
+                >
+                  <span className="choice-num-badge">{idx + 1}</span>
+                  <p className="choice-text-body">{choiceText}</p>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* 100점 채점 결과 바 & 피드백 */}
+        {scoreResult && (
+          <section className="score-evaluation-card">
+            <div className="score-card-header">
+              <div className="score-title-row">
+                <Trophy size={24} color={scoreResult.totalScore >= 70 ? "var(--gold)" : "#ff5757"} weight="fill" />
+                <div>
+                  <strong>{scoreResult.totalScore >= 70 ? "🎉 탐구 과제 완수!" : "⚠️ 다시 검토가 필요합니다"}</strong>
+                  <span>취득 점수: {scoreResult.totalScore}점 / 100점</span>
                 </div>
               </div>
+            </div>
+
+            {/* 4대 채점 기준 분해 */}
+            <div className="score-breakdown-grid">
+              <div className="score-item">
+                <span>개념 정확성</span>
+                <strong>{scoreResult.conceptAccuracy} / 30점</strong>
+              </div>
+              <div className="score-item">
+                <span>자료 활용</span>
+                <strong>{scoreResult.dataUsage} / 25점</strong>
+              </div>
+              <div className="score-item">
+                <span>근거 타당성</span>
+                <strong>{scoreResult.logicValidity} / 25점</strong>
+              </div>
+              <div className="score-item">
+                <span>표현 완성도</span>
+                <strong>{scoreResult.solutionQuality} / 20점</strong>
+              </div>
+            </div>
+
+            {scoreResult.hintPenalty > 0 && (
+              <small className="hint-penalty-notice">※ 힌트 사용 감점: -{scoreResult.hintPenalty}점 반영됨</small>
             )}
 
-            <button className="primary-button full-button" onClick={advance} style={{ marginTop: "14px" }}>
-              다음 단계로 &gt;
-            </button>
-          </DialogueTemplate>
-        )}
-
-        {/* 3. Investigation */}
-        {step.type === "investigation" && (
-          <InvestigationTemplate>
-            <TemplateHeading
-              eyebrow="FIELD INVESTIGATION · 현장 단서 조사"
-              title="현장 단서 확인"
-              description="단서를 터치하여 면밀히 조사하세요."
-              icon="inspect"
-            />
-            <div className="investigation-grid">
-              {(step.items || mission.investigations || []).map((item) => {
-                const isDone = investigated.includes(item);
-                return (
-                  <button
-                    key={item}
-                    className={`investigation-card ${isDone ? "is-investigated" : ""}`}
-                    onClick={() => {
-                      setInvestigated((prev) => [...new Set([...prev, item])]);
-                      void audioManager.playSfx("inspect");
-                    }}
-                  >
-                    <div className="card-status-icon">
-                      {isDone ? <CheckCircle size={24} weight="fill" /> : <Eye size={24} />}
-                    </div>
-                    <div className="card-text">
-                      <strong>{item}</strong>
-                      <small>{isDone ? "조사 완료" : "터치하여 단서 확인"}</small>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-            <button
-              className="primary-button full-button"
-              disabled={investigated.length === 0}
-              onClick={advance}
-              style={{ marginTop: "16px" }}
-            >
-              단서 분석 완료 · 다음으로 &gt;
-            </button>
-          </InvestigationTemplate>
-        )}
-
-        {/* 4. Source Detail */}
-        {step.type === "source" && (
-          <SourceDetailTemplate>
-            <TemplateHeading
-              eyebrow="TEXTBOOK EVIDENCE · 교과서 자료 심층 분석"
-              title={step.title || "교과 연계 심층 자료"}
-              description="자료의 핵심 조문과 교과서 페이지를 꼼꼼히 읽어보세요."
-              icon="source"
-            />
-            <div className="source-card">
-              <div className="source-meta">
-                <span className="source-type-tag">교과서 발췌</span>
-                {step.textbookSource?.page && (
-                  <span className="textbook-page-tag">{step.textbookSource.page}</span>
-                )}
-              </div>
-              <div className="source-body-box">
-                <p>{step.body}</p>
-                {step.textbookSource?.quote && (
-                  <blockquote className="source-quote">{step.textbookSource.quote}</blockquote>
-                )}
-              </div>
-              {step.textbookSource?.memo && (
-                <div className="source-explanation-section">
-                  <span className="section-title">💡 교과서 읽기자료 및 추가 해설</span>
-                  <p>{step.textbookSource.memo}</p>
+            <div className="score-card-actions">
+              {scoreResult.totalScore >= 70 ? (
+                <button className="primary-button full-button" onClick={onNext}>
+                  다음 단계 미션으로 이동 &gt;
+                </button>
+              ) : (
+                <div className="button-row">
+                  <button className="secondary-button" onClick={onRetry}>다시 풀기</button>
+                  <button className="primary-button" onClick={onNext}>계속 진행 &gt;</button>
                 </div>
               )}
             </div>
-            <button className="primary-button full-button" onClick={advance} style={{ marginTop: "16px" }}>
-              자료 분석 완료 &gt;
-            </button>
-          </SourceDetailTemplate>
-        )}
-
-        {/* 5. Puzzle */}
-        {step.type === "puzzle" && (
-          <PuzzleTemplate>
-            <TemplateHeading
-              eyebrow="LEGAL REASONING QUIZ · 법리 추론 퀴즈"
-              title={step.title || "올바른 헌법적 해석은?"}
-              description="교과서 핵심 원리와 헌법 조문을 바탕으로 가장 타당한 판단을 선택하세요."
-              icon="quiz"
-            />
-            {step.question && (
-              <div className="quiz-question-box">
-                <span className="quiz-question-tag">Q. 핵심 법리 탐구 문제</span>
-                <p className="quiz-question-text">{step.question}</p>
-              </div>
-            )}
-            <div className="puzzle-choices-grid">
-              {(step.choices || []).map((choice, idx) => {
-                const isSelected = selected === idx;
-                const isCorrect = idx === step.answer;
-                let btnClass = "puzzle-choice-btn";
-                if (selected !== null) {
-                  if (isSelected) btnClass += isCorrect ? " correct" : " wrong";
-                  else if (isCorrect) btnClass += " show-correct";
-                }
-                return (
-                  <button
-                    key={idx}
-                    className={btnClass}
-                    disabled={selected !== null}
-                    onClick={() => chooseAnswer(idx)}
-                  >
-                    <span className="choice-number">{idx + 1}</span>
-                    <span className="choice-text">{choice}</span>
-                  </button>
-                );
-              })}
-            </div>
-            {selected !== null && (
-              <div className="puzzle-feedback-card">
-                <strong>{selected === step.answer ? "🎉 정확한 헌법적 판단입니다!" : "⚠️ 다시 검토해 보세요"}</strong>
-                <p>{selected === step.answer ? "헌법 제10조 및 기본권 보장의 본질적 내용을 정확히 짚었습니다." : "공익과 사익의 조화 및 과잉금지원칙, 교과서 개념을 다시 점검해 보세요."}</p>
-                <button className="primary-button full-button" onClick={advance} style={{ marginTop: "10px" }}>
-                  다음 단계로 &gt;
-                </button>
-              </div>
-            )}
-          </PuzzleTemplate>
-        )}
-
-
-        {/* 6. Evidence Collection */}
-        {step.type === "evidence" && (
-          <EvidenceTemplate>
-            <TemplateHeading
-              eyebrow="RIGHTS CARD ITEM ACQUISITION · 권리 카드 획득"
-              title="새로운 권리 카드 발견!"
-              description="카드를 터치하여 보관함에 등록하고 상세 교과 내용을 확인하세요."
-              icon="evidence"
-            />
-            <div className="evidence-cards-container">
-              {(step.evidenceIds || mission.evidenceIds || []).map((id) => {
-                const card = evidenceCatalog[id];
-                if (!card) return null;
-                const isCollected = save.evidence.includes(id);
-                return (
-                  <EvidenceCard
-                    key={card.id}
-                    data={card}
-                    collected={isCollected}
-                    selected={false}
-                    onClick={() => {
-                      collectEvidence(card.id);
-                      onSelectCard(card.id);
-                    }}
-                  />
-                );
-              })}
-            </div>
-            <button className="primary-button full-button" onClick={advance} style={{ marginTop: "16px" }}>
-              카드 수집 완료 · 사건 해결로 &gt;
-            </button>
-          </EvidenceTemplate>
-        )}
-
-        {/* 7. Zero Challenge */}
-        {step.type === "zero" && (
-          <ZeroChallengeTemplate>
-            <div className="zero-warning-banner">
-              <Warning size={20} weight="fill" color="#ff4d4d" />
-              <span>RIVAL ENCOUNTER · ZERO의 반론 제기</span>
-            </div>
-            <div className="zero-speech-layout">
-              <CharacterPortrait characterId="zero" expression="angry" size="lg" />
-              <div className="zero-speech-box">
-                <span className="zero-name">ZERO</span>
-                <p>{step.body || step.question}</p>
-              </div>
-            </div>
-            <div className="zero-choices-list">
-              {(step.choices || []).map((c, idx) => {
-                const isSelected = selected === idx;
-                const isCorrect = idx === step.answer;
-                let btnClass = "zero-choice-btn";
-                if (selected !== null) {
-                  if (isSelected) btnClass += isCorrect ? " correct" : " wrong";
-                  else if (isCorrect) btnClass += " show-correct";
-                }
-                return (
-                  <button
-                    key={idx}
-                    className={btnClass}
-                    disabled={selected !== null}
-                    onClick={() => chooseAnswer(idx)}
-                  >
-                    <span>{c}</span>
-                  </button>
-                );
-              })}
-            </div>
-            {selected !== null && (
-              <div className="zero-result-panel">
-                <p>{selected === step.answer ? "ZERO: “흠... 논리적인 반박이군. 이번 판단은 인정하지.”" : "ZERO: “그런 얕은 논리로는 인권과 공익을 지킬 수 없다!”"}</p>
-                <button className="primary-button full-button" onClick={advance} style={{ marginTop: "10px" }}>
-                  최종 판결로 이동 &gt;
-                </button>
-              </div>
-            )}
-          </ZeroChallengeTemplate>
-        )}
-
-        {/* 8. Decision */}
-        {step.type === "decision" && (
-          <DecisionTemplate>
-            <TemplateHeading
-              eyebrow="FINAL JUDICIAL DECISION · 최종 헌법적 판단"
-              title="당신의 결정을 내려주세요"
-              description="수집한 Evidence와 헌법 원칙에 따라 최선의 판결을 선택하세요."
-              icon="decision"
-            />
-            <div className="decision-cards-list">
-              {mission.decisions.map((dTitle, idx) => {
-                const isSelected = save.studentChoices[mission.id] === idx;
-                return (
-                  <button
-                    key={idx}
-                    className={`decision-option-card ${isSelected ? "selected" : ""}`}
-                    onClick={() => {
-                      setSave((prev) => ({ ...prev, studentChoices: { ...prev.studentChoices, [mission.id]: idx } }));
-                      void audioManager.playSfx("decision_submit");
-                    }}
-                  >
-                    <div className="decision-title-row">
-                      <span className="decision-badge">판결안 {idx + 1}</span>
-                      <strong>{dTitle}</strong>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-            <button
-              className="primary-button full-button"
-              disabled={save.studentChoices[mission.id] === undefined}
-              onClick={advance}
-              style={{ marginTop: "16px" }}
-            >
-              {save.studentChoices[mission.id] !== undefined ? "판결 확정 및 결과 발표 >" : "판결안을 선택해 주세요"}
-            </button>
-          </DecisionTemplate>
-        )}
-
-        {/* 9. Result */}
-        {step.type === "result" && (
-          <ResultTemplate>
-            <TemplateHeading
-              eyebrow="CASE RESOLUTION · 사건 종결 보고서"
-              title={`${mission.title} 해결`}
-              description="사건이 성공적으로 해결되어 인권 지표가 갱신되었습니다."
-              icon="result"
-            />
-            <div className="resolution-card">
-              <div className="resolution-header">
-                <Medal size={24} weight="fill" color="var(--gold)" />
-                <strong>최종 판결: {mission.decisions[save.studentChoices[mission.id] ?? 0]}</strong>
-              </div>
-            </div>
-            <div className="rewards-summary-box">
-              <span>획득 보상</span>
-              <div className="reward-tags">
-                <span className="reward-pill">+ {mission.rewards.exp} EXP</span>
-                {mission.rewards.skill && <span className="reward-pill">스킬: {mission.rewards.skill}</span>}
-                {mission.rewards.title && <span className="reward-pill">칭호: {mission.rewards.title}</span>}
-              </div>
-            </div>
-            <button className="primary-button full-button" onClick={completeMission} style={{ marginTop: "16px" }}>
-              {mission.nextMissionId ? "다음 사건으로 이동 >" : "1단원 완수 · 수호관 임명식 보기 >"}
-            </button>
-          </ResultTemplate>
+          </section>
         )}
       </div>
     </div>
   );
 }
 
-// ==========================================
-// 5. ACADEMY SCREEN (탐구 아카데미)
-// ==========================================
-function AcademyScreen({
+// =========================================================================
+// 5. SKILL LAB VIEWS (개념-용어 학습실 & 탐구기능 연습실)
+// =========================================================================
+function SkillLabVocabView({
   save,
   setSave,
-  returnPoint,
-  onReturn,
+  onBack,
 }: {
   save: SaveData;
   setSave: React.Dispatch<React.SetStateAction<SaveData>>;
-  returnPoint: ReturnPoint;
-  onReturn: () => void;
+  onBack: () => void;
 }) {
-  const [selectedRoom, setSelectedRoom] = useState<string>("room-rights");
+  const [currentIdx, setCurrentIdx] = useState(0);
+  const [selected, setSelected] = useState<number | null>(null);
+  const card = unit1VocabCards[currentIdx];
+
+  const handleAnswer = (idx: number) => {
+    if (selected !== null) return;
+    setSelected(idx);
+    const isCorrect = idx === card.correctAnswer;
+    void audioManager.playSfx(isCorrect ? "success" : "error");
+
+    if (isCorrect) {
+      setSave((prev) => ({
+        ...prev,
+        skillLabScore: {
+          ...prev.skillLabScore,
+          vocabScore: prev.skillLabScore.vocabScore + 10,
+          vocabLevel: Math.floor((prev.skillLabScore.vocabScore + 10) / 50) + 1,
+        },
+      }));
+    }
+  };
 
   return (
-    <AcademyTemplate>
-      <GameHUD missionTitle="탐구 아카데미" level={save.level} exp={save.exp} onBack={onReturn} />
-      <div className="screen-scroll">
-        <TemplateHeading
-          eyebrow="CONCEPT ACADEMY"
-          title="개념 분석 연구실"
-          description="교과서 핵심 헌법 조문과 기본권 원리를 심화 학습하세요."
-        />
+    <div className="skill-lab-view-container">
+      <header className="game-hud">
+        <div className="hud-top">
+          <button className="icon-button" onClick={onBack}><ArrowLeft size={20} /></button>
+          <div>
+            <span>탐구력 향상 랩 · 개념-용어 학습실</span>
+            <strong>{card.term} ({currentIdx + 1}/{unit1VocabCards.length})</strong>
+          </div>
+          <span className="level-chip">Lv.{save.skillLabScore.vocabLevel}</span>
+        </div>
+      </header>
 
-        <div className="academy-room-tabs">
-          {academyRooms.map((room) => (
-            <button
-              key={room.id}
-              className={`room-tab-btn ${selectedRoom === room.id ? "active" : ""}`}
-              onClick={() => setSelectedRoom(room.id)}
-            >
-              {room.title}
-            </button>
-          ))}
+      <div className="skill-lab-scroll">
+        <div className="vocab-flashcard">
+          <span className="vocab-cat-tag">{card.category}</span>
+          <h2 className="vocab-term">{card.term} {card.hanja && <small>({card.hanja})</small>}</h2>
+          <p className="vocab-def">{card.definition}</p>
+          <blockquote className="vocab-quote">{card.textbookQuote}</blockquote>
         </div>
 
-        {academyRooms
-          .filter((r) => r.id === selectedRoom)
-          .map((room) => (
-            <div key={room.id} className="academy-room-detail-card">
-              <h3 className="room-title">{room.title}</h3>
-              <p className="room-desc">{room.description}</p>
-              <div className="room-concepts-list">
-                {room.concepts.map((c) => (
-                  <div key={c.id} className="concept-item-card">
-                    <strong>{c.name}</strong>
-                    <p>{c.summary}</p>
-                    <small className="concept-quote">📜 {c.quote}</small>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
+        <div className="vocab-quiz-box">
+          <span className="q-tag">용어 확인 문제</span>
+          <p className="vocab-q-text">{card.question}</p>
 
-        <button className="primary-button full-button" onClick={onReturn} style={{ marginTop: "16px" }}>
-          {returnPoint ? "진행 중인 사건으로 복귀 >" : "메인으로 돌아가기"}
-        </button>
-      </div>
-    </AcademyTemplate>
-  );
-}
-
-// ==========================================
-// 6. RECORD SCREEN (학습 기록 및 이해도)
-// ==========================================
-function RecordScreen({
-  save,
-  onBack,
-  onOpenVault,
-  onOpenCert,
-}: {
-  save: SaveData;
-  onBack: () => void;
-  onOpenVault: () => void;
-  onOpenCert: (unitId: number) => void;
-}) {
-  const accuracy = save.attempts ? Math.round((save.correctAnswers / save.attempts) * 100) : 0;
-  const student = save.studentProfile || defaultStudent;
-  const unit1Complete = missions.every((m) => save.completedMissions.includes(m.id));
-
-  return (
-    <AcademyTemplate>
-      <GameHUD missionTitle="나의 탐구 기록" level={save.level} exp={save.exp} onBack={onBack} />
-      <div className="screen-scroll">
-        <TemplateHeading eyebrow="LEARNING ANALYTICS" title="탐구 성장 지표" description="사건 해결 기록과 획득한 임명장을 확인하세요." />
-
-        {/* Student Profile Overview */}
-        <div className="record-student-card">
-          <div>
-            <span>소속 및 탐구관</span>
-            <strong>{student.schoolName} {student.grade} {student.classNum} {student.studentNum} {student.name} ({student.studentId})</strong>
+          <div className="vocab-choices">
+            {card.choices.map((c, idx) => (
+              <button
+                key={idx}
+                className={`choice-card-v2 ${selected !== null ? (idx === card.correctAnswer ? "correct" : selected === idx ? "wrong" : "") : ""}`}
+                disabled={selected !== null}
+                onClick={() => handleAnswer(idx)}
+              >
+                <span className="choice-num-badge">{idx + 1}</span>
+                <span className="choice-text-body">{c}</span>
+              </button>
+            ))}
           </div>
-          {unit1Complete && (
-            <button className="primary-button print-cert-quick-btn" onClick={() => onOpenCert(1)}>
-              <Certificate size={18} weight="duotone" /> 임명증 보기
+
+          {selected !== null && (
+            <button
+              className="primary-button full-button"
+              style={{ marginTop: "14px" }}
+              onClick={() => {
+                setSelected(null);
+                if (currentIdx < unit1VocabCards.length - 1) setCurrentIdx(currentIdx + 1);
+                else onBack();
+              }}
+            >
+              {currentIdx < unit1VocabCards.length - 1 ? "다음 용어로 >" : "학습실 완료"}
             </button>
           )}
         </div>
-
-        <div className="analytics-cards">
-          <div className="metric-card"><strong>{save.completedMissions.length} / {missions.length}</strong><span>해결 사건</span></div>
-          <div className="metric-card"><strong>{accuracy}%</strong><span>문항 정확도</span></div>
-          <div className="metric-card"><strong>{save.evidence.length}장</strong><span>보유 권리 카드</span></div>
-        </div>
-
-        <div className="record-block" style={{ marginTop: "14px" }}>
-          <button className="primary-button full-button" onClick={onOpenVault}>
-            <Medal size={20} weight="fill" /> 권리 카드 보관소 열기
-          </button>
-        </div>
       </div>
-    </AcademyTemplate>
+    </div>
   );
 }
 
-// ==========================================
-// 7. LOGIN MODAL (학생 프로필 및 로그인 관리 모달)
-// ==========================================
+function SkillLabTrainingView({
+  save,
+  setSave,
+  onBack,
+}: {
+  save: SaveData;
+  setSave: React.Dispatch<React.SetStateAction<SaveData>>;
+  onBack: () => void;
+}) {
+  const [currentIdx, setCurrentIdx] = useState(0);
+  const [selected, setSelected] = useState<number | null>(null);
+  const card = unit1SkillTrainings[currentIdx];
+
+  const handleSelect = (idx: number) => {
+    if (selected !== null) return;
+    setSelected(idx);
+    const score = card.options[idx].score;
+    void audioManager.playSfx(score === 100 ? "success" : "ui_click");
+
+    setSave((prev) => ({
+      ...prev,
+      skillLabScore: {
+        ...prev.skillLabScore,
+        skillScore: prev.skillLabScore.skillScore + score,
+        skillLevel: Math.floor((prev.skillLabScore.skillScore + score) / 150) + 1,
+      },
+    }));
+  };
+
+  return (
+    <div className="skill-lab-view-container">
+      <header className="game-hud">
+        <div className="hud-top">
+          <button className="icon-button" onClick={onBack}><ArrowLeft size={20} /></button>
+          <div>
+            <span>탐구력 향상 랩 · 탐구기능 연습실</span>
+            <strong>{card.skillType}: {card.title} ({currentIdx + 1}/{unit1SkillTrainings.length})</strong>
+          </div>
+          <span className="level-chip">Lv.{save.skillLabScore.skillLevel}</span>
+        </div>
+      </header>
+
+      <div className="skill-lab-scroll">
+        <div className="skill-material-box">
+          <span className="skill-type-tag">기능 훈련 · {card.skillType}</span>
+          <p className="material-text">{card.material}</p>
+        </div>
+
+        <div className="task-prompt-box">
+          <h3>{card.taskPrompt}</h3>
+          <div className="task-options-list">
+            {card.options.map((opt, idx) => (
+              <button
+                key={idx}
+                className={`task-option-card ${selected === idx ? "selected" : ""}`}
+                disabled={selected !== null}
+                onClick={() => handleSelect(idx)}
+              >
+                <p>{opt.text}</p>
+                {selected !== null && (
+                  <div className="opt-feedback">
+                    <strong>획득 점수: +{opt.score}점</strong>
+                    <p>{opt.feedback}</p>
+                  </div>
+                )}
+              </button>
+            ))}
+          </div>
+
+          {selected !== null && (
+            <button
+              className="primary-button full-button"
+              style={{ marginTop: "14px" }}
+              onClick={() => {
+                setSelected(null);
+                if (currentIdx < unit1SkillTrainings.length - 1) setCurrentIdx(currentIdx + 1);
+                else onBack();
+              }}
+            >
+              {currentIdx < unit1SkillTrainings.length - 1 ? "다음 훈련으로 >" : "연습실 완료"}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// =========================================================================
+// 6. HINT & FEEDBACK MODALS
+// =========================================================================
+function HintModal({
+  hints,
+  currentHintLevel,
+  onSelectHint,
+  onClose,
+}: {
+  hints: HintItem[];
+  currentHintLevel: number;
+  onSelectHint: (lvl: number) => void;
+  onClose: () => void;
+}) {
+  return (
+    <div className="modal-backdrop">
+      <section className="hint-modal-panel" role="dialog" aria-modal="true">
+        <button className="modal-close" onClick={onClose}><X size={20} /></button>
+        <div className="hint-modal-header">
+          <Lightbulb size={28} color="var(--gold)" weight="fill" />
+          <div>
+            <span>3단계 학습 힌트 시스템</span>
+            <h2>문제 해결 힌트 선택</h2>
+          </div>
+        </div>
+
+        <div className="hints-choice-list">
+          {hints.map((h) => (
+            <button
+              key={h.level}
+              className={`hint-option-card ${currentHintLevel >= h.level ? "active" : ""}`}
+              onClick={() => onSelectHint(h.level)}
+            >
+              <div className="hint-card-top">
+                <strong>{h.level}단계 힌트</strong>
+                <span className="penalty-tag">{h.penalty === 0 ? "감점 없음 (무료)" : `-${h.penalty}점 감점`}</span>
+              </div>
+              <p>{h.text}</p>
+            </button>
+          ))}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function FeedbackModal({
+  feedback,
+  onRetry,
+  onClose,
+}: {
+  feedback: { reason: string; relatedConcept: string; guideText: string };
+  onRetry: () => void;
+  onClose: () => void;
+}) {
+  return (
+    <div className="modal-backdrop">
+      <section className="feedback-modal-panel" role="dialog" aria-modal="true">
+        <div className="feedback-modal-header">
+          <Warning size={28} color="#ff5757" weight="fill" />
+          <h2>오답 분석 및 피드백</h2>
+        </div>
+
+        <div className="feedback-content-steps">
+          <div className="f-step-box">
+            <span className="f-step-label">1. 틀린 이유 분석</span>
+            <p>{feedback.reason}</p>
+          </div>
+          <div className="f-step-box">
+            <span className="f-step-label">2. 관련 교과서 개념</span>
+            <p className="highlight-concept">{feedback.relatedConcept}</p>
+          </div>
+          <div className="f-step-box">
+            <span className="f-step-label">3. 다시 도전 가이드</span>
+            <p>{feedback.guideText}</p>
+          </div>
+        </div>
+
+        <button className="primary-button full-button" onClick={onRetry}>
+          개념 확인하고 다시 풀기
+        </button>
+      </section>
+    </div>
+  );
+}
+
+// =========================================================================
+// 7. PORTFOLIO & EVALUATION REPORT MODAL
+// =========================================================================
+function PortfolioReportModal({
+  save,
+  evalProfile,
+  onClose,
+}: {
+  save: SaveData;
+  evalProfile: any;
+  onClose: () => void;
+}) {
+  return (
+    <div className="modal-backdrop">
+      <section className="portfolio-modal-panel" role="dialog" aria-modal="true">
+        <button className="modal-close" onClick={onClose}><X size={20} /></button>
+        <div className="port-header">
+          <ChartBar size={28} color="var(--teal)" weight="duotone" />
+          <div>
+            <span>수행평가 비계 & 학습 진단</span>
+            <h2>통합사회 역량 성취도 리포트</h2>
+          </div>
+        </div>
+
+        {/* 성취수준 등급 카드 */}
+        <div className="rank-summary-card">
+          <div className="rank-circle">{evalProfile.overallLevel}</div>
+          <div className="rank-info">
+            <strong>예상 종합 성취수준: {evalProfile.overallLevel}수준 ({evalProfile.averageScore}점)</strong>
+            <p>다양한 판례 자료와 헌법 원리를 분석하여 근거 있는 해결책을 설계함</p>
+          </div>
+        </div>
+
+        {/* 4대 역량 점수 바 */}
+        <div className="competency-bars-grid">
+          <div className="c-bar-item">
+            <div className="c-bar-top"><span>통합적 사고</span><strong>{evalProfile.competencyScores.integratedThinking}%</strong></div>
+            <div className="c-track"><span style={{ width: `${evalProfile.competencyScores.integratedThinking}%` }} /></div>
+          </div>
+          <div className="c-bar-item">
+            <div className="c-bar-top"><span>자료 활용</span><strong>{evalProfile.competencyScores.dataAnalysis}%</strong></div>
+            <div className="c-track"><span style={{ width: `${evalProfile.competencyScores.dataAnalysis}%` }} /></div>
+          </div>
+          <div className="c-bar-item">
+            <div className="c-bar-top"><span>의사 결정</span><strong>{evalProfile.competencyScores.decisionMaking}%</strong></div>
+            <div className="c-track"><span style={{ width: `${evalProfile.competencyScores.decisionMaking}%` }} /></div>
+          </div>
+          <div className="c-bar-item">
+            <div className="c-bar-top"><span>공동체 역량</span><strong>{evalProfile.competencyScores.communityAction}%</strong></div>
+            <div className="c-track"><span style={{ width: `${evalProfile.competencyScores.communityAction}%` }} /></div>
+          </div>
+        </div>
+
+        {/* 강점 & 보완점 */}
+        <div className="strengths-weakness-box">
+          <div className="sw-column">
+            <span className="sw-tag strength">강점 역량</span>
+            <ul>{evalProfile.strengths.map((s: string, i: number) => <li key={i}>{s}</li>)}</ul>
+          </div>
+          <div className="sw-column">
+            <span className="sw-tag weakness">보완할 역량</span>
+            <ul>{evalProfile.improvements.map((w: string, i: number) => <li key={i}>{w}</li>)}</ul>
+          </div>
+        </div>
+
+        {/* 누적된 수행평가 초안 리스트 */}
+        <div className="saved-drafts-section">
+          <h3>📄 누적된 수행평가 과제 초안 ({save.portfolioDrafts.length}건)</h3>
+          <div className="drafts-scroll-list">
+            {save.portfolioDrafts.map((d) => (
+              <div key={d.id} className="draft-entry-card">
+                <strong>{d.missionTitle}</strong>
+                <pre>{d.draftText}</pre>
+                <small>저장일: {d.savedAt}</small>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <button className="secondary-button full-button" onClick={() => window.print()} style={{ marginTop: "12px" }}>
+          <Printer size={16} /> 리포트 인쇄 / PDF 저장
+        </button>
+      </section>
+    </div>
+  );
+}
+
+// =========================================================================
+// 8. OTHER AUXILIARY MODALS
+// =========================================================================
 function LoginModal({
   currentProfile,
   onLoginSuccess,
@@ -1518,89 +1437,35 @@ function LoginModal({
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!userId.trim()) {
-      setError("아이디를 입력해 주세요.");
-      return;
-    }
-    if (!password) {
-      setError("비밀번호를 입력해 주세요.");
-      return;
-    }
-
     const res = authenticateUser(userId, password);
     if (!res.success || !res.profile) {
-      setError(res.error || "로그인에 실패했습니다.");
+      setError(res.error || "로그인 실패");
       return;
     }
-
     onLoginSuccess(res.profile, res.mustChangePassword);
     onClose();
   };
 
   return (
-    <div className="modal-backdrop login-backdrop">
-      <section className="login-modal-panel" role="dialog" aria-modal="true" aria-labelledby="login-title">
-        <button className="modal-close" onClick={onClose} aria-label="닫기"><X size={20} /></button>
-        
-        <div className="login-header">
-          <UserCheck size={28} color="#ffd36a" weight="duotone" />
-          <div>
-            <span className="login-subtitle">안산강서고 통합사회 탐구 아케이드</span>
-            <h2 id="login-title">
-              {currentProfile?.isLoggedIn ? "탐구관 계정 정보" : "학생 / 교사 로그인"}
-            </h2>
-          </div>
-        </div>
-
+    <div className="modal-backdrop">
+      <section className="login-modal-panel" role="dialog">
+        <button className="modal-close" onClick={onClose}><X size={20} /></button>
+        <h2>{currentProfile?.isLoggedIn ? "계정 정보" : "로그인"}</h2>
         {currentProfile?.isLoggedIn ? (
           <div className="logged-in-profile-box">
-            <div className="profile-detail-row"><dt>아이디:</dt><dd>{currentProfile.studentId}</dd></div>
-            <div className="profile-detail-row"><dt>소속:</dt><dd>{currentProfile.schoolName} {currentProfile.grade} {currentProfile.classNum} {currentProfile.studentNum}</dd></div>
-            <div className="profile-detail-row"><dt>성명:</dt><dd><strong>{currentProfile.name}</strong></dd></div>
-            <div className="profile-detail-row"><dt>구분:</dt><dd>{currentProfile.role === "teacher" ? "통합사회 지도교사" : "학생 탐구관"}</dd></div>
-
-            <div className="profile-actions-grid" style={{ marginTop: "18px" }}>
-              <button className="secondary-button" onClick={onOpenPasswordModal}>
-                <Key size={16} /> 비밀번호 / 실명 변경
-              </button>
-              <button className="text-button" onClick={() => { onLogout(); onClose(); }}>
-                <SignOut size={16} /> 로그아웃 (게스트 전환)
-              </button>
+            <p><strong>{currentProfile.name}</strong> ({currentProfile.studentId})</p>
+            <p>{currentProfile.schoolName} {currentProfile.grade} {currentProfile.classNum} {currentProfile.studentNum}</p>
+            <div className="button-row" style={{ marginTop: "14px" }}>
+              <button className="secondary-button" onClick={onOpenPasswordModal}>비밀번호 변경</button>
+              <button className="text-button" onClick={() => { onLogout(); onClose(); }}>로그아웃</button>
             </div>
           </div>
         ) : (
-          <form onSubmit={handleLogin} className="login-modal-form">
-            <p className="login-description">
-              학급 아이디(예: 1반 8번은 <strong>SC0108</strong>)와 비밀번호(초기: <strong>123456789!</strong>)를 입력하세요.
-            </p>
-
-            {error && <div className="login-error-msg">{error}</div>}
-
-            <div className="form-group">
-              <label>아이디 (SC학급번호 / 교사: SCT01~10)</label>
-              <input
-                type="text"
-                placeholder="예: SC0108"
-                value={userId}
-                onChange={(e) => { setUserId(e.target.value.toUpperCase()); setError(""); }}
-                required
-              />
-            </div>
-
-            <div className="form-group">
-              <label>비밀번호</label>
-              <input
-                type="password"
-                placeholder="초기: 123456789!"
-                value={password}
-                onChange={(e) => { setPassword(e.target.value); setError(""); }}
-                required
-              />
-            </div>
-
-            <button type="submit" className="primary-button full-button" style={{ marginTop: "10px" }}>
-              <UserCheck size={18} /> 로그인
-            </button>
+          <form onSubmit={handleLogin}>
+            {error && <p className="login-error-alert">{error}</p>}
+            <input type="text" placeholder="SC학급번호" value={userId} onChange={(e) => setUserId(e.target.value.toUpperCase())} required />
+            <input type="password" placeholder="비밀번호" value={password} onChange={(e) => setPassword(e.target.value)} required style={{ marginTop: "8px" }} />
+            <button type="submit" className="primary-button full-button" style={{ marginTop: "12px" }}>로그인</button>
           </form>
         )}
       </section>
@@ -1608,118 +1473,47 @@ function LoginModal({
   );
 }
 
-// ==========================================
-// 8. PASSWORD CHANGE MODAL (비밀번호 및 실명 변경)
-// ==========================================
 function PasswordChangeModal({
   profile,
   onSuccess,
   onClose,
 }: {
   profile: StudentProfile;
-  onSuccess: (updated: StudentProfile) => void;
+  onSuccess: (p: StudentProfile) => void;
   onClose: () => void;
 }) {
   const [name, setName] = useState(profile.name);
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [error, setError] = useState("");
+  const [pw, setPw] = useState("");
+  const [pw2, setPw2] = useState("");
+  const [err, setErr] = useState("");
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) {
-      setError("학생 실명을 입력해 주세요.");
-      return;
-    }
-    if (newPassword.length < 4) {
-      setError("비밀번호는 최소 4자리 이상으로 설정해 주세요.");
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      setError("새 비밀번호와 확인 비밀번호가 일치하지 않습니다.");
-      return;
-    }
-
-    const ok = changeUserPassword(profile.studentId, newPassword, name.trim());
-    if (!ok) {
-      setError("비밀번호 변경 중 오류가 발생했습니다.");
-      return;
-    }
-
-    const updated: StudentProfile = {
-      ...profile,
-      name: name.trim(),
-      password: newPassword,
-      mustChangePassword: false,
-    };
-    onSuccess(updated);
+    if (pw !== pw2) { setErr("비밀번호 불일치"); return; }
+    const ok = changeUserPassword(profile.studentId, pw, name.trim());
+    if (ok) onSuccess({ ...profile, name: name.trim(), password: pw, mustChangePassword: false });
   };
 
   return (
-    <div className="modal-backdrop password-backdrop">
-      <section className="password-modal-panel" role="dialog" aria-modal="true" aria-labelledby="pw-title">
-        <button className="modal-close" onClick={onClose} aria-label="닫기"><X size={20} /></button>
-        <div className="login-header">
-          <Key size={28} color="#ffd36a" weight="duotone" />
-          <div>
-            <span className="login-subtitle">{profile.studentId} 계정 보안</span>
-            <h2 id="pw-title">비밀번호 및 실명 설정</h2>
-          </div>
-        </div>
-
-        <p className="login-description">
-          초기 비밀번호를 개인 비밀번호로 변경하고, 임명장에 기재될 학생의 <strong>실명</strong>을 입력해 주세요.
-        </p>
-
-        {error && <div className="login-error-msg">{error}</div>}
-
-        <form onSubmit={handleSubmit} className="password-form-grid">
-          <div className="form-group">
-            <label>학생 실명 <span className="req-star">*</span></label>
-            <input
-              type="text"
-              placeholder="예: 홍길동"
-              value={name}
-              onChange={(e) => { setName(e.target.value); setError(""); }}
-              maxLength={20}
-              required
-            />
-          </div>
-
-          <div className="form-group">
-            <label>새 비밀번호 (4자리 이상) <span className="req-star">*</span></label>
-            <input
-              type="password"
-              placeholder="새 비밀번호 입력"
-              value={newPassword}
-              onChange={(e) => { setNewPassword(e.target.value); setError(""); }}
-              required
-            />
-          </div>
-
-          <div className="form-group">
-            <label>새 비밀번호 확인 <span className="req-star">*</span></label>
-            <input
-              type="password"
-              placeholder="새 비밀번호 재입력"
-              value={confirmPassword}
-              onChange={(e) => { setConfirmPassword(e.target.value); setError(""); }}
-              required
-            />
-          </div>
-
-          <button type="submit" className="primary-button full-button" style={{ marginTop: "12px" }}>
-            <Check size={18} /> 변경 완료 및 정보 저장
-          </button>
+    <div className="modal-backdrop">
+      <section className="password-modal-panel">
+        <button className="modal-close" onClick={onClose}><X size={20} /></button>
+        <h2>비밀번호 및 실명 설정</h2>
+        {err && <p className="login-error-alert">{err}</p>}
+        <form onSubmit={handleSubmit}>
+          <label>학생 실명</label>
+          <input type="text" value={name} onChange={(e) => setName(e.target.value)} required />
+          <label style={{ marginTop: "8px" }}>새 비밀번호</label>
+          <input type="password" value={pw} onChange={(e) => setPw(e.target.value)} required />
+          <label style={{ marginTop: "8px" }}>비밀번호 확인</label>
+          <input type="password" value={pw2} onChange={(e) => setPw2(e.target.value)} required />
+          <button type="submit" className="primary-button full-button" style={{ marginTop: "14px" }}>저장</button>
         </form>
       </section>
     </div>
   );
 }
 
-// ==========================================
-// 9. TEACHER DASHBOARD MODAL (교사용 모드)
-// ==========================================
 function TeacherDashboardModal({
   save,
   onClose,
@@ -1727,53 +1521,27 @@ function TeacherDashboardModal({
 }: {
   save: SaveData;
   onClose: () => void;
-  onPrintCert: (unitId: number) => void;
+  onPrintCert: (uId: number) => void;
 }) {
   const accounts = useMemo(() => loadAccounts(), []);
-  const studentList = useMemo(() => {
-    return Object.values(accounts).filter((acc) => acc.role === "student");
-  }, [accounts]);
-
   return (
-    <div className="modal-backdrop teacher-backdrop">
-      <section className="teacher-dash-panel" role="dialog" aria-modal="true" aria-labelledby="teacher-title">
-        <button className="modal-close" onClick={onClose} aria-label="닫기"><X size={20} /></button>
-        <div className="login-header">
-          <ChalkboardTeacher size={28} color="#ffd36a" weight="fill" />
-          <div>
-            <span className="login-subtitle">교과 지도교사 전용 모드</span>
-            <h2 id="teacher-title">안산강서고 1학년 통합사회 현황</h2>
-          </div>
-        </div>
-
-        <p className="login-description">
-          학급별 학생 계정(SC0101~SC1226)의 접속 및 비밀번호 변경 상태를 점검하고, 단원별 임명증을 일괄 검토합니다.
-        </p>
-
+    <div className="modal-backdrop">
+      <section className="teacher-dash-panel">
+        <button className="modal-close" onClick={onClose}><X size={20} /></button>
+        <h2>교과 지도교사 전용 대시보드</h2>
+        <p>안산강서고 1학년 학생 계정 관리 및 1단원 임명증 서식 인쇄</p>
         <div className="teacher-quick-stats">
-          <div className="t-stat-card"><strong>12개 반</strong><span>편성 학급 (1~12반)</span></div>
-          <div className="t-stat-card"><strong>26명 / 반</strong><span>학급당 최대 인원</span></div>
-          <div className="t-stat-card"><strong>{studentList.length}명</strong><span>생성된 학생 계정</span></div>
+          <div className="t-stat-card"><strong>12개 반</strong><span>편성 학급</span></div>
+          <div className="t-stat-card"><strong>{Object.keys(accounts).length}개</strong><span>계정</span></div>
         </div>
-
-        <div className="teacher-cert-actions" style={{ marginTop: "16px" }}>
-          <span className="actions-title">단원별 임명증 서식 인쇄 / 검토:</span>
-          <div className="cert-btn-group">
-            {unitCertificates.map((c) => (
-              <button key={c.unitId} className="secondary-button" onClick={() => onPrintCert(c.unitId)}>
-                <Printer size={16} /> {c.unitId}단원: {c.certName}
-              </button>
-            ))}
-          </div>
-        </div>
+        <button className="primary-button full-button" onClick={() => onPrintCert(1)} style={{ marginTop: "14px" }}>
+          1단원 정식 인권수호관 임명증 서식 인쇄
+        </button>
       </section>
     </div>
   );
 }
 
-// ==========================================
-// 10. CERTIFICATE OF APPOINTMENT MODAL (단원별 임명증 & PDF)
-// ==========================================
 function CertificateModal({
   save,
   unitId,
@@ -1783,91 +1551,34 @@ function CertificateModal({
   unitId: number;
   onClose: () => void;
 }) {
-  const student = save.studentProfile || defaultStudent;
-  const certInfo = unitCertificates.find((c) => c.unitId === unitId) || unitCertificates[0];
-
+  const student = save.studentProfile;
+  const cert = unitCertificates.find((c) => c.unitId === unitId) || unitCertificates[0];
   const todayStr = useMemo(() => {
     const d = new Date();
     return `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일`;
   }, []);
 
-  const handlePrint = () => {
-    window.print();
-  };
-
   return (
     <div className="modal-backdrop cert-backdrop">
       <div className="cert-modal-container">
         <div className="cert-toolbar no-print">
-          <button className="primary-button print-action-btn" onClick={handlePrint}>
-            <Printer size={18} weight="bold" /> PDF 임명증 인쇄 / 다운로드
-          </button>
-          <button className="secondary-button" onClick={onClose}>
-            <X size={18} /> 닫기
-          </button>
+          <button className="primary-button" onClick={() => window.print()}><Printer size={18} /> PDF 인쇄 / 다운로드</button>
+          <button className="secondary-button" onClick={onClose}><X size={18} /> 닫기</button>
         </div>
-
-        {/* Print Document Paper */}
-        <section className="certificate-document" id="printable-certificate" role="region" aria-label={certInfo.certName}>
+        <section className="certificate-document">
           <div className="cert-inner-frame">
-            {/* Corner Ornaments */}
-            <div className="corner-ornament corner-tl">✦</div>
-            <div className="corner-ornament corner-tr">✦</div>
-            <div className="corner-ornament corner-bl">✦</div>
-            <div className="corner-ornament corner-br">✦</div>
-
-            <div className="cert-top-meta">
-              <span className="cert-number">제 2026-ARCA-U{unitId}-{student.studentId}호</span>
-              <span className="cert-badge-school">{student.schoolName}</span>
-            </div>
-
-            <div className="cert-emblem-wrapper">
-              <span className="cert-gold-crest">{certInfo.badgeIcon}</span>
-            </div>
-
-            <h1 className="cert-main-title">{certInfo.certName}</h1>
-            <p className="cert-sub-title">{certInfo.certSubtitle}</p>
-
+            <span className="cert-number">제 2026-ARCA-U{unitId}-{student.studentId}호</span>
+            <div className="cert-emblem-wrapper"><span className="cert-gold-crest">{cert.badgeIcon}</span></div>
+            <h1 className="cert-main-title">{cert.certName}</h1>
+            <p className="cert-sub-title">{cert.certSubtitle}</p>
             <div className="cert-recipient-box">
-              <div className="recipient-row">
-                <span className="rec-label">소 속 :</span>
-                <span className="rec-value">{student.schoolName} {student.grade} {student.classNum} {student.studentNum} (학번: {student.studentId})</span>
-              </div>
-              <div className="recipient-row">
-                <span className="rec-label">성 명 :</span>
-                <span className="rec-value rec-name">{student.name}</span>
-              </div>
+              <p>소 속: {student.schoolName} {student.grade} {student.classNum} {student.studentNum} ({student.studentId})</p>
+              <p>성 명: <strong>{student.name}</strong></p>
             </div>
-
-            <div className="cert-body-text">
-              <p>{certInfo.description}</p>
-            </div>
-
-            {/* Collected Rights Cards Seal Box */}
-            <div className="cert-rights-summary">
-              <span className="summary-title">✦ {certInfo.constitutionalBasis} ✦</span>
-              <div className="summary-tags">
-                <span>인간 존엄</span>
-                <span>보편성</span>
-                <span>천부성</span>
-                <span>불가침성</span>
-                <span>자유권</span>
-                <span>평등권</span>
-                <span>참정권</span>
-                <span>사회권</span>
-                <span>연대권</span>
-                <span>공간정의</span>
-              </div>
-            </div>
-
+            <p className="cert-body-text">{cert.description}</p>
             <div className="cert-footer">
               <p className="cert-date">{todayStr}</p>
-              <div className="cert-issuer-row">
-                <strong className="issuer-title">안산강서고등학교 통합사회과 탐구아케이드 인권수호국장</strong>
-                <div className="red-seal-stamp">
-                  <span>인권<br />수호</span>
-                </div>
-              </div>
+              <strong>안산강서고등학교 통합사회과 탐구아케이드 인권수호국장</strong>
             </div>
           </div>
         </section>
@@ -1876,154 +1587,13 @@ function CertificateModal({
   );
 }
 
-// ==========================================
-// 11. CARD VAULT & DETAIL MODALS
-// ==========================================
-function CardVaultModal({
-  save,
-  onClose,
-  onSelectCard,
-}: {
-  save: SaveData;
-  onClose: () => void;
-  onSelectCard: (id: string) => void;
-}) {
-  const allCards = Object.values(evidenceCatalog);
+function ComingSoonModal({ message, onClose }: { message: string; onClose: () => void }) {
   return (
-    <div className="modal-backdrop" role="presentation">
-      <section className="card-vault-modal" role="dialog" aria-modal="true" aria-labelledby="vault-title">
-        <button className="modal-close" onClick={onClose} aria-label="닫기"><X size={20} /></button>
-        <div className="vault-header">
-          <Medal size={28} color="#ffd36a" weight="duotone" />
-          <div>
-            <span className="vault-sub">아이템 인벤토리</span>
-            <h2 id="vault-title">권리 카드 보관소</h2>
-          </div>
-        </div>
-        <p className="vault-desc">사건을 해결하며 획득한 헌법적 기본권 카드를 확인하세요. 터치하면 상세 교과서 내용이 열립니다.</p>
-
-        <div className="vault-cards-grid">
-          {allCards.map((card) => {
-            const isOwned = save.evidence.includes(card.id);
-            return (
-              <EvidenceCard
-                key={card.id}
-                data={card}
-                collected={isOwned}
-                selected={false}
-                onClick={() => {
-                  if (isOwned) {
-                    onClose();
-                    onSelectCard(card.id);
-                  }
-                }}
-              />
-            );
-          })}
-        </div>
-      </section>
-    </div>
-  );
-}
-
-function CardDetailModal({
-  cardId,
-  onClose,
-}: {
-  cardId: string;
-  onClose: () => void;
-}) {
-  const card = evidenceCatalog[cardId];
-  if (!card) return null;
-
-  return (
-    <div className="modal-backdrop card-detail-backdrop">
-      <section className="card-detail-popup" role="dialog" aria-modal="true" aria-labelledby="card-title">
-        <button className="modal-close" onClick={onClose} aria-label="닫기"><X size={20} /></button>
-        <div className="card-popup-header">
-          <span className="card-popup-cat">{card.category.toUpperCase()}</span>
-          <h2 id="card-title">{card.title}</h2>
-          <p className="card-popup-desc">{card.description}</p>
-        </div>
-
-        <div className="card-popup-body">
-          {card.textbookPage && (
-            <div className="card-detail-section">
-              <span className="section-label">📖 교과서 출처</span>
-              <p className="textbook-highlight">{card.textbookPage}</p>
-            </div>
-          )}
-          {card.textbookQuote && (
-            <div className="card-detail-section">
-              <span className="section-label">📜 헌법 및 법률 조문</span>
-              <blockquote className="quote-box">{card.textbookQuote}</blockquote>
-            </div>
-          )}
-          {card.applicationCase && (
-            <div className="card-detail-section">
-              <span className="section-label">🔍 현실 적용 사례</span>
-              <p>{card.applicationCase}</p>
-            </div>
-          )}
-          {card.studyTip && (
-            <div className="card-detail-section tip-box">
-              <span className="section-label">💡 핵심 탐구 팁</span>
-              <p>{card.studyTip}</p>
-            </div>
-          )}
-        </div>
-
-        <button className="primary-button full-button" onClick={onClose} style={{ marginTop: "14px" }}>
-          확인 완료
-        </button>
-      </section>
-    </div>
-  );
-}
-
-function EvidenceCard({
-  data,
-  collected,
-  selected,
-  onClick,
-}: {
-  data: EvidenceCardData;
-  collected: boolean;
-  selected: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      className={`evidence-card-item ${collected ? "collected" : "locked"} ${selected ? "selected" : ""}`}
-      onClick={onClick}
-      disabled={!collected && !selected}
-    >
-      <div className="card-inner">
-        <span className="card-category-tag">{data.category.toUpperCase()}</span>
-        <strong className="card-title">{data.title}</strong>
-        <p className="card-desc">{collected ? data.description : "사건 조사를 통해 카드를 획득하세요."}</p>
-        <span className="card-status-label">{collected ? "보관됨 (열람 가능)" : "미획득 (잠김)"}</span>
-      </div>
-    </button>
-  );
-}
-
-// ==========================================
-// 12. AUXILIARY MODALS & HELPERS
-// ==========================================
-function ComingSoonModal({
-  message,
-  onClose,
-}: {
-  message: string;
-  onClose: () => void;
-}) {
-  return (
-    <div className="modal-backdrop" role="presentation">
-      <section className="coming-soon-popup" role="dialog" aria-modal="true" aria-labelledby="soon-title">
-        <button className="modal-close" onClick={onClose} aria-label="닫기"><X size={20} /></button>
-        <Sparkle size={36} weight="fill" color="var(--gold)" />
-        <h2 id="soon-title">COMING SOON</h2>
+    <div className="modal-backdrop">
+      <section className="coming-soon-popup">
+        <button className="modal-close" onClick={onClose}><X size={20} /></button>
+        <Sparkle size={36} color="var(--gold)" weight="fill" />
+        <h2>COMING SOON</h2>
         <p>{message}</p>
         <button className="primary-button full-button" onClick={onClose}>확인</button>
       </section>
@@ -2031,76 +1601,33 @@ function ComingSoonModal({
   );
 }
 
-function GameIntroduction({ onClose }: { onClose: () => void }) {
+function SettingsPanelModal({ audio, onChange, onClose }: any) {
   return (
-    <div className="modal-backdrop intro-backdrop">
-      <section className="game-introduction" role="dialog" aria-modal="true" aria-labelledby="intro-title">
-        <button className="modal-close" onClick={onClose} aria-label="게임 소개 닫기"><X size={20} /></button>
-        <header>
-          <span>GAME GUIDE · 우리가 만드는 사회</span>
-          <h2 id="intro-title">통합사회 탐구 아케이드</h2>
-          <p>사회를 탐구하고, 판단하고, 함께 더 나은 미래를 만듭니다.</p>
-        </header>
-        <div className="intro-story">
-          <strong>STORY · 신입 탐구관의 첫 임무</strong>
-          <p>사회의 균형을 지키는 ‘탐구 아카데미’에 기본권 침해 신호가 도착했습니다. 플레이어는 신입 탐구관으로 임명되어 AI 파트너 아리와 함께 사건 현장을 조사합니다. 교과서 자료와 시민의 목소리에서 Evidence를 모으고, 해온의 조언과 ZERO의 반론을 검토해 자신만의 판단을 완성해야 합니다.</p>
-        </div>
-        <button className="primary-button full-button" onClick={onClose} style={{ marginTop: "14px" }}>탐구 시작 준비 완료</button>
+    <div className="modal-backdrop">
+      <section className="settings-panel">
+        <button className="modal-close" onClick={onClose}><X size={20} /></button>
+        <h2><Gear size={22} /> 게임 설정</h2>
+        <label className="toggle-row">
+          <span>{audio.bgm ? <Headphones size={21} /> : <SpeakerSlash size={21} />} BGM</span>
+          <input type="checkbox" checked={audio.bgm} onChange={(e) => onChange({ bgm: e.target.checked })} />
+        </label>
+        <label className="toggle-row">
+          <span>{audio.sfx ? <SpeakerHigh size={21} /> : <SpeakerSlash size={21} />} 효과음</span>
+          <input type="checkbox" checked={audio.sfx} onChange={(e) => onChange({ sfx: e.target.checked })} />
+        </label>
       </section>
     </div>
   );
 }
 
-function SettingsPanel({
-  audio,
-  onChange,
-  onClose,
-}: {
-  audio: AudioSettings;
-  onChange: (value: Partial<AudioSettings>) => void;
-  onClose: () => void;
-}) {
+function GameIntroductionModal({ onClose }: { onClose: () => void }) {
   return (
-    <div className="modal-backdrop" role="presentation">
-      <section className="settings-panel" role="dialog" aria-modal="true" aria-labelledby="settings-title">
-        <button className="modal-close" onClick={onClose} aria-label="설정 닫기"><X size={20} /></button>
-        <h2 id="settings-title"><Gear size={22} />게임 설정</h2>
-        <label className="toggle-row">
-          <span>{audio.bgm ? <Headphones size={21} /> : <SpeakerSlash size={21} />}BGM</span>
-          <input type="checkbox" checked={audio.bgm} onChange={(event) => onChange({ bgm: event.target.checked })} />
-        </label>
-        <label>BGM 음량 <input type="range" min="0" max="1" step="0.05" value={audio.bgmVolume} onChange={(event) => onChange({ bgmVolume: Number(event.target.value) })} /></label>
-        <label className="toggle-row">
-          <span>{audio.sfx ? <SpeakerHigh size={21} /> : <SpeakerSlash size={21} />}효과음</span>
-          <input type="checkbox" checked={audio.sfx} onChange={(event) => onChange({ sfx: event.target.checked })} />
-        </label>
-        <label>효과음 음량 <input type="range" min="0" max="1" step="0.05" value={audio.sfxVolume} onChange={(event) => onChange({ sfxVolume: Number(event.target.value) })} /></label>
-      </section>
-    </div>
-  );
-}
-
-function ActComplete({
-  onClose,
-  onOpenCertificate,
-}: {
-  onClose: () => void;
-  onOpenCertificate: () => void;
-}) {
-  return (
-    <div className="modal-backdrop completion-backdrop">
-      <section className="act-complete" role="dialog" aria-modal="true" aria-labelledby="complete-title">
-        <Sparkle size={40} weight="fill" />
-        <span>ACT 1 COMPLETE</span>
-        <h2 id="complete-title">정식 인권수호관 임명</h2>
-        <CharacterPortrait characterId="haeon" expression="default" />
-        <p>1단원 6개 사건을 모두 해결하고 권리 카드 수집 훈련을 훌륭히 완수했습니다.</p>
-        <button className="primary-button full-button" onClick={onOpenCertificate}>
-          <Certificate size={20} /> 정식 인권수호관 임명증 보기
-        </button>
-        <button className="secondary-button full-button" onClick={onClose} style={{ marginTop: "8px" }}>
-          미션 지도로 돌아가기
-        </button>
+    <div className="modal-backdrop">
+      <section className="game-introduction">
+        <button className="modal-close" onClick={onClose}><X size={20} /></button>
+        <h2>통합사회 탐구 아케이드 가이드</h2>
+        <p>1단원 인권 보장과 헌법의 5대 게임 모드와 탐구력 향상 랩을 플레이하며 수행평가 역량을 완성하는 교육용 플랫폼입니다.</p>
+        <button className="primary-button full-button" onClick={onClose}>탐구 시작하기</button>
       </section>
     </div>
   );
