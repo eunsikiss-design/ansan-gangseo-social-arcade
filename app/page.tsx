@@ -72,7 +72,8 @@ type ViewMode =
   | "mission_player"
   | "skill_lab_vocab"
   | "skill_lab_skill"
-  | "portfolio_view";
+  | "portfolio_view"
+  | "item_archive";
 
 export default function HomePage() {
   const [save, setSave] = useState<SaveData>(blankSave);
@@ -264,6 +265,7 @@ export default function HomePage() {
             onOpenSkillLabVocab={() => setView("skill_lab_vocab")}
             onOpenSkillLabSkill={() => setView("skill_lab_skill")}
             onOpenPortfolio={() => setPortfolioOpen(true)}
+            onOpenItemArchive={() => setView("item_archive")}
             onOpenCert={(uId) => setCertUnitId(uId)}
             onOpenLogin={() => setLoginModalOpen(true)}
             onOpenSettings={() => setSettingsOpen(true)}
@@ -316,6 +318,14 @@ export default function HomePage() {
             onBack={() => setView("hub")}
           />
         )}
+
+        {view === "item_archive" && (
+          <ItemArchiveView
+            save={save}
+            onBack={() => setView("hub")}
+          />
+        )}
+
 
         {/* ========================================================
             2. MODALS & POPUPS
@@ -543,6 +553,7 @@ function MainHubScreenView({
   onOpenSkillLabVocab,
   onOpenSkillLabSkill,
   onOpenPortfolio,
+  onOpenItemArchive,
   onOpenCert,
   onOpenLogin,
   onOpenSettings,
@@ -557,6 +568,7 @@ function MainHubScreenView({
   onOpenSkillLabVocab: () => void;
   onOpenSkillLabSkill: () => void;
   onOpenPortfolio: () => void;
+  onOpenItemArchive: () => void;
   onOpenCert: (unitId: number) => void;
   onOpenLogin: () => void;
   onOpenSettings: () => void;
@@ -579,10 +591,10 @@ function MainHubScreenView({
     {
       id: 2,
       title: "2단원: 사회 정의와 불평등",
-      sub: "정의의 원탁 · 공정 분배 · 공정 도시",
+      sub: "정의의 원탁 · 공정 분배 · 불평등 격차 해소",
       status: "1단원 완료 후 순차 오픈 예정",
       active: false,
-      badge: "🌿 생태·정의수호관",
+      badge: "🌿 공정정책관",
     },
     {
       id: 3,
@@ -634,6 +646,7 @@ function MainHubScreenView({
           {isTeacher && (
             <button className="icon-button" onClick={onOpenTeacherDash} title="교사용 대시보드"><ChalkboardTeacher size={20} color="#ffd36a" weight="fill" /></button>
           )}
+          <button className="icon-button" onClick={onOpenItemArchive} title="아이템 보관소 (개념 카드 & 뱃지 서고)"><Medal size={20} color="var(--gold)" weight="fill" /></button>
           <button className="icon-button" onClick={onOpenPortfolio} title="수행평가 역량 리포트"><ChartBar size={20} color="var(--teal-soft)" /></button>
           <button className="icon-button" onClick={onOpenIntro} title="게임 가이드"><BookOpen size={20} /></button>
           <button className="icon-button" onClick={onOpenSettings} title="설정"><Gear size={20} /></button>
@@ -1128,18 +1141,21 @@ function SkillLabVocabView({
   setSave: React.Dispatch<React.SetStateAction<SaveData>>;
   onBack: () => void;
 }) {
+
   const [selectedUnitId, setSelectedUnitId] = useState<number>(1);
   const [activeMode, setActiveMode] = useState<"QUIZ" | "CARD_FLIP">("QUIZ");
   const [selectedTopicId, setSelectedTopicId] = useState<number>(1);
   const [currentQIdx, setCurrentQIdx] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
 
-  // MATCH question state
+  // MATCH question state (랜덤 셔플 및 엄격 검증)
   const [matchSelectedLeft, setMatchSelectedLeft] = useState<number | null>(null);
   const [matchedPairs, setMatchedPairs] = useState<{ [leftIdx: number]: number }>({});
   const [matchDone, setMatchDone] = useState(false);
+  const [matchIsAllCorrect, setMatchIsAllCorrect] = useState(false);
 
-  // Memory Card Flip Game State
+  // Memory Card Flip Game State (미리보기 -> 도전)
+  const [isCardPreviewing, setIsCardPreviewing] = useState(true);
   const [flippedCards, setFlippedCards] = useState<number[]>([]);
   const [matchedCardIds, setMatchedCardIds] = useState<string[]>([]);
   const [cardDeck, setCardDeck] = useState<
@@ -1162,7 +1178,7 @@ function SkillLabVocabView({
     }
   }, [selectedUnitId, unitTopics]);
 
-  // 카드 뒤집기 덱 초기화
+  // 카드 뒤집기 덱 초기화 & 미리보기 모드
   useEffect(() => {
     const rawPairs = unitMemoryCardSets[selectedUnitId] || unitMemoryCardSets[1];
     const cards: { id: string; pairId: string; type: "TERM" | "DEF"; text: string }[] = [];
@@ -1175,10 +1191,19 @@ function SkillLabVocabView({
     setCardDeck(cards);
     setFlippedCards([]);
     setMatchedCardIds([]);
+    setIsCardPreviewing(true); // 처음에는 내용을 다 보여줌
   }, [selectedUnitId, activeMode]);
 
-  // 카드 뒤집기 핸들러
+  // 카드 뒤집기 시작 핸들러
+  const startMemoryGame = () => {
+    setIsCardPreviewing(false);
+    setFlippedCards([]);
+    void audioManager.playSfx("ui_click");
+  };
+
+  // 카드 뒤집기 클릭 핸들러
   const handleCardClick = (index: number) => {
+    if (isCardPreviewing) return;
     if (flippedCards.length === 2 || flippedCards.includes(index)) return;
     const card = cardDeck[index];
     if (matchedCardIds.includes(card.pairId)) return;
@@ -1229,6 +1254,20 @@ function SkillLabVocabView({
     answer: "O",
   };
 
+  // 1. 선택형 문항의 선택지 랜덤 셔플 (정답이 항상 1번에 오지 않도록)
+  const randomizedOptions = useMemo(() => {
+    if (!currentQ.options) return [];
+    const opts = [...currentQ.options];
+    // Simple deterministic/stable shuffle per question ID
+    return opts.sort(() => (currentQ.id.charCodeAt(currentQ.id.length - 1) % 2 === 0 ? 0.5 - Math.random() : -0.5 + Math.random()));
+  }, [currentQ]);
+
+  // 2. MATCH 문제 오른쪽 항목 랜덤 셔플
+  const randomizedRightPairs = useMemo(() => {
+    if (!currentQ.matchPairs) return [];
+    return [...currentQ.matchPairs].map((p, origIdx) => ({ right: p.right, origIdx })).sort(() => 0.5 - Math.random());
+  }, [currentQ]);
+
   const handleSelectChoice = (ans: string) => {
     if (selectedAnswer !== null) return;
     setSelectedAnswer(ans);
@@ -1254,20 +1293,26 @@ function SkillLabVocabView({
     void audioManager.playSfx("ui_click");
   };
 
-  const handleMatchClickRight = (rightIdx: number) => {
+  const handleMatchClickRight = (shuffledRightIdx: number) => {
     if (matchDone || matchSelectedLeft === null) return;
-    const newMatches = { ...matchedPairs, [matchSelectedLeft]: rightIdx };
+    const newMatches = { ...matchedPairs, [matchSelectedLeft]: shuffledRightIdx };
     setMatchedPairs(newMatches);
     setMatchSelectedLeft(null);
     void audioManager.playSfx("ui_click");
 
-    // All pairs matched?
     const totalPairs = currentQ.matchPairs?.length || 0;
     if (Object.keys(newMatches).length === totalPairs) {
       setMatchDone(true);
-      // Check correctness (0->0, 1->1, 2->2)
-      const allCorrect = Object.entries(newMatches).every(([k, v]) => Number(k) === Number(v));
+      // 정밀 검증: 왼쪽 원본 인덱스(leftIdx)의 정답과 오른쪽 셔플된 항목(randomizedRightPairs[rIdx].origIdx)이 일치하는지 체크
+      const allCorrect = Object.entries(newMatches).every(([leftIdxStr, rightIdx]) => {
+        const leftIdx = Number(leftIdxStr);
+        const matchedRight = randomizedRightPairs[rightIdx];
+        return matchedRight && matchedRight.origIdx === leftIdx;
+      });
+
+      setMatchIsAllCorrect(allCorrect);
       void audioManager.playSfx(allCorrect ? "success" : "error");
+
       if (allCorrect) {
         setSave((prev) => ({
           ...prev,
@@ -1286,6 +1331,7 @@ function SkillLabVocabView({
     setMatchSelectedLeft(null);
     setMatchedPairs({});
     setMatchDone(false);
+    setMatchIsAllCorrect(false);
 
     if (currentQIdx < topicQuestions.length - 1) {
       setCurrentQIdx(currentQIdx + 1);
@@ -1295,7 +1341,8 @@ function SkillLabVocabView({
         setSelectedTopicId(unitTopics[curIdxInUnit + 1].id);
         setCurrentQIdx(0);
       } else {
-        onBack();
+        // 단원 내 모든 개념 퀴즈 완료 시 -> 최종 관문인 [개념 카드 뒤집기]로 자동 연결!
+        setActiveMode("CARD_FLIP");
       }
     }
   };
@@ -1340,7 +1387,7 @@ function SkillLabVocabView({
             className={`mode-switch-btn ${activeMode === "CARD_FLIP" ? "active" : ""}`}
             onClick={() => setActiveMode("CARD_FLIP")}
           >
-            🃏 개념 카드 뒤집기 (Memory Match)
+            🃏 최종 관문: 개념 카드 뒤집기
           </button>
         </div>
 
@@ -1402,10 +1449,10 @@ function SkillLabVocabView({
                 </div>
               )}
 
-              {/* 2. CONCEPT & CHOICE 4지선다 문제 */}
-              {(currentQ.type === "CONCEPT" || currentQ.type === "CHOICE") && currentQ.options && (
+              {/* 2. CONCEPT & CHOICE 4지선다 문제 (랜덤 셔플 선택지) */}
+              {(currentQ.type === "CONCEPT" || currentQ.type === "CHOICE") && (
                 <div className="choices-list-v2">
-                  {currentQ.options.map((opt, idx) => {
+                  {randomizedOptions.map((opt, idx) => {
                     const isSelected = selectedAnswer === opt;
                     const isCorrect = String(currentQ.answer).trim() === opt.trim();
                     let choiceClass = "choice-card-v2";
@@ -1428,7 +1475,7 @@ function SkillLabVocabView({
                 </div>
               )}
 
-              {/* 3. MATCH (연결 짝맞추기) 문제 */}
+              {/* 3. MATCH (연결 짝맞추기) 문제 (오른쪽 노드 랜덤 셔플) */}
               {currentQ.type === "MATCH" && currentQ.matchPairs && (
                 <div className="matching-quiz-container">
                   <p className="match-guide-text">왼쪽 항목을 누른 후, 알맞은 오른쪽 항목을 눌러 짝을 지으세요.</p>
@@ -1451,7 +1498,7 @@ function SkillLabVocabView({
                     </div>
 
                     <div className="match-col right">
-                      {currentQ.matchPairs.map((pair, rIdx) => {
+                      {randomizedRightPairs.map((pairItem, rIdx) => {
                         const matchedLeftIdx = Object.entries(matchedPairs).find(([_, v]) => v === rIdx)?.[0];
                         const isMatched = matchedLeftIdx !== undefined;
                         return (
@@ -1460,7 +1507,7 @@ function SkillLabVocabView({
                             className={`match-node right ${isMatched ? "matched" : ""}`}
                             onClick={() => handleMatchClickRight(rIdx)}
                           >
-                            <span>{pair.right}</span>
+                            <span>{pairItem.right}</span>
                             {isMatched && <span className="matched-index-tag">#{Number(matchedLeftIdx) + 1}</span>}
                           </button>
                         );
@@ -1473,10 +1520,18 @@ function SkillLabVocabView({
               {/* 피드백 & 해설 */}
               {(selectedAnswer !== null || matchDone) && (
                 <div className="v-q-feedback-box">
-                  <strong>{selectedAnswer === String(currentQ.answer) || matchDone ? "🎉 정답입니다! (+10점)" : "⚠️ 오답입니다. 해설을 확인하세요."}</strong>
+                  <strong>
+                    {currentQ.type === "MATCH"
+                      ? matchIsAllCorrect
+                        ? "🎉 완벽한 연결입니다! (+15점)"
+                        : "⚠️ 잘못 연결된 짝이 있습니다. 해설을 확인하세요."
+                      : selectedAnswer === String(currentQ.answer)
+                      ? "🎉 정답입니다! (+10점)"
+                      : "⚠️ 오답입니다. 해설을 확인하세요."}
+                  </strong>
                   {currentQ.explanation && <p className="v-q-exp-text">{currentQ.explanation}</p>}
                   <button className="primary-button full-button" style={{ marginTop: "12px" }} onClick={nextQuestion}>
-                    {currentQIdx < topicQuestions.length - 1 ? "다음 문항으로 >" : "다음 주제로 이동 >"}
+                    {currentQIdx < topicQuestions.length - 1 ? "다음 문항으로 >" : "다음 주제 (또는 카드 뒤집기)로 >"}
                   </button>
                 </div>
               )}
@@ -1492,19 +1547,33 @@ function SkillLabVocabView({
             <div className="memory-game-header">
               <div className="memory-title-left">
                 <span className="skill-badge-tag">MEMORY MATCH</span>
-                <h3>{selectedUnitId}단원 핵심 개념 카드 뒤집기</h3>
+                <h3>{selectedUnitId}단원 핵심 개념 카드 연결 게임</h3>
               </div>
               <span className="memory-score-tag">
                 {matchedCardIds.length} / 4쌍 매칭 완료
               </span>
             </div>
-            <p className="memory-guide-desc">
-              카드를 뒤집어 <strong>[개념 용어]</strong>와 알맞은 <strong>[정의 설명]</strong> 짝을 찾아보세요!
-            </p>
+
+            {/* 시작 전 미리보기 안내 배너 */}
+            {isCardPreviewing ? (
+              <div className="memory-preview-banner">
+                <div className="preview-text-col">
+                  <strong>👀 [개념 & 정의 미리보기]</strong>
+                  <p>카드 속 개념어와 설명을 미리 잘 기억해 두세요! 준비되면 아래 [도전 시작]을 누르세요.</p>
+                </div>
+                <button className="primary-button preview-start-btn" onClick={startMemoryGame}>
+                  🎮 카드 뒤집기 도전 시작!
+                </button>
+              </div>
+            ) : (
+              <p className="memory-guide-desc">
+                카드를 뒤집어 <strong>[개념 용어]</strong>와 알맞은 <strong>[정의 설명]</strong> 짝을 찾아보세요!
+              </p>
+            )}
 
             <div className="memory-cards-grid">
               {cardDeck.map((card, idx) => {
-                const isFlipped = flippedCards.includes(idx);
+                const isFlipped = isCardPreviewing || flippedCards.includes(idx);
                 const isMatched = matchedCardIds.includes(card.pairId);
 
                 return (
@@ -1535,8 +1604,8 @@ function SkillLabVocabView({
               <div className="memory-all-matched-banner">
                 <Trophy size={32} color="#ffd36a" weight="fill" />
                 <div>
-                  <strong>🎉 {selectedUnitId}단원 카드 뒤집기 전 쌍 매칭 완수!</strong>
-                  <p>모든 개념 쌍을 완벽하게 기억했습니다. (+60점 체력 누적 완료)</p>
+                  <strong>🎉 {selectedUnitId}단원 개념 카드 완수! [개념 아이템 획득]</strong>
+                  <p>개념-용어 학습을 완료하여 아이템 보관소에 단원 마스터 카드가 보관되었습니다.</p>
                 </div>
                 <button
                   className="primary-button"
@@ -1545,7 +1614,7 @@ function SkillLabVocabView({
                     else setSelectedUnitId(1);
                   }}
                 >
-                  {selectedUnitId < 5 ? `다음 ${selectedUnitId + 1}단원 카드 뒤집기 >` : "1단원으로 다시 플레이"}
+                  {selectedUnitId < 5 ? `다음 ${selectedUnitId + 1}단원으로 이동 >` : "1단원으로 다시 플레이"}
                 </button>
               </div>
             )}
@@ -1580,8 +1649,8 @@ function SkillLabTrainingView({
   const [skill2Idx, setSkill2Idx] = useState(0);
   const [skill2Input, setSkill2Input] = useState("");
   const [skill2GuideModal, setSkill2GuideModal] = useState(false);
-  const [skill2Feedback, setSkill2Feedback] = useState<string | null>(null);
-  const [skill2ShowBlank, setSkill2ShowBlank] = useState(false);
+  const [skill2AiRes, setSkill2AiRes] = useState<any>(null);
+  const [skill2Loading, setSkill2Loading] = useState(false);
 
   // Skill 3 State
   const [skill3Stance, setSkill3Stance] = useState<string>("A");
@@ -1640,133 +1709,12 @@ function SkillLabTrainingView({
   // --- Skill 2 Helpers ---
   const curS2 = dataset.skill2[skill2Idx] || dataset.skill2[0];
 
-  const handleSkill2Submit = () => {
-    const text = skill2Input.trim();
-    if (!text) return;
-
-    const hasAllKeywords = curS2.keywords.every((kw) => text.includes(kw));
-
-    if (hasAllKeywords) {
-      setSkill2Feedback("🎉 정확한 1문장 해석입니다! 핵심 법률 용어와 한계를 완벽히 반영했습니다.");
-      setSkill2ShowBlank(false);
-      void audioManager.playSfx("success");
-
-      setEnergy((prev) => Math.min(100, prev + 5)); // 세트 완료 보너스
-      setSave((prev) => ({
-        ...prev,
-        skillLabScore: {
-          ...prev.skillLabScore,
-          skillScore: prev.skillLabScore.skillScore + 25,
-          skillLevel: Math.floor((prev.skillLabScore.skillScore + 25) / 150) + 1,
-        },
-      }));
-    } else {
-      setSkill2Feedback("⚠️ 핵심 키워드가 일부 누락되었습니다. 아래 초성 문장 템플릿을 참고하여 다시 작성해 보세요.");
-      setSkill2ShowBlank(true);
-      void audioManager.playSfx("error");
-    }
-  };
-
-  // --- Skill 3 API Feedback Helper ---
-  const handleSkill3Submit = async (requestHint = false) => {
-    if (!requestHint && !skill3Input.trim()) return;
-    setSkill3Loading(true);
-    try {
-      const res = await fetch("/api/evaluate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          skillType: "SKILL_3",
-          studentAnswer: skill3Input,
-          context: {
-            topic: dataset.skill3[0].topic,
-            stance: skill3Stance === "A" ? dataset.skill3[0].stances[0].name : dataset.skill3[0].stances[1].name,
-          },
-          requestHint,
-        }),
-      });
-      const data = await res.json();
-      setSkill3AiRes(data);
-      void audioManager.playSfx("success");
-    } catch {
-      // fallback
-      setSkill3AiRes({
-        isCorrectStance: true,
-        recommendedTerms: ["통신의 자유", "학습권", "비례원칙"],
-        feedback: "선택한 관점에 부합하며 핵심 헌법 용어를 잘 연결했습니다.",
-        hintTemplate: dataset.skill3[0].hintTemplate,
-      });
-    } finally {
-      setSkill3Loading(false);
-    }
-  };
-
-  // --- Skill 4 API Feedback Helper ---
-  const handleSkill4Submit = async (requestHint = false) => {
-    if (!requestHint && !skill4Input.trim()) return;
-    setSkill4Loading(true);
-    try {
-      const res = await fetch("/api/evaluate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          skillType: "SKILL_4",
-          studentAnswer: skill4Input,
-          context: { problemCase: dataset.skill4[0].caseDescription },
-          requestHint,
-        }),
-      });
-      const data = await res.json();
-      setSkill4AiRes(data);
-      void audioManager.playSfx("success");
-    } catch {
-      setSkill4AiRes({
-        causeCategory: "STRUCTURAL",
-        isConsistent: true,
-        feedback: "원인 분석에서 법·제도적 구조를 짚었고 실효성 있는 대안을 제시했습니다.",
-        improvedAnswer: dataset.skill4[0].hintTemplate,
-      });
-    } finally {
-      setSkill4Loading(false);
-    }
-  };
-
-  // --- Skill 5 API Feedback Helper ---
-  const handleSkill5Submit = async (requestHint = false) => {
-    if (!requestHint && !skill5Input.trim()) return;
-    setSkill5Loading(true);
-    try {
-      const res = await fetch("/api/evaluate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          skillType: "SKILL_5",
-          studentAnswer: skill5Input,
-          context: { problemCase: dataset.skill5[0].contextData },
-          requestHint,
-        }),
-      });
-      const data = await res.json();
-      setSkill5AiRes(data);
-      void audioManager.playSfx("success");
-    } catch {
-      setSkill5AiRes({
-        strength: "3단 구조 완결성 우수",
-        improvement: "헌법 제10조 조문 연계 강화",
-        overallFeedback: "우수한 종합 성취수준(A)에 부합하는 서술입니다.",
-        modelAnswer: dataset.skill5[0].modelAnswer,
-      });
-    } finally {
-      setSkill5Loading(false);
-    }
-  };
-
-  // --- Interactive AI Tutoring Engine (스킬 2~5 다회차 코칭) ---
+  // --- Unified Interactive AI Tutoring Engine (스킬 2~5 안전 다회차 첨삭) ---
   const handleIterativeEvaluate = async (
     skillType: "SKILL_2" | "SKILL_3" | "SKILL_4" | "SKILL_5",
     inputText: string,
-    setAiRes: (data: any) => void,
-    setLoading: (l: boolean) => void,
+    setAiRes: React.Dispatch<React.SetStateAction<any>>,
+    setLoading: React.Dispatch<React.SetStateAction<boolean>>,
     contextInfo: any,
     requestHint = false
   ) => {
@@ -1801,11 +1749,12 @@ function SkillLabTrainingView({
         void audioManager.playSfx("inspect");
       }
     } catch {
-      // fallback
+      // Offline fallback
       setAiRes({
         isMastered: true,
         scoreLevel: "PERFECT",
         guideQuestion: "훌륭한 탐구 서술입니다! 핵심 개념과 논리적 인과관계가 잘 구성되었습니다.",
+        recommendedTerms: ["헌법 제10조", "법률유보", "비례원칙"],
         feedback: "교과서 헌법 조문과 법적 대안이 명확히 연결되었습니다.",
         improvedExample: "헌법 제10조 및 관련 법률에 근거하여 기본권 보장의 본질적 가치를 구현해야 한다.",
       });
@@ -1816,6 +1765,7 @@ function SkillLabTrainingView({
 
   return (
     <div className="skill-lab-view-container">
+
       <header className="game-hud">
         <div className="hud-top">
           <button className="icon-button" onClick={onBack}><ArrowLeft size={20} /></button>
@@ -1912,7 +1862,7 @@ function SkillLabTrainingView({
                 </div>
               )}
 
-              {/* CHOICE & INITIAL */}
+              {/* CHOICE 문항 (초성 힌트 없이 순수 선택형) */}
               {curS1.type === "CHOICE" && curS1.options && (
                 <div className="choices-list-v2">
                   {curS1.options.map((opt, idx) => (
@@ -1929,11 +1879,15 @@ function SkillLabTrainingView({
                 </div>
               )}
 
+              {/* INITIAL 문항 (오직 주관식 초성형에서만 초성 힌트 노출) */}
               {curS1.type === "INITIAL" && (
                 <div className="initial-answer-box">
-                  <span className="initial-hint-chip">초성 힌트: {curS1.initial}</span>
-                  <div className="choices-list-v2" style={{ marginTop: "8px" }}>
-                    {[curS1.answer, "자유권", "사회권", "평등권"].sort().map((opt, idx) => (
+                  <div className="initial-hint-chip-box">
+                    <span className="initial-label">💡 단답형 초성 힌트:</span>
+                    <strong className="initial-letters">{curS1.initial}</strong>
+                  </div>
+                  <div className="choices-list-v2" style={{ marginTop: "10px" }}>
+                    {[curS1.answer, "자유권", "사회권", "평등권"].sort(() => 0.5 - Math.random()).map((opt, idx) => (
                       <button
                         key={idx}
                         className={`choice-card-v2 ${skill1Selected !== null ? (opt === curS1.answer ? "correct" : skill1Selected === opt ? "wrong" : "") : ""}`}
@@ -1948,8 +1902,10 @@ function SkillLabTrainingView({
                 </div>
               )}
 
+              {/* MATCH 문항 */}
               {curS1.type === "MATCH" && curS1.pairs && (
                 <div className="matching-quiz-container">
+                  <p className="match-guide-text">왼쪽 기관 및 개념과 알맞은 오른쪽 권한 및 조항을 확인하세요.</p>
                   <div className="matching-columns">
                     <div className="match-col left">
                       {curS1.pairs.map((p, idx) => (
@@ -1963,7 +1919,7 @@ function SkillLabTrainingView({
                     </div>
                   </div>
                   <button className="primary-button full-button" style={{ marginTop: "12px" }} onClick={() => handleSkill1Answer("MATCHED")}>
-                    연결 확인 완료 (정답 확인)
+                    연결 관계 확인 및 정답 확정
                   </button>
                 </div>
               )}
@@ -2000,12 +1956,12 @@ function SkillLabTrainingView({
                 <h3>자료 분석 및 1문장 서술 훈련</h3>
               </div>
               <button className="guide-btn-pill" onClick={() => setSkill2GuideModal(true)}>
-                <Info size={16} color="var(--teal-soft)" /> 문제 의미 이해하기
+                <Info size={16} color="var(--teal-soft)" /> 교과서 원문 해설
               </button>
             </div>
 
             <div className="s2-material-box">
-              <span className="s2-mat-tag">제시 자료 ({skill2Idx + 1}/3)</span>
+              <span className="s2-mat-tag">📖 교과서 핵심 판례 및 조문 ({skill2Idx + 1}/3)</span>
               <p className="s2-mat-content">{curS2.material}</p>
             </div>
 
@@ -2018,7 +1974,7 @@ function SkillLabTrainingView({
                   <div className="tutor-header-row">
                     <div className="tutor-badge">
                       <span className="tutor-avatar">⚡</span>
-                      <strong>AI 튜터 ZERO의 코칭 피드백</strong>
+                      <strong>AI 튜터 ZERO의 실시간 코칭</strong>
                     </div>
                     <span className={`status-tag ${skill2AiRes.isMastered ? "playable" : "coming"}`}>
                       {skill2AiRes.isMastered ? "🎉 정답 마스터 도달!" : "💡 문장 보완 및 재도전"}
@@ -2029,6 +1985,15 @@ function SkillLabTrainingView({
                     <span className="gq-label">🎯 핵심 유도 질문:</span>
                     <p>{skill2AiRes.guideQuestion}</p>
                   </div>
+
+                  {skill2AiRes.recommendedTerms && (
+                    <div className="rec-terms-chips">
+                      <span>추천 전문 개념어:</span>
+                      {skill2AiRes.recommendedTerms.map((t: string, i: number) => (
+                        <span key={i} className="term-chip">{t}</span>
+                      ))}
+                    </div>
+                  )}
 
                   {!skill2AiRes.isMastered && skill2AiRes.scaffoldingHint && (
                     <div className="scaffolding-hint-box">
@@ -2042,12 +2007,12 @@ function SkillLabTrainingView({
               )}
 
               <label className="input-field-label">
-                {skill2AiRes && !skill2AiRes.isMastered ? "위 유도 질문과 힌트를 반영하여 문장을 수정하세요:" : "자료를 근거로 하여 완성된 1문장으로 작성하세요:"}
+                {skill2AiRes && !skill2AiRes.isMastered ? "위 유도 질문과 추천 개념어를 반영하여 문장을 수정하세요:" : "교과서 자료를 근거로 하여 완성된 1문장으로 작성하세요:"}
               </label>
               <textarea
                 className="s2-textarea"
                 rows={3}
-                placeholder="예: 기본권은 반드시 법률에 근거하여 제한해야 하며, 본질적인 내용을 침해할 수 없다."
+                placeholder="예: 기본권은 반드시 국회가 제정한 법률에 근거하여 제한해야 하며, 본질적인 내용을 침해할 수 없다."
                 value={skill2Input}
                 onChange={(e) => setSkill2Input(e.target.value)}
               />
@@ -2059,14 +2024,15 @@ function SkillLabTrainingView({
                     handleIterativeEvaluate(
                       "SKILL_2",
                       skill2Input,
-                      setSkill2Feedback,
-                      setSkill2Feedback,
+                      setSkill2AiRes,
+                      setSkill2Loading,
                       { problemCase: curS2.material }
                     )
                   }
+                  disabled={skill2Loading}
                   style={{ flex: 1 }}
                 >
-                  {skill2AiRes && !skill2AiRes.isMastered ? "수정 문장 재제출 및 AI 검증" : "1문장 제출 및 AI 첨삭 받기"}
+                  {skill2Loading ? "AI 분석 중..." : skill2AiRes && !skill2AiRes.isMastered ? "수정 문장 재제출 및 AI 검증" : "1문장 제출 및 AI 첨삭 받기"}
                 </button>
               </div>
 
@@ -2077,7 +2043,7 @@ function SkillLabTrainingView({
                   style={{ marginTop: "10px" }}
                   onClick={() => {
                     setSkill2Input("");
-                    setSkill2Feedback(null);
+                    setSkill2AiRes(null);
                     if (skill2Idx < dataset.skill2.length - 1) setSkill2Idx(skill2Idx + 1);
                     else setActiveSkillTab(3); // 스킬 3으로 이동
                   }}
@@ -2177,7 +2143,7 @@ function SkillLabTrainingView({
               )}
 
               <label className="input-field-label">
-                {skill3AiRes && !skill3AiRes.isMastered ? "위 개념어와 유도 질문을 활용해 문장을 보강하세요:" : "선택한 관점에서 찬반 주장을 1문장으로 서술하세요:"}
+                {skill3AiRes && !skill3AiRes.isMastered ? "위 개념어와 유도 질문을 활용해 문장을 보강하세요:" : "선택한 관점에서 자신의 주장을 1문장으로 제시하세요:"}
               </label>
               <textarea
                 className="s2-textarea"
@@ -2859,3 +2825,102 @@ function GameIntroductionModal({ onClose }: { onClose: () => void }) {
     </div>
   );
 }
+
+// =========================================================================
+// 6. ITEM ARCHIVE VIEW (아이템 보관소: 단원별 개념 카드 & 뱃지 서고)
+// =========================================================================
+function ItemArchiveView({
+  save,
+  onBack,
+}: {
+  save: SaveData;
+  onBack: () => void;
+}) {
+  const [selectedUnit, setSelectedUnit] = useState<number>(1);
+
+  const curCert = unitCertificates.find((c) => c.unitId === selectedUnit) || unitCertificates[0];
+  const curCardSet = unitMemoryCardSets[selectedUnit] || unitMemoryCardSets[1];
+  const isCertEarned = save.earnedCertificates.includes(selectedUnit);
+
+  return (
+    <div className="item-archive-view-container">
+      <header className="game-hud">
+        <div className="hud-top">
+          <button className="icon-button" onClick={onBack} aria-label="메인 허브로"><ArrowLeft size={20} /></button>
+          <div>
+            <span>탐구 아케이드 · 보상 보관소</span>
+            <strong>아이템 보관소 (개념 카드 & 뱃지 서고)</strong>
+          </div>
+          <span className="level-chip">체력 점수: {save.skillLabScore.vocabScore}점</span>
+        </div>
+      </header>
+
+      <div className="skill-lab-scroll">
+        {/* 단원 선택 탭 */}
+        <div className="unit-selector-tabs-row">
+          {unitCertificates.map((cert) => (
+            <button
+              key={cert.unitId}
+              className={`unit-tab-pill ${selectedUnit === cert.unitId ? "active" : ""}`}
+              onClick={() => setSelectedUnit(cert.unitId)}
+            >
+              <strong>{cert.unitId}단원</strong>
+              <small>{cert.badgeName.replace(" 엠블럼", "")}</small>
+            </button>
+          ))}
+        </div>
+
+        {/* 1. 단원 공인 수호관 임명 뱃지 카드 */}
+        <div className={`archive-cert-banner ${isCertEarned ? "earned" : "locked"}`}>
+          <div className="cert-badge-large">
+            <span className="badge-emoji-big">{curCert.badgeIcon}</span>
+          </div>
+          <div className="cert-info-col">
+            <div className="cert-title-row">
+              <span className="cert-unit-tag">{curCert.unitId}단원 공식 직함</span>
+              <span className={`cert-status-tag ${isCertEarned ? "earned" : "locked"}`}>
+                {isCertEarned ? "★ 정식 임명 완료" : "🔒 단원 전 과정 이수 후 수여"}
+              </span>
+            </div>
+            <h3>{curCert.certName}</h3>
+            <p className="cert-sub-desc">{curCert.description}</p>
+            <div className="cert-basis-box">
+              <span>헌법적 근거:</span> <code>{curCert.constitutionalBasis}</code>
+            </div>
+          </div>
+        </div>
+
+        {/* 2. 단원 핵심 개념 마스터 아이템 카드 컬렉션 */}
+        <div className="archive-items-section">
+          <div className="archive-sec-header">
+            <div className="title-with-icon">
+              <Medal size={20} color="var(--gold)" weight="fill" />
+              <h3>{selectedUnit}단원 핵심 개념 아이템 카드</h3>
+            </div>
+            <span className="item-count-chip">4개 핵심 개념</span>
+          </div>
+          <p className="archive-sec-desc">
+            개념-용어 학습실 및 카드 뒤집기 게임을 통해 획득한 단원별 교과서 필수 개념 카드입니다.
+          </p>
+
+          <div className="archive-cards-grid">
+            {curCardSet.map((card, idx) => (
+              <div key={idx} className="archive-card-item">
+                <div className="card-top-header">
+                  <span className="card-no-tag">CONCEPT #{idx + 1}</span>
+                  <span className="card-star-icon">✦</span>
+                </div>
+                <h4 className="card-term-title">{card.term}</h4>
+                <p className="card-def-text">{card.def}</p>
+                <div className="card-footer-tag">
+                  <span>📖 {selectedUnit}단원 교과서 필수 개념</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+

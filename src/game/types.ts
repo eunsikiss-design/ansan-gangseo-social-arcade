@@ -159,4 +159,6 @@ export interface SaveData {
     skillLevel: number;
     skillScore: number;
   };
+  earnedVocabBadges?: number[]; // [1, 2, ...] 단원별 개념 마스터 뱃지
+  earnedVocabItems?: string[];  // 획득한 개념 카드 아이템 ID 리스트
 }
