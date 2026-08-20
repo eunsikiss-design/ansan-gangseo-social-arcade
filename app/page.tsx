@@ -1141,16 +1141,26 @@ function WebtoonViewer({
           </div>
         )}
 
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "16px", margin: "16px 0" }}>
-          <div style={{ width: "120px", height: "120px", borderRadius: "50%", background: "rgba(255,255,255,0.05)", border: "3px solid var(--gold)", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", boxShadow: "0 6px 16px rgba(0,0,0,0.4)" }}>
-            <span style={{ fontSize: "52px" }}>
-              {curCut.character === "player" ? "🎓" : curCut.character === "ari" ? "🤖" : curCut.character === "haeon" ? "⚖️" : curCut.character === "zero" ? "⚡" : "📢"}
-            </span>
-          </div>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "14px", margin: "14px 0" }}>
+          {curCut.image ? (
+            <div className="webtoon-image-frame" style={{ width: "100%", maxHeight: "250px", borderRadius: "12px", overflow: "hidden", border: "1.5px solid rgba(255,213,106,0.3)", boxShadow: "0 8px 24px rgba(0,0,0,0.6)", background: "#000", display: "flex", justifyContent: "center", alignItems: "center" }}>
+              <img
+                src={curCut.image}
+                alt={curCut.title}
+                style={{ width: "100%", maxHeight: "250px", objectFit: "cover", display: "block" }}
+              />
+            </div>
+          ) : (
+            <div style={{ width: "100px", height: "100px", borderRadius: "50%", background: "rgba(255,255,255,0.05)", border: "3px solid var(--gold)", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", boxShadow: "0 6px 16px rgba(0,0,0,0.4)" }}>
+              <span style={{ fontSize: "44px" }}>
+                {curCut.character === "player" ? "🎓" : curCut.character === "ari" ? "🤖" : curCut.character === "haeon" ? "⚖️" : curCut.character === "zero" ? "⚡" : "📢"}
+              </span>
+            </div>
+          )}
 
-          <div style={{ width: "100%", background: "rgba(255,255,255,0.06)", borderRadius: "12px", padding: "16px", border: "1px solid rgba(255,255,255,0.08)" }}>
+          <div style={{ width: "100%", background: "rgba(255,255,255,0.06)", borderRadius: "12px", padding: "14px 16px", border: "1px solid rgba(255,255,255,0.1)" }}>
             <strong style={{ color: "var(--gold)", fontSize: "14px", display: "block", marginBottom: "6px" }}>💬 {curCut.speaker}</strong>
-            <p style={{ fontSize: "15px", lineHeight: "1.6", color: "#ffffff", margin: 0 }}>"{curCut.dialogue}"</p>
+            <p style={{ fontSize: "14.5px", lineHeight: "1.6", color: "#ffffff", margin: 0 }}>"{curCut.dialogue}"</p>
           </div>
         </div>
 

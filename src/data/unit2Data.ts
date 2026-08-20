@@ -21,6 +21,7 @@ export const act2WebtoonCutscene: WebtoonCutscene = {
       bgLabel: "강서국 공정정책국 집무실",
       caption: "임명식 현장 · 단정한 정책관 정장을 갖춘 남녀 2인의 신입 공정정책관 탄생!",
       soundEffect: "cert_fanfare",
+      image: "/webtoon/act2_cut1.jpg",
     },
     {
       id: "cut-2",
@@ -34,6 +35,7 @@ export const act2WebtoonCutscene: WebtoonCutscene = {
       bgLabel: "강서국 원도심 거리",
       caption: "강서국 현장 조사 · 낙후된 원도심과 갈등의 골",
       soundEffect: "case_open",
+      image: "/webtoon/act2_cut2.jpg",
     },
     {
       id: "cut-3",
@@ -47,6 +49,7 @@ export const act2WebtoonCutscene: WebtoonCutscene = {
       bgLabel: "에코시티 신도시와 원도심 불평등 데이터 전광판",
       caption: "아리의 데이터 보고 · 공간 불평등과 사회 불평등의 복합 위기 파악",
       soundEffect: "ui_click",
+      image: "/webtoon/act2_cut3.jpg",
     },
     {
       id: "cut-4",
@@ -60,6 +63,7 @@ export const act2WebtoonCutscene: WebtoonCutscene = {
       bgLabel: "시민 청문회 토론장",
       caption: "ZERO의 난입 · 지역 및 사회 불평등을 능력주의 경쟁 결과로 정당화",
       soundEffect: "zero_appear",
+      image: "/webtoon/act2_cut4.jpg",
     },
     {
       id: "cut-5",
@@ -73,6 +77,7 @@ export const act2WebtoonCutscene: WebtoonCutscene = {
       bgLabel: "강서국 정부 광장",
       caption: "ACT 2 미션 개시 · 남녀 정책관 팀의 강서국 정의 구현 탐구 개막!",
       soundEffect: "mission_complete",
+      image: "/webtoon/act2_cut5.jpg",
     },
   ],
 };

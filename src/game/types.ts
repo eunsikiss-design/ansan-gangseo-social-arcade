@@ -227,6 +227,7 @@ export interface WebtoonCut {
   bgLabel: string;
   caption?: string;
   soundEffect?: string;
+  image?: string;
 }
 
 export interface WebtoonCutscene {
