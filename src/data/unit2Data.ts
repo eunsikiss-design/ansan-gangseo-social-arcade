@@ -51,14 +51,14 @@ export const act2WebtoonCutscene: WebtoonCutscene = {
     {
       id: "cut-4",
       cutIndex: 4,
-      title: "ZERO의 공개 선언",
+      title: "ZERO의 지역 불평등 정당화 선언",
       speaker: "라이벌 ZERO",
-      dialogue: "비웃음이 나오는군! 시험 잘 보고 승리한 사람이 더 많은 혜택을 누리는 게 진짜 공정이다! 국가의 복지 재분배나 약자 우대 정책은 모조리 역차별이다!",
+      dialogue: "비웃음이 나오는군! 거주 지역과 소득에 따라 삶의 격차가 벌어지는 건 개인과 시장의 경쟁 결과다! 지역 차이나 사회 불평등조차 국가가 인위적으로 줄이겠다는 건 능력 있는 승자에 대한 역차별이다!",
       character: "zero",
       expression: "challenge",
       bgType: "debate_hall",
       bgLabel: "시민 청문회 토론장",
-      caption: "ZERO의 난입 · 승자독식 능력주의 신화 선언",
+      caption: "ZERO의 난입 · 지역 및 사회 불평등을 능력주의 경쟁 결과로 정당화",
       soundEffect: "zero_appear",
     },
     {
