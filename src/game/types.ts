@@ -243,5 +243,7 @@ export interface SpeechFeedbackResult {
   speechTimeAdvice: string;
   toneCoaching: string;
   score: number;
+  followUpQuestion?: string;
 }
+
 

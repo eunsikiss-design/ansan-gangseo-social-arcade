@@ -1203,40 +1203,174 @@ function SpeechPracticeModal({
   const [speechText, setSpeechText] = useState("");
   const [isRecording, setIsRecording] = useState(false);
   const [seconds, setSeconds] = useState(0);
+  const [volumeLevel, setVolumeLevel] = useState(0);
+  const [attemptsUsed, setAttemptsUsed] = useState(0); // 최대 3회 제한
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<SpeechFeedbackResult | null>(null);
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
 
+  const silenceSecondsRef = useRef(0);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const recognitionRef = useRef<any>(null);
+  const animFrameRef = useRef<number | null>(null);
+
+  // 파고드는 질문 TTS 오디오 재생
+  const speakFollowUpQuestion = (text: string) => {
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+      const uttr = new SpeechSynthesisUtterance(text);
+      uttr.lang = "ko-KR";
+      uttr.rate = 0.95;
+      window.speechSynthesis.speak(uttr);
+    }
+    void audioManager.playSfx("inspect");
+  };
+
+  // 타이머 및 10초간 무음/무입력 자동 중지 타이머
   useEffect(() => {
     let interval: any = null;
     if (isRecording) {
-      interval = setInterval(() => setSeconds((s) => s + 1), 1000);
+      interval = setInterval(() => {
+        setSeconds((s) => s + 1);
+
+        // 10초간 무음 감지 시 자동 중지
+        if (silenceSecondsRef.current >= 10) {
+          stopRecording();
+          setToastMsg("⏱️ 10초간 무음이 감지되어 녹음이 자동 중지되었습니다.");
+          setTimeout(() => setToastMsg(null), 4000);
+        }
+      }, 1000);
     }
-    return () => clearInterval(interval);
+    return () => {
+      if (interval) clearInterval(interval);
+    };
   }, [isRecording]);
+
+  const startRecording = async () => {
+    if (attemptsUsed >= 3) {
+      alert("마이크 발언 기회(최대 3회)를 모두 사용하셨습니다. 아래 텍스트 창에 직접 입력하여 피드백을 받을 수 있습니다.");
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaStreamRef.current = stream;
+
+      // Web Audio API 소리 입력 강도 게이지
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      const audioCtx = new AudioCtx();
+      audioContextRef.current = audioCtx;
+      const source = audioCtx.createMediaStreamSource(stream);
+      const analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 256;
+      source.connect(analyser);
+
+      const dataArray = new Uint8Array(analyser.frequencyBinCount);
+      silenceSecondsRef.current = 0;
+
+      const checkVolume = () => {
+        analyser.getByteFrequencyData(dataArray);
+        let sum = 0;
+        for (let i = 0; i < dataArray.length; i++) {
+          sum += dataArray[i];
+        }
+        const avg = sum / dataArray.length;
+        const normalized = Math.min(100, Math.round((avg / 128) * 100));
+        setVolumeLevel(normalized);
+
+        // 무음 감지 (입력 강도 5% 미만)
+        if (normalized < 5) {
+          silenceSecondsRef.current += 1 / 60;
+        } else {
+          silenceSecondsRef.current = 0;
+        }
+
+        animFrameRef.current = requestAnimationFrame(checkVolume);
+      };
+      checkVolume();
+
+      // Web Speech API STT (음성-텍스트 실시간 변환)
+      const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (SpeechRec) {
+        const rec = new SpeechRec();
+        rec.lang = "ko-KR";
+        rec.continuous = true;
+        rec.interimResults = true;
+
+        rec.onresult = (e: any) => {
+          let transcript = "";
+          for (let i = 0; i < e.results.length; i++) {
+            transcript += e.results[i][0].transcript;
+          }
+          if (transcript.trim()) {
+            setSpeechText(transcript);
+            silenceSecondsRef.current = 0;
+          }
+        };
+
+        rec.onerror = () => {};
+        rec.start();
+        recognitionRef.current = rec;
+      }
+
+      setIsRecording(true);
+      setSeconds(0);
+      setAttemptsUsed((prev) => prev + 1);
+      void audioManager.playSfx("case_open");
+    } catch (err) {
+      console.error("Microphone access fail:", err);
+      setIsRecording(true);
+      setSeconds(0);
+      setAttemptsUsed((prev) => prev + 1);
+      void audioManager.playSfx("case_open");
+    }
+  };
+
+  const stopRecording = () => {
+    setIsRecording(false);
+    setVolumeLevel(0);
+
+    if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+    if (recognitionRef.current) {
+      try { recognitionRef.current.stop(); } catch (_) {}
+    }
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach((t) => t.stop());
+    }
+    if (audioContextRef.current) {
+      try { audioContextRef.current.close(); } catch (_) {}
+    }
+    void audioManager.playSfx("success");
+  };
 
   const handleToggleRecord = () => {
     if (!isRecording) {
-      setIsRecording(true);
-      setSeconds(0);
-      void audioManager.playSfx("case_open");
+      void startRecording();
     } else {
-      setIsRecording(false);
-      void audioManager.playSfx("success");
+      stopRecording();
     }
   };
 
   const handleAnalyze = async () => {
     if (!speechText.trim()) return;
+    if (isRecording) stopRecording();
+
     setLoading(true);
     const res = await onSubmitSpeech(speechText, seconds || 35);
     setResult(res);
     setLoading(false);
     void audioManager.playSfx("mission_complete");
+
+    // 파고드는 질문 오디오 자동 출력
+    if (res?.followUpQuestion) {
+      setTimeout(() => speakFollowUpQuestion(res.followUpQuestion!), 400);
+    }
   };
 
   return (
     <div className="modal-backdrop-v2">
-      <div className="modal-card-v2" style={{ maxWidth: "520px" }}>
+      <div className="modal-card-v2" style={{ maxWidth: "540px" }}>
         <div className="modal-header-v2">
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
             <span style={{ fontSize: "20px" }}>🎙️</span>
@@ -1246,65 +1380,123 @@ function SpeechPracticeModal({
         </div>
 
         <div className="modal-body-v2">
-          <p style={{ fontSize: "13px", color: "var(--teal-soft)", marginBottom: "12px" }}>
-            강서국 공정정책관으로서 청문회 발언을 직접 말하거나 작성하세요. Gemini가 발언 요약, 논리 타당성, 시간, 어조 4가지를 다각도로 피드백합니다!
-          </p>
-
-          <div style={{ background: "rgba(0,0,0,0.3)", borderRadius: "10px", padding: "16px", textAlign: "center", marginBottom: "16px" }}>
-            <button
-              onClick={handleToggleRecord}
-              className={`primary-button ${isRecording ? "recording-pulse" : ""}`}
-              style={{ background: isRecording ? "#ef4444" : "var(--teal)", padding: "12px 24px", borderRadius: "24px" }}
-            >
-              {isRecording ? `⏹️ 녹음 중지 (${seconds}초)` : "🎙️ 마이크 발언 시작"}
-            </button>
-            {isRecording && <p style={{ fontSize: "12px", color: "#f87171", marginTop: "8px" }}>또박또박하고 당당한 목소리로 의견을 말씀하세요...</p>}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
+            <p style={{ fontSize: "12.5px", color: "var(--teal-soft)", margin: 0 }}>
+              공정정책관으로서 의견을 발표하세요. (10초 무음 시 자동 중지)
+            </p>
+            <span style={{ fontSize: "11px", color: attemptsUsed >= 3 ? "#ff7aa2" : "var(--gold)", fontWeight: 700, background: "rgba(0,0,0,0.3)", padding: "2px 8px", borderRadius: "10px" }}>
+              🎤 남은 기회: {Math.max(0, 3 - attemptsUsed)} / 3회
+            </span>
           </div>
 
-          <textarea
-            rows={3}
-            value={speechText}
-            onChange={(e) => setSpeechText(e.target.value)}
-            placeholder="예: 강서국 행정직 채용 시 학력을 가리는 블라인드 채용은 불필요한 학벌 배경 편견을 없애고 오직 업무에 필요한 진짜 실력만을 공정하게 평가하기 때문에 꼭 필요합니다!"
-            style={{ width: "100%", background: "#0d131f", color: "#fff", border: "1px solid rgba(255,255,255,0.15)", borderRadius: "8px", padding: "12px", fontSize: "14px", resize: "none" }}
-          />
+          {toastMsg && (
+            <div style={{ background: "rgba(255,122,162,0.15)", border: "1px solid #ff7aa2", color: "#ff7aa2", borderRadius: "8px", padding: "8px 12px", fontSize: "12px", marginBottom: "10px" }}>
+              {toastMsg}
+            </div>
+          )}
+
+          {/* 마이크 녹음 및 소리 입력 강도 실시간 바 */}
+          <div style={{ background: "rgba(0,0,0,0.35)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "12px", padding: "14px", textAlign: "center", marginBottom: "14px" }}>
+            <button
+              onClick={handleToggleRecord}
+              disabled={attemptsUsed >= 3 && !isRecording}
+              className={`primary-button ${isRecording ? "recording-pulse" : ""}`}
+              style={{ background: isRecording ? "#ef4444" : attemptsUsed >= 3 ? "#4a5568" : "var(--teal)", padding: "12px 24px", borderRadius: "24px", cursor: attemptsUsed >= 3 && !isRecording ? "not-allowed" : "pointer" }}
+            >
+              {isRecording ? `⏹️ 발언 완료 (녹음 중: ${seconds}초)` : attemptsUsed >= 3 ? "🔒 발언 기회(3회) 사용 완료" : "🎙️ 마이크 발언 시작"}
+            </button>
+
+            {/* 실시간 소리 입력 강도 게이지 */}
+            {isRecording && (
+              <div style={{ marginTop: "12px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", color: "var(--teal-soft)", marginBottom: "4px" }}>
+                  <span>🔊 소리 입력 강도</span>
+                  <strong>{volumeLevel}%</strong>
+                </div>
+                <div style={{ width: "100%", height: "8px", background: "rgba(255,255,255,0.1)", borderRadius: "4px", overflow: "hidden" }}>
+                  <div
+                    style={{
+                      width: `${volumeLevel}%`,
+                      height: "100%",
+                      background: volumeLevel > 70 ? "#ef4444" : volumeLevel > 30 ? "var(--gold)" : "#56e39f",
+                      transition: "width 0.1s ease",
+                    }}
+                  />
+                </div>
+                <p style={{ fontSize: "11.5px", color: "#f87171", marginTop: "6px" }}>또박또박한 목소리로 의견을 말씀하세요...</p>
+              </div>
+            )}
+          </div>
+
+          {/* STT 실시간 텍스트 변환 결과창 */}
+          <div style={{ marginBottom: "12px" }}>
+            <label style={{ fontSize: "12px", color: "var(--gold)", fontWeight: 700, display: "block", marginBottom: "4px" }}>
+              📝 음성 텍스트 변환 (STT) 및 발언 내용:
+            </label>
+            <textarea
+              rows={3}
+              value={speechText}
+              onChange={(e) => setSpeechText(e.target.value)}
+              placeholder="마이크 버튼을 누르고 말하거나, 이곳에 직접 의견을 작성하세요 (예: 블라인드 채용은 불필요한 학벌 편견을 없애고 오직 실력만을 공정하게 평가하므로 꼭 필요합니다!)..."
+              style={{ width: "100%", background: "#0d131f", color: "#fff", border: "1px solid rgba(255,255,255,0.15)", borderRadius: "8px", padding: "10px 12px", fontSize: "13.5px", resize: "none" }}
+            />
+          </div>
 
           <button
             disabled={loading || !speechText.trim()}
             onClick={handleAnalyze}
             className="primary-button full-button"
-            style={{ marginTop: "12px" }}
+            style={{ padding: "10px", fontSize: "14px" }}
           >
-            {loading ? "✨ Gemini AI 종합 피드백 분석 중..." : "🚀 Gemini Live 스피치 피드백 받기"}
+            {loading ? "✨ Gemini AI 종합 피드백 분석 중..." : "🚀 Gemini Live 피드백 및 파고드는 질문 받기"}
           </button>
 
-          {/* Gemini Feedback Display */}
+          {/* Gemini Live Feedback & Probe Question Display */}
           {result && (
-            <div style={{ marginTop: "16px", background: "rgba(86,227,159,0.08)", border: "1px solid var(--teal-soft)", borderRadius: "12px", padding: "16px" }}>
+            <div style={{ marginTop: "16px", background: "rgba(86,227,159,0.06)", border: "1.5px solid var(--teal-soft)", borderRadius: "12px", padding: "14px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
-                <strong style={{ color: "var(--teal-soft)", fontSize: "15px" }}>✨ Gemini Live 종합 평가 결과</strong>
-                <span style={{ background: "var(--teal-soft)", color: "#000", fontWeight: "bold", padding: "2px 8px", borderRadius: "10px", fontSize: "13px" }}>
+                <strong style={{ color: "var(--teal-soft)", fontSize: "14.5px" }}>✨ Gemini Live 종합 평가 결과</strong>
+                <span style={{ background: "var(--teal-soft)", color: "#000", fontWeight: "bold", padding: "2px 8px", borderRadius: "10px", fontSize: "12.5px" }}>
                   {result.score}점 / 100점
                 </span>
               </div>
 
-              <div style={{ display: "flex", flexDirection: "column", gap: "10px", fontSize: "13px" }}>
-                <div style={{ background: "rgba(0,0,0,0.3)", padding: "10px", borderRadius: "8px" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px", fontSize: "12.5px" }}>
+                <div style={{ background: "rgba(0,0,0,0.3)", padding: "8px 10px", borderRadius: "8px" }}>
                   <strong style={{ color: "var(--gold)", display: "block" }}>📝 발언 요약:</strong>
-                  <p style={{ margin: "4px 0 0", color: "#e2e8f0" }}>{result.summary}</p>
+                  <p style={{ margin: "2px 0 0", color: "#e2e8f0" }}>{result.summary}</p>
                 </div>
-                <div style={{ background: "rgba(0,0,0,0.3)", padding: "10px", borderRadius: "8px" }}>
+                <div style={{ background: "rgba(0,0,0,0.3)", padding: "8px 10px", borderRadius: "8px" }}>
                   <strong style={{ color: "#60a5fa", display: "block" }}>🧠 논리 구조 분석:</strong>
-                  <p style={{ margin: "4px 0 0", color: "#e2e8f0" }}>{result.logicAnalysis}</p>
+                  <p style={{ margin: "2px 0 0", color: "#e2e8f0" }}>{result.logicAnalysis}</p>
                 </div>
-                <div style={{ background: "rgba(0,0,0,0.3)", padding: "10px", borderRadius: "8px" }}>
+                <div style={{ background: "rgba(0,0,0,0.3)", padding: "8px 10px", borderRadius: "8px" }}>
                   <strong style={{ color: "#f59e0b", display: "block" }}>⏱️ 발언 시간 및 분량 코칭:</strong>
-                  <p style={{ margin: "4px 0 0", color: "#e2e8f0" }}>{result.speechTimeAdvice}</p>
+                  <p style={{ margin: "2px 0 0", color: "#e2e8f0" }}>{result.speechTimeAdvice}</p>
                 </div>
-                <div style={{ background: "rgba(0,0,0,0.3)", padding: "10px", borderRadius: "8px" }}>
+                <div style={{ background: "rgba(0,0,0,0.3)", padding: "8px 10px", borderRadius: "8px" }}>
                   <strong style={{ color: "#a855f7", display: "block" }}>📢 발언 어조 및 전달력:</strong>
-                  <p style={{ margin: "4px 0 0", color: "#e2e8f0" }}>{result.toneCoaching}</p>
+                  <p style={{ margin: "2px 0 0", color: "#e2e8f0" }}>{result.toneCoaching}</p>
                 </div>
+
+                {/* 🎯 파고드는 질문 1개 오디오 & 텍스트 출력 카드 */}
+                {result.followUpQuestion && (
+                  <div style={{ marginTop: "6px", background: "linear-gradient(135deg, rgba(255,213,106,0.18), rgba(4,24,36,0.95))", border: "1.5px solid var(--gold)", borderRadius: "10px", padding: "12px" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
+                      <strong style={{ color: "var(--gold)", fontSize: "13px" }}>🎯 Gemini AI 파고드는 딥 피드백 질문 (오디오 출력):</strong>
+                      <button
+                        type="button"
+                        onClick={() => speakFollowUpQuestion(result.followUpQuestion!)}
+                        style={{ padding: "3px 8px", fontSize: "11px", borderRadius: "12px", background: "var(--gold)", color: "#000", fontWeight: 700, border: "none", cursor: "pointer" }}
+                      >
+                        🔊 질문 오디오 다시 듣기
+                      </button>
+                    </div>
+                    <p style={{ fontSize: "13px", color: "#ffffff", fontWeight: 700, margin: 0, lineHeight: "1.5" }}>
+                      "{result.followUpQuestion}"
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -1313,6 +1505,7 @@ function SpeechPracticeModal({
     </div>
   );
 }
+
 
 // =========================================================================
 // 4. MISSION PLAYER VIEW (100점 채점, 3단계 힌트, 오답 피드백)

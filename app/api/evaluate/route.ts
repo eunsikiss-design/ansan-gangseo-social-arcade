@@ -47,14 +47,26 @@ export async function POST(req: Request) {
 
       const toneCoaching = "또박또박하고 자신감 넘치는 공정정책관의 발언 톤입니다. 청중의 눈을 마주치듯 확신에 찬 어조를 유지하세요.";
 
+      // 🎯 Gemini AI 파고드는 딥 피드백 질문 1개 생성
+      let followUpQuestion = "제시하신 주장이 현실 정책으로 시행될 때 발생할 수 있는 부작용과 이를 완화할 보완 방안은 무엇인가요?";
+      if (answerText.includes("학력") || answerText.includes("블라인드")) {
+        followUpQuestion = "블라인드 채용이 직무 전문성 검증을 오히려 어렵게 만든다는 일각의 우려에 대해 공정정책관으로서 어떤 해법을 제시하시겠습니까?";
+      } else if (answerText.includes("약자") || answerText.includes("할당") || answerText.includes("우대")) {
+        followUpQuestion = "적극적 우대조치가 특정 그룹에 대한 '역차별' 논란을 일으킬 때, 형평성과 공정성의 균형을 맞출 헌법적 기준은 무엇인가요?";
+      } else if (answerText.includes("분배") || answerText.includes("롤스") || answerText.includes("노직")) {
+        followUpQuestion = "최소 수혜자 배려의 원칙(롤스)과 개인의 정당한 소유권 보호(노직)가 충돌할 때, 강서국의 조세 정책 방향은 어디로 향해야 할까요?";
+      }
+
       return NextResponse.json({
         summary,
         logicAnalysis,
         speechTimeAdvice,
         toneCoaching,
         score: Math.min(100, score),
+        followUpQuestion,
       });
     }
+
 
 
     // 1. 단서(힌트) 즉시 요청인 경우
