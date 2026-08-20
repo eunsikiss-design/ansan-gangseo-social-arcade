@@ -38,14 +38,14 @@ export const act2WebtoonCutscene: WebtoonCutscene = {
     {
       id: "cut-3",
       cutIndex: 3,
-      title: "불평등 실태 분석",
+      title: "공간·사회 불평등의 복합 위기",
       speaker: "AI 파트너 아리",
-      dialogue: "데이터 분석 완료! 신도시 에코시티에는 첨단 의료와 최신 학교가 집중되었지만, 강서국 원도심은 버스 노선조차 줄어들고 있어요.",
+      dialogue: "데이터 분석 완료! 신도시 에코시티와 원도심 사이의 '공간 불평등(인프라·의료 격차)'뿐만 아니라, 채용 기회와 자산이 특정 계층에 쏠리는 '사회 불평등'이 동시에 심화되며 청년들의 기회가 박탈되고 있어요!",
       character: "ari",
       expression: "think",
       bgType: "echocity_new",
-      bgLabel: "에코시티 신도시 마천루",
-      caption: "아리의 데이터 보고 · 극심한 자원 및 인프라 격차",
+      bgLabel: "에코시티 신도시와 원도심 불평등 데이터 전광판",
+      caption: "아리의 데이터 보고 · 공간 불평등과 사회 불평등의 복합 위기 파악",
       soundEffect: "ui_click",
     },
     {
