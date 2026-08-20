@@ -3,7 +3,8 @@ export type AudioSettings = { bgm: boolean; sfx: boolean; bgmVolume: number; sfx
 const STORAGE_KEY = "social-arcade-audio-v2";
 const initialSettings: AudioSettings = { bgm: true, sfx: true, bgmVolume: 0.4, sfxVolume: 0.6 };
 
-type BgmTrack = "main_hub" | "mission_map" | "investigation" | "zero_challenge" | "certificate" | "academy";
+type BgmTrack = "main_hub" | "mission_map" | "investigation" | "zero_challenge" | "certificate" | "academy" | "webtoon_opening" | "debate";
+
 
 class ArcadeAudioManager {
   settings: AudioSettings = initialSettings;
@@ -150,7 +151,20 @@ class ArcadeAudioManager {
         type: "sine",
         baseOctave: 1,
       },
+      webtoon_opening: {
+        notes: [329.63, 392.0, 440.0, 523.25, 659.25, 523.25, 440.0, 392.0], // Cheerful comics intro
+        interval: 280,
+        type: "triangle",
+        baseOctave: 1.1,
+      },
+      debate: {
+        notes: [220.0, 246.94, 261.63, 293.66, 329.63, 293.66, 261.63, 246.94], // Tense structured debate
+        interval: 380,
+        type: "sine",
+        baseOctave: 0.9,
+      },
     };
+
 
     const currentData = tracks[track] || tracks.main_hub;
     let step = 0;

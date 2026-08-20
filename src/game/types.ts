@@ -85,8 +85,9 @@ export interface GameMissionData {
   // 특화 위젯 데이터 (헌법재판, 캠페인 등)
   interactiveWidget?: {
     widgetType: "court_procedure" | "rights_slider" | "campaign_builder" | "citizen_matrix";
-    options?: any;
+    options?: Record<string, unknown>;
   };
+
 }
 
 export interface GameModeInfo {
@@ -162,3 +163,85 @@ export interface SaveData {
   earnedVocabBadges?: number[]; // [1, 2, ...] 단원별 개념 마스터 뱃지
   earnedVocabItems?: string[];  // 획득한 개념 카드 아이템 ID 리스트
 }
+
+export interface Scene {
+  id: string;
+  speaker: string;
+  text: string;
+  character: "player" | "ari" | "haeon" | "zero" | "narrator" | "citizen";
+  expression: string;
+  background: string;
+  position?: "left" | "right" | "center";
+  image?: string;
+  imageAlt?: string;
+}
+
+export interface MissionStep {
+  id: string;
+  type: "dialogue" | "investigation" | "quiz" | "widget" | "debate" | "webtoon";
+  title: string;
+  scenes?: Scene[];
+  [key: string]: unknown;
+}
+
+
+export interface Mission {
+  id: string;
+  actId: string;
+  unitId?: UnitId;
+  title: string;
+  subtitle: string;
+  summary?: string;
+  badgeId?: string;
+  required?: boolean;
+  estimatedMinutes?: number;
+  backgrounds?: string[];
+  openingScenes: Scene[];
+  endingScenes?: Scene[];
+  steps?: MissionStep[];
+}
+
+export interface EvidenceCardData {
+  id: string;
+  title: string;
+  category: string;
+  description: string;
+  sourceLabel: string;
+  relatedConceptIds: string[];
+  reliability: number;
+  textbookPage: string;
+  textbookQuote: string;
+  applicationCase: string;
+  studyTip: string;
+}
+
+export interface WebtoonCut {
+  id: string;
+  cutIndex: number;
+  title: string;
+  speaker: string;
+  dialogue: string;
+  character: "player" | "ari" | "haeon" | "zero" | "narrator";
+  expression: "default" | "think" | "success" | "serious" | "challenge" | "shocked";
+  bgType: "gangseo_old" | "echocity_new" | "justice_office" | "debate_hall";
+  bgLabel: string;
+  caption?: string;
+  soundEffect?: string;
+}
+
+export interface WebtoonCutscene {
+  id: string;
+  actId: string;
+  title: string;
+  subtitle: string;
+  cuts: WebtoonCut[];
+}
+
+export interface SpeechFeedbackResult {
+  summary: string;
+  logicAnalysis: string;
+  speechTimeAdvice: string;
+  toneCoaching: string;
+  score: number;
+}
+

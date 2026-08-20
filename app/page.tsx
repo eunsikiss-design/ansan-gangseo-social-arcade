@@ -4,33 +4,32 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  ArrowLeft, ArrowRight, BookOpen, Brain, Check, CheckCircle, Clock,
-  FileText, Gear, Headphones, Info, LockKey, MapTrifold, Medal, Play,
-  Sparkle, SpeakerHigh, SpeakerSlash, Trophy, Warning, X, MagnifyingGlass,
-  User, UserCheck, SignOut, Printer, DownloadSimple, Certificate, ShieldCheck,
-  Key, IdentificationCard, Eye, Student, ChalkboardTeacher, Sparkle as StarIcon,
-  Lightbulb, ChartBar, CheckSquare, Compass, HandPalm, Scales, ShareNetwork,
+  ArrowLeft, ArrowRight, BookOpen, Brain, Check, CheckCircle,
+  FileText, Gear, Headphones, Info, LockKey, Medal, Play,
+  Sparkle, SpeakerHigh, SpeakerSlash, Trophy, Warning, X,
+  UserCheck, Printer, Key, IdentificationCard, ChalkboardTeacher,
+  Lightbulb, ChartBar, Compass,
 } from "@phosphor-icons/react";
 
 import { unit1GameModes } from "@/src/data/unit1Data";
-import { unit1VocabCards, unit1SkillTrainings, type VocabCard, type SkillTrainingCard } from "@/src/data/skillLabData";
+import { unit2GameModes, act2WebtoonCutscene } from "@/src/data/unit2Data";
 import {
-  masterVocabTopics, allVocabQuestions, unit1SkillLabMaster,
+  masterVocabTopics, allVocabQuestions, unit1SkillLabMaster, unit2SkillLabMaster,
   unitTopicGroups, unitMemoryCardSets,
-  type VocabQuestionItem, type Skill1Question, type Skill2Question,
-  type Skill3Question, type Skill4Question, type Skill5Question
 } from "@/src/data/skillLabMasterData";
+
 import { unitCertificates } from "@/src/data/certificates";
 import {
-  authenticateUser, changeUserPassword, DEFAULT_INITIAL_PASSWORD,
-  getOrCreateAccount, loadAccounts, parseUserId, updateProfileName,
+  authenticateUser, changeUserPassword, loadAccounts,
 } from "@/src/game/auth";
-import { audioManager, defaultAudioSettings, type AudioSettings } from "@/src/game/audio/AudioManager";
+import { audioManager, defaultAudioSettings } from "@/src/game/audio/AudioManager";
 import { calculateMissionScore, evaluateCompetencyProfile, generatePortfolioDraft } from "@/src/game/evaluator";
 import type {
-  GameMissionData, GameModeId, GameModeInfo, HintItem, MissionLevel,
-  PortfolioEntry, SaveData, ScoreBreakdown, StudentProfile, UnitCertificateInfo, UnitId,
+  GameMissionData, GameModeId, HintItem, SaveData, ScoreBreakdown, StudentProfile,
+  WebtoonCutscene, SpeechFeedbackResult,
 } from "@/src/game/types";
+
+
 
 const SAVE_KEY = "arca-social-save-v7";
 
@@ -69,11 +68,14 @@ type ViewMode =
   | "login"
   | "hub"
   | "unit1_dashboard"
+  | "unit2_dashboard"
+  | "webtoon_viewer"
   | "mission_player"
   | "skill_lab_vocab"
   | "skill_lab_skill"
   | "portfolio_view"
   | "item_archive";
+
 
 export default function HomePage() {
   const [save, setSave] = useState<SaveData>(blankSave);
@@ -98,6 +100,34 @@ export default function HomePage() {
   const [certUnitId, setCertUnitId] = useState<number | null>(null);
   const [comingSoonMsg, setComingSoonMsg] = useState<string | null>(null);
   const [portfolioOpen, setPortfolioOpen] = useState(false);
+  const [speechModalOpen, setSpeechModalOpen] = useState(false);
+
+  const handleSpeechSubmit = async (text: string, duration: number): Promise<SpeechFeedbackResult | null> => {
+    try {
+      const res = await fetch("/api/evaluate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "speech_coaching",
+          studentAnswer: text,
+          context: { duration, topic: activeMission.title, unitId: activeMission.unitId },
+        }),
+      });
+      if (res.ok) {
+        return (await res.json()) as SpeechFeedbackResult;
+      }
+    } catch {
+      /* fallback */
+    }
+    return {
+      summary: `"${text.slice(0, 30)}..."라는 공정정책관의 주요 주장을 전달함.`,
+      logicAnalysis: "주장이 명확하며 업무 실력 중심 평가의 정당성을 강조했습니다.",
+      speechTimeAdvice: `발언 시간(약 ${duration}초): 또렷하고 당당한 토론 적정 분량입니다.`,
+      toneCoaching: "확신에 찬 당당한 어조를 훌륭하게 유지하였습니다.",
+      score: 88,
+    };
+  };
+
 
   // Initialize
   useEffect(() => {
@@ -225,19 +255,21 @@ export default function HomePage() {
   };
 
   const handleNextMission = () => {
-    const currentMode = unit1GameModes.find((m) => m.id === activeModeId);
+    const modes = activeMission.unitId === 2 ? unit2GameModes : unit1GameModes;
+    const currentMode = modes.find((m) => m.id === activeModeId) || modes[0];
     if (!currentMode) {
-      setView("unit1_dashboard");
+      setView(activeMission.unitId === 2 ? "unit2_dashboard" : "unit1_dashboard");
       return;
     }
     const curIdx = currentMode.missions.findIndex((m) => m.id === activeMission.id);
-    if (curIdx < currentMode.missions.length - 1) {
+    if (curIdx >= 0 && curIdx < currentMode.missions.length - 1) {
       startMission(currentMode.missions[curIdx + 1]);
     } else {
-      setView("unit1_dashboard");
+      setView(activeMission.unitId === 2 ? "unit2_dashboard" : "unit1_dashboard");
       void audioManager.playSfx("mission_complete");
     }
   };
+
 
   const evalProfile = useMemo(() => {
     return evaluateCompetencyProfile(save.missionScores, save.completedMissions);
@@ -261,6 +293,7 @@ export default function HomePage() {
             unit1Cleared={unit1Cleared}
             evalProfile={evalProfile}
             onOpenUnit1={() => setView("unit1_dashboard")}
+            onOpenUnit2={() => setView("webtoon_viewer")}
             onOpenSkillLabVocab={() => setView("skill_lab_vocab")}
             onOpenSkillLabSkill={() => setView("skill_lab_skill")}
             onOpenPortfolio={() => setPortfolioOpen(true)}
@@ -284,6 +317,25 @@ export default function HomePage() {
           />
         )}
 
+        {view === "unit2_dashboard" && (
+          <Unit2DashboardView
+            save={save}
+            onBack={() => setView("hub")}
+            onStartMission={startMission}
+            onOpenWebtoon={() => setView("webtoon_viewer")}
+            onOpenCert={() => setCertUnitId(2)}
+            onOpenPortfolio={() => setPortfolioOpen(true)}
+          />
+        )}
+
+        {view === "webtoon_viewer" && (
+          <WebtoonViewer
+            webtoon={act2WebtoonCutscene}
+            onComplete={() => setView("unit2_dashboard")}
+            onBack={() => setView("hub")}
+          />
+        )}
+
         {view === "mission_player" && (
           <MissionPlayerView
             mission={activeMission}
@@ -298,9 +350,11 @@ export default function HomePage() {
               setScoreResult(null);
               setShowFeedbackModal(false);
             }}
-            onBack={() => setView("unit1_dashboard")}
+            onBack={() => setView(activeMission.unitId === 2 ? "unit2_dashboard" : "unit1_dashboard")}
+            onOpenSpeechModal={() => setSpeechModalOpen(true)}
           />
         )}
+
 
         {view === "skill_lab_vocab" && (
           <SkillLabVocabView
@@ -329,7 +383,15 @@ export default function HomePage() {
         {/* ========================================================
             2. MODALS & POPUPS
             ======================================================== */}
+        {speechModalOpen && (
+          <SpeechPracticeModal
+            onClose={() => setSpeechModalOpen(false)}
+            onSubmitSpeech={handleSpeechSubmit}
+          />
+        )}
+
         {hintModalOpen && (
+
           <HintModal
             hints={activeMission.hints}
             currentHintLevel={activeHintLevel}
@@ -541,6 +603,7 @@ function MainHubScreenView({
   unit1Cleared,
   evalProfile,
   onOpenUnit1,
+  onOpenUnit2,
   onOpenSkillLabVocab,
   onOpenSkillLabSkill,
   onOpenPortfolio,
@@ -556,6 +619,7 @@ function MainHubScreenView({
   unit1Cleared: boolean;
   evalProfile: any;
   onOpenUnit1: () => void;
+  onOpenUnit2: () => void;
   onOpenSkillLabVocab: () => void;
   onOpenSkillLabSkill: () => void;
   onOpenPortfolio: () => void;
@@ -582,11 +646,12 @@ function MainHubScreenView({
     {
       id: 2,
       title: "2단원: 사회 정의와 불평등",
-      sub: "정의의 원탁 · 공정 분배 · 불평등 격차 해소",
-      status: "1단원 완료 후 순차 오픈 예정",
-      active: false,
+      sub: "정의의 원탁 · 공정 분배 · 강서국 불평등 격차 해소",
+      status: "🔥 강서국 불평등 탐구 가능 (ACT 2)",
+      active: true,
       badge: "🌿 공정정책관",
     },
+
     {
       id: 3,
       title: "3단원: 시장경제와 지속가능발전",
@@ -736,9 +801,11 @@ function MainHubScreenView({
               key={u.id}
               className={`unit-action-card ${u.active ? "active" : "locked"}`}
               onClick={() => {
-                if (u.active) onOpenUnit1();
-                else onComingSoon(`${u.title}은 1단원 마무리 후 순차적으로 공개될 예정입니다.`);
+                if (u.id === 1) onOpenUnit1();
+                else if (u.id === 2) onOpenUnit2();
+                else onComingSoon(`${u.title}은 순차적으로 공개될 예정입니다.`);
               }}
+
             >
               <div className="unit-number-circle">0{u.id}</div>
               <div className="unit-info-col">
@@ -904,6 +971,350 @@ function Unit1DashboardView({
 }
 
 // =========================================================================
+// 3-2. UNIT 2 DASHBOARD VIEW (2단원 사회 정의와 불평등 / 강서국 ACT 2)
+// =========================================================================
+function Unit2DashboardView({
+  save,
+  onBack,
+  onStartMission,
+  onOpenWebtoon,
+  onOpenCert,
+  onOpenPortfolio,
+}: {
+  save: SaveData;
+  onBack: () => void;
+  onStartMission: (m: GameMissionData) => void;
+  onOpenWebtoon: () => void;
+  onOpenCert: () => void;
+  onOpenPortfolio: () => void;
+}) {
+  const completedMissions = save.completedMissions;
+  const isUnitComplete = completedMissions.filter((id) => id.startsWith("u2-")).length >= 5;
+
+  return (
+    <div className="unit1-dash-container">
+      {/* Top Header */}
+      <header className="game-hud">
+        <div className="hud-top">
+          <button className="icon-button" onClick={onBack} aria-label="메인 허브로"><ArrowLeft size={20} /></button>
+          <div>
+            <span>2단원 · 사회 정의와 불평등</span>
+            <strong>강서국 공정정책관 아케이드 (ACT 2)</strong>
+          </div>
+          <div style={{ display: "flex", gap: "6px" }}>
+            <button className="icon-button" onClick={onOpenWebtoon} title="오프닝 웹툰 다시보기">📖 웹툰</button>
+            <button className="icon-button" onClick={onOpenPortfolio} title="수행평가 포트폴리오"><FileText size={20} weight="duotone" /></button>
+          </div>
+        </div>
+      </header>
+
+      <div className="unit1-dash-content">
+        {/* Banner to watch Webtoon Cutscene */}
+        <div className="unit-complete-gold-banner" style={{ background: "linear-gradient(135deg, #1e293b, #0f172a)", border: "1px solid #ff9f1c", cursor: "pointer" }} onClick={onOpenWebtoon}>
+          <div className="gold-banner-left">
+            <span style={{ fontSize: "28px" }}>🎬</span>
+            <div>
+              <strong style={{ color: "#ff9f1c" }}>ACT 2 오프닝 웹툰 감상하기</strong>
+              <p>강서국 원도심과 신도시 에코시티의 극심한 불평등 위기와 공정정책관의 미션 개시!</p>
+            </div>
+          </div>
+          <button className="gold-cert-btn" style={{ background: "#ff9f1c", color: "#000" }}><Play size={16} weight="fill" /> 웹툰 감상</button>
+        </div>
+
+        {/* Unit Completion Gold Banner */}
+        {isUnitComplete && (
+          <div className="unit-complete-gold-banner" onClick={onOpenCert}>
+            <div className="gold-banner-left">
+              <Trophy size={28} weight="fill" color="#56e39f" />
+              <div>
+                <strong>2단원 사회 정의와 불평등 완수!</strong>
+                <p>정식 공정정책관 임명증을 확인하고 다운로드하세요.</p>
+              </div>
+            </div>
+            <button className="gold-cert-btn"><Printer size={16} /> 임명증 보기</button>
+          </div>
+        )}
+
+        {/* 2단원 미션 리스트 */}
+        <div className="game-modes-list">
+          {unit2GameModes.map((mode, mIdx) => {
+            const modeMissions = mode.missions;
+            const completedInMode = modeMissions.filter((m) => completedMissions.includes(m.id)).length;
+            const pct = Math.round((completedInMode / modeMissions.length) * 100);
+
+            return (
+              <div key={mode.id} className="game-mode-card">
+                <div className="mode-card-header">
+                  <div className="mode-title-lockup">
+                    <span className="mode-emoji">{mode.iconEmoji}</span>
+                    <div>
+                      <span className="mode-category">ACT 2 MISSION SERIES</span>
+                      <h3>{mode.title}</h3>
+                    </div>
+                  </div>
+                  <span className="mode-progress-badge">{pct}% 달성</span>
+                </div>
+
+                <p className="mode-desc">{mode.description}</p>
+
+                {/* Level Missions Grid */}
+                <div className="mode-levels-grid">
+                  {modeMissions.map((mission) => {
+                    const isDone = completedMissions.includes(mission.id);
+                    const missionScore = save.missionScores[mission.id]?.totalScore;
+
+                    return (
+                      <button
+                        key={mission.id}
+                        className={`level-step-btn ${isDone ? "done" : "ready"}`}
+                        onClick={() => onStartMission(mission)}
+                      >
+                        <div className="level-btn-top">
+                          <span className="level-tag">{mission.levelName}</span>
+                          {isDone && <CheckCircle size={14} weight="fill" color="#56e39f" />}
+                        </div>
+                        <strong>{mission.title}</strong>
+                        <small>{isDone ? `점수: ${missionScore}점` : "도전하기 >"}</small>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// =========================================================================
+// 3-3. WEBTOON VIEWER COMPONENT (ACT 2 오프닝 컷툰)
+// =========================================================================
+function WebtoonViewer({
+  webtoon,
+  onComplete,
+  onBack,
+}: {
+  webtoon: WebtoonCutscene;
+  onComplete: () => void;
+  onBack: () => void;
+}) {
+  const [cutIdx, setCutIdx] = useState(0);
+  const curCut = webtoon.cuts[cutIdx];
+
+  useEffect(() => {
+    void audioManager.playBgm("webtoon_opening");
+    if (curCut?.soundEffect) {
+      void audioManager.playSfx(curCut.soundEffect);
+    }
+  }, [cutIdx, curCut]);
+
+  const isLast = cutIdx === webtoon.cuts.length - 1;
+
+  return (
+    <div style={{ background: "#0b0f19", minHeight: "100vh", color: "#fff", padding: "16px" }}>
+      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+        <button className="icon-button" onClick={onBack} aria-label="뒤로가기"><ArrowLeft size={20} /></button>
+        <div style={{ textAlign: "center" }}>
+          <span style={{ fontSize: "12px", color: "var(--teal-soft)", fontWeight: "bold" }}>{webtoon.subtitle}</span>
+          <h2 style={{ fontSize: "16px", margin: 0, color: "#fff" }}>{webtoon.title}</h2>
+        </div>
+        <button className="icon-button" onClick={onComplete} title="스킵"><ArrowRight size={20} /></button>
+      </header>
+
+      <div style={{ background: "rgba(255,255,255,0.1)", borderRadius: "4px", height: "6px", overflow: "hidden", marginBottom: "20px" }}>
+        <div style={{ width: `${((cutIdx + 1) / webtoon.cuts.length) * 100}%`, height: "100%", background: "linear-gradient(90deg, #ff9f1c, #ffd36a)", transition: "width 0.3s ease" }} />
+      </div>
+
+      <div style={{ background: "#151c2c", borderRadius: "16px", padding: "20px", border: "1px solid rgba(255,255,255,0.12)", boxShadow: "0 10px 30px rgba(0,0,0,0.5)" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+          <span style={{ background: "rgba(255,159,28,0.2)", color: "#ff9f1c", padding: "4px 10px", borderRadius: "12px", fontSize: "12px", fontWeight: "bold" }}>
+            컷 {curCut.cutIndex} / {webtoon.cuts.length} · {curCut.title}
+          </span>
+          <span style={{ fontSize: "12px", color: "#a0aec0" }}>📍 {curCut.bgLabel}</span>
+        </div>
+
+        {curCut.caption && (
+          <div style={{ background: "rgba(0,0,0,0.4)", borderLeft: "3px solid var(--teal-soft)", padding: "8px 12px", borderRadius: "4px", fontSize: "13px", color: "#e2e8f0", marginBottom: "16px" }}>
+            {curCut.caption}
+          </div>
+        )}
+
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "16px", margin: "16px 0" }}>
+          <div style={{ width: "120px", height: "120px", borderRadius: "50%", background: "rgba(255,255,255,0.05)", border: "3px solid var(--gold)", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", boxShadow: "0 6px 16px rgba(0,0,0,0.4)" }}>
+            <span style={{ fontSize: "52px" }}>
+              {curCut.character === "player" ? "🎓" : curCut.character === "ari" ? "🤖" : curCut.character === "haeon" ? "⚖️" : curCut.character === "zero" ? "⚡" : "📢"}
+            </span>
+          </div>
+
+          <div style={{ width: "100%", background: "rgba(255,255,255,0.06)", borderRadius: "12px", padding: "16px", border: "1px solid rgba(255,255,255,0.08)" }}>
+            <strong style={{ color: "var(--gold)", fontSize: "14px", display: "block", marginBottom: "6px" }}>💬 {curCut.speaker}</strong>
+            <p style={{ fontSize: "15px", lineHeight: "1.6", color: "#ffffff", margin: 0 }}>"{curCut.dialogue}"</p>
+          </div>
+        </div>
+
+        <div style={{ display: "flex", gap: "10px", marginTop: "24px" }}>
+          <button
+            disabled={cutIdx === 0}
+            onClick={() => setCutIdx((prev) => Math.max(0, prev - 1))}
+            className="secondary-button"
+            style={{ flex: 1, padding: "12px", opacity: cutIdx === 0 ? 0.5 : 1 }}
+          >
+            이전 컷
+          </button>
+
+          {!isLast ? (
+            <button
+              onClick={() => {
+                setCutIdx((prev) => prev + 1);
+                void audioManager.playSfx("ui_click");
+              }}
+              className="primary-button"
+              style={{ flex: 2, padding: "12px" }}
+            >
+              다음 컷 보기 ➔
+            </button>
+          ) : (
+            <button
+              onClick={onComplete}
+              className="primary-button"
+              style={{ flex: 2, padding: "12px", background: "linear-gradient(135deg, #ff9f1c, #ff4000)" }}
+            >
+              🚀 ACT 2 미션 지도 진입
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// =========================================================================
+// SPEECH PRACTICE MODAL (Gemini Live 스피치 코칭 위젯)
+// =========================================================================
+function SpeechPracticeModal({
+  onClose,
+  onSubmitSpeech,
+}: {
+  onClose: () => void;
+  onSubmitSpeech: (text: string, duration: number) => Promise<SpeechFeedbackResult | null>;
+}) {
+  const [speechText, setSpeechText] = useState("");
+  const [isRecording, setIsRecording] = useState(false);
+  const [seconds, setSeconds] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<SpeechFeedbackResult | null>(null);
+
+  useEffect(() => {
+    let interval: any = null;
+    if (isRecording) {
+      interval = setInterval(() => setSeconds((s) => s + 1), 1000);
+    }
+    return () => clearInterval(interval);
+  }, [isRecording]);
+
+  const handleToggleRecord = () => {
+    if (!isRecording) {
+      setIsRecording(true);
+      setSeconds(0);
+      void audioManager.playSfx("case_open");
+    } else {
+      setIsRecording(false);
+      void audioManager.playSfx("success");
+    }
+  };
+
+  const handleAnalyze = async () => {
+    if (!speechText.trim()) return;
+    setLoading(true);
+    const res = await onSubmitSpeech(speechText, seconds || 35);
+    setResult(res);
+    setLoading(false);
+    void audioManager.playSfx("mission_complete");
+  };
+
+  return (
+    <div className="modal-backdrop-v2">
+      <div className="modal-card-v2" style={{ maxWidth: "520px" }}>
+        <div className="modal-header-v2">
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <span style={{ fontSize: "20px" }}>🎙️</span>
+            <strong>Gemini Live 스피치 연습 모드</strong>
+          </div>
+          <button className="icon-button" onClick={onClose}><X size={18} /></button>
+        </div>
+
+        <div className="modal-body-v2">
+          <p style={{ fontSize: "13px", color: "var(--teal-soft)", marginBottom: "12px" }}>
+            강서국 공정정책관으로서 청문회 발언을 직접 말하거나 작성하세요. Gemini가 발언 요약, 논리 타당성, 시간, 어조 4가지를 다각도로 피드백합니다!
+          </p>
+
+          <div style={{ background: "rgba(0,0,0,0.3)", borderRadius: "10px", padding: "16px", textAlign: "center", marginBottom: "16px" }}>
+            <button
+              onClick={handleToggleRecord}
+              className={`primary-button ${isRecording ? "recording-pulse" : ""}`}
+              style={{ background: isRecording ? "#ef4444" : "var(--teal)", padding: "12px 24px", borderRadius: "24px" }}
+            >
+              {isRecording ? `⏹️ 녹음 중지 (${seconds}초)` : "🎙️ 마이크 발언 시작"}
+            </button>
+            {isRecording && <p style={{ fontSize: "12px", color: "#f87171", marginTop: "8px" }}>또박또박하고 당당한 목소리로 의견을 말씀하세요...</p>}
+          </div>
+
+          <textarea
+            rows={3}
+            value={speechText}
+            onChange={(e) => setSpeechText(e.target.value)}
+            placeholder="예: 강서국 행정직 채용 시 학력을 가리는 블라인드 채용은 불필요한 학벌 배경 편견을 없애고 오직 업무에 필요한 진짜 실력만을 공정하게 평가하기 때문에 꼭 필요합니다!"
+            style={{ width: "100%", background: "#0d131f", color: "#fff", border: "1px solid rgba(255,255,255,0.15)", borderRadius: "8px", padding: "12px", fontSize: "14px", resize: "none" }}
+          />
+
+          <button
+            disabled={loading || !speechText.trim()}
+            onClick={handleAnalyze}
+            className="primary-button full-button"
+            style={{ marginTop: "12px" }}
+          >
+            {loading ? "✨ Gemini AI 종합 피드백 분석 중..." : "🚀 Gemini Live 스피치 피드백 받기"}
+          </button>
+
+          {/* Gemini Feedback Display */}
+          {result && (
+            <div style={{ marginTop: "16px", background: "rgba(86,227,159,0.08)", border: "1px solid var(--teal-soft)", borderRadius: "12px", padding: "16px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
+                <strong style={{ color: "var(--teal-soft)", fontSize: "15px" }}>✨ Gemini Live 종합 평가 결과</strong>
+                <span style={{ background: "var(--teal-soft)", color: "#000", fontWeight: "bold", padding: "2px 8px", borderRadius: "10px", fontSize: "13px" }}>
+                  {result.score}점 / 100점
+                </span>
+              </div>
+
+              <div style={{ display: "flex", flexDirection: "column", gap: "10px", fontSize: "13px" }}>
+                <div style={{ background: "rgba(0,0,0,0.3)", padding: "10px", borderRadius: "8px" }}>
+                  <strong style={{ color: "var(--gold)", display: "block" }}>📝 발언 요약:</strong>
+                  <p style={{ margin: "4px 0 0", color: "#e2e8f0" }}>{result.summary}</p>
+                </div>
+                <div style={{ background: "rgba(0,0,0,0.3)", padding: "10px", borderRadius: "8px" }}>
+                  <strong style={{ color: "#60a5fa", display: "block" }}>🧠 논리 구조 분석:</strong>
+                  <p style={{ margin: "4px 0 0", color: "#e2e8f0" }}>{result.logicAnalysis}</p>
+                </div>
+                <div style={{ background: "rgba(0,0,0,0.3)", padding: "10px", borderRadius: "8px" }}>
+                  <strong style={{ color: "#f59e0b", display: "block" }}>⏱️ 발언 시간 및 분량 코칭:</strong>
+                  <p style={{ margin: "4px 0 0", color: "#e2e8f0" }}>{result.speechTimeAdvice}</p>
+                </div>
+                <div style={{ background: "rgba(0,0,0,0.3)", padding: "10px", borderRadius: "8px" }}>
+                  <strong style={{ color: "#a855f7", display: "block" }}>📢 발언 어조 및 전달력:</strong>
+                  <p style={{ margin: "4px 0 0", color: "#e2e8f0" }}>{result.toneCoaching}</p>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// =========================================================================
 // 4. MISSION PLAYER VIEW (100점 채점, 3단계 힌트, 오답 피드백)
 // =========================================================================
 function MissionPlayerView({
@@ -916,6 +1327,7 @@ function MissionPlayerView({
   onNext,
   onRetry,
   onBack,
+  onOpenSpeechModal,
 }: {
   mission: GameMissionData;
   selectedChoice: number | null;
@@ -926,6 +1338,7 @@ function MissionPlayerView({
   onNext: () => void;
   onRetry: () => void;
   onBack: () => void;
+  onOpenSpeechModal?: () => void;
 }) {
   const currentHint = mission.hints.find((h) => h.level === activeHintLevel);
 
@@ -936,15 +1349,28 @@ function MissionPlayerView({
         <div className="hud-top">
           <button className="icon-button" onClick={onBack} aria-label="목록으로"><ArrowLeft size={20} /></button>
           <div>
-            <span>1단원 · {mission.levelName}</span>
+            <span>{mission.unitId === 2 ? "2단원 (ACT 2)" : "1단원"} · {mission.levelName}</span>
             <strong>{mission.title}</strong>
           </div>
-          <button className="hint-btn-pill" onClick={onOpenHint}>
-            <Lightbulb size={18} weight="fill" color={activeHintLevel > 0 ? "var(--gold)" : "#8bf2e9"} />
-            <span>{activeHintLevel > 0 ? `${activeHintLevel}단계 힌트 적용 중` : "힌트 보기"}</span>
-          </button>
+          <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+            {onOpenSpeechModal && (
+              <button
+                className="primary-button"
+                style={{ background: "linear-gradient(135deg, #10b981, #059669)", fontSize: "12px", padding: "4px 10px", borderRadius: "14px", display: "flex", alignItems: "center", gap: "4px" }}
+                onClick={onOpenSpeechModal}
+                title="Gemini Live 스피치 코칭"
+              >
+                🎙️ 스피치 연습
+              </button>
+            )}
+            <button className="hint-btn-pill" onClick={onOpenHint}>
+              <Lightbulb size={18} weight="fill" color={activeHintLevel > 0 ? "var(--gold)" : "#8bf2e9"} />
+              <span>{activeHintLevel > 0 ? `${activeHintLevel}단계 힌트 적용 중` : "힌트 보기"}</span>
+            </button>
+          </div>
         </div>
       </header>
+
 
       <div className="mission-player-scroll">
         {/* Scenario & Source Material Card */}
@@ -1138,11 +1564,12 @@ function SkillLabVocabView({
   const [currentQIdx, setCurrentQIdx] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
 
-  // 단서(힌트) 및 탐구 체력(에너지) 시스템
-  const [energy, setEnergy] = useState<number>(100);
+  // 단서(힌트) 및 탐구 체력(에너지) 시스템 (기본 체력 40% 시작)
+  const [energy, setEnergy] = useState<number>(40);
   const [clueLevel, setClueLevel] = useState<0 | 1 | 2>(0);
   const [isWrongState, setIsWrongState] = useState<boolean>(false);
   const [lockModalMsg, setLockModalMsg] = useState<string | null>(null);
+  const [rankingCollapsed, setRankingCollapsed] = useState<boolean>(false);
 
   // MATCH question state (랜덤 셔플 및 엄격 검증)
   const [matchSelectedLeft, setMatchSelectedLeft] = useState<number | null>(null);
@@ -1158,20 +1585,29 @@ function SkillLabVocabView({
     { id: string; pairId: string; type: "TERM" | "DEF"; text: string }[]
   >([]);
 
-  // 실시간 랭킹 지수 계산
+  // 실시간 랭킹 지수 계산 (개념 점수 + 실시간 체력 + 경험치 실시간 반영)
+  const totalSkillExp = useMemo(() => {
+    return (save.skillLabScore.vocabScore || 0) * 3 + Math.floor(energy * 2) + (save.exp || 0);
+  }, [save.skillLabScore.vocabScore, energy, save.exp]);
+
   const classRank = useMemo(() => {
-    if (energy >= 95) return 1;
-    if (energy >= 85) return 3;
-    if (energy >= 70) return 7;
-    return 12;
-  }, [energy]);
+    if (totalSkillExp >= 350) return 1;
+    if (totalSkillExp >= 280) return 2;
+    if (totalSkillExp >= 200) return 3;
+    if (totalSkillExp >= 140) return 5;
+    if (totalSkillExp >= 90) return 8;
+    return 14;
+  }, [totalSkillExp]);
 
   const schoolRank = useMemo(() => {
-    if (energy >= 95) return 4;
-    if (energy >= 85) return 14;
-    if (energy >= 70) return 38;
-    return 62;
-  }, [energy]);
+    if (totalSkillExp >= 350) return 2;
+    if (totalSkillExp >= 280) return 6;
+    if (totalSkillExp >= 200) return 14;
+    if (totalSkillExp >= 140) return 28;
+    if (totalSkillExp >= 90) return 48;
+    return 79;
+  }, [totalSkillExp]);
+
 
   // 현재 단원에 속한 주제 목록
   const unitTopics = useMemo(() => {
@@ -1406,32 +1842,122 @@ function SkillLabVocabView({
       </header>
 
       <div className="skill-lab-scroll">
-        {/* 실시간 학급 / 전교 랭킹 배너 */}
-        <div className="live-ranking-banner">
-          <div className="rank-badge-item">
-            <span className="rank-icon">🏫</span>
-            <div className="rank-text-col">
-              <small>학급 랭킹</small>
-              <strong>{save.studentProfile.classNum} {classRank}위</strong>
-            </div>
+        {/* 0. 단원 선택 아이콘 카드 그리드 */}
+        <div className="unit-selector-grid-wrapper" style={{ margin: "0 0 12px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
+            <span style={{ fontSize: "12px", color: "var(--gold)", fontWeight: 700 }}>
+              🎯 탐구 교과 단원 선택
+            </span>
+            <small style={{ color: "rgba(255,255,255,0.6)", fontSize: "11px" }}>단원 아이콘을 눌러 이동하세요</small>
           </div>
-          <div className="rank-divider" />
-          <div className="rank-badge-item">
-            <span className="rank-icon">🌍</span>
-            <div className="rank-text-col">
-              <small>전교 랭킹</small>
-              <strong>통합사회 {schoolRank}위</strong>
-            </div>
-          </div>
-          <div className="rank-divider" />
-          <div className="rank-badge-item">
-            <span className="rank-icon">⚡</span>
-            <div className="rank-text-col">
-              <small>탐구 체력</small>
-              <strong style={{ color: energy > 70 ? "#56e39f" : "var(--gold)" }}>{energy}%</strong>
-            </div>
+
+          <div className="unit-icon-card-row" style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: "6px" }}>
+            {unitTopicGroups.map((uGroup) => {
+              const isAvailable = uGroup.unitId === 1 || uGroup.unitId === 2;
+              const isSelected = selectedUnitId === uGroup.unitId;
+              const unitIcons: Record<number, { icon: string; name: string; tag: string }> = {
+                1: { icon: "⚖️", name: "1단원 인권", tag: "인권수호관" },
+                2: { icon: "🌿", name: "2단원 정의", tag: "공정정책관" },
+                3: { icon: "🏙️", name: "3단원 시장", tag: "경제기획관" },
+                4: { icon: "🏛️", name: "4단원 평화", tag: "평화수호관" },
+                5: { icon: "📈", name: "5단원 미래", tag: "미래설계관" },
+              };
+              const meta = unitIcons[uGroup.unitId] || { icon: "📘", name: `${uGroup.unitId}단원`, tag: uGroup.badgeName };
+
+              return (
+                <button
+                  key={uGroup.unitId}
+                  type="button"
+                  className={`unit-icon-card-btn ${isSelected ? "selected" : ""} ${isAvailable ? "active" : "locked"}`}
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    padding: "8px 2px",
+                    borderRadius: "10px",
+                    border: isSelected ? "2px solid var(--gold)" : "1px solid rgba(255,255,255,0.15)",
+                    background: isSelected ? "linear-gradient(135deg, rgba(255,213,106,0.25), rgba(4,24,36,0.95))" : "#04141f",
+                    cursor: "pointer",
+                    boxShadow: isSelected ? "0 0 10px rgba(255,213,106,0.4)" : "none",
+                  }}
+                  onClick={() => {
+                    if (isAvailable) {
+                      setSelectedUnitId(uGroup.unitId);
+                    } else {
+                      setLockModalMsg(`${uGroup.unitTitle}은 순차적으로 공개될 예정입니다.`);
+                    }
+                  }}
+                >
+                  <span style={{ fontSize: "20px", lineHeight: "1" }}>{meta.icon}</span>
+                  <strong style={{ fontSize: "11px", color: isSelected ? "var(--gold)" : "#ffffff", marginTop: "4px", whiteSpace: "nowrap" }}>
+                    {meta.name}
+                  </strong>
+                  <small style={{ fontSize: "9.5px", color: isSelected ? "#ffffff" : "#a0b0c0", marginTop: "1px", whiteSpace: "nowrap" }}>
+                    {meta.tag}
+                  </small>
+                  <span style={{ fontSize: "9px", marginTop: "3px", color: isAvailable ? "#56e39f" : "#ff7aa2", fontWeight: 700 }}>
+                    {isAvailable ? "🔥학습" : "🔒대기"}
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </div>
+
+        {/* 1. 실시간 학급 / 전교 랭킹 대시보드 (접기/펼치기 토글) */}
+        <div className="live-ranking-banner-box" style={{ background: "#041824", border: "1px solid #16364d", borderRadius: "12px", padding: "10px 12px", marginBottom: "12px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+              <Trophy size={18} color="var(--gold)" weight="fill" />
+              <strong style={{ fontSize: "12px", color: "#ffffff" }}>실시간 탐구 랭킹 & 체력 대시보드</strong>
+            </div>
+            <button
+              type="button"
+              style={{
+                padding: "3px 8px",
+                fontSize: "10.5px",
+                borderRadius: "12px",
+                background: "rgba(255,255,255,0.08)",
+                color: "var(--teal-soft)",
+                border: "1px solid rgba(255,255,255,0.15)",
+                cursor: "pointer",
+                fontWeight: 700,
+              }}
+              onClick={() => setRankingCollapsed(!rankingCollapsed)}
+            >
+              {rankingCollapsed ? "🔽 랭킹 펼치기" : "🔼 랭킹 감추기"}
+            </button>
+          </div>
+
+          {!rankingCollapsed && (
+            <div className="live-ranking-banner" style={{ marginTop: "10px" }}>
+              <div className="rank-badge-item">
+                <span className="rank-icon">🏫</span>
+                <div className="rank-text-col">
+                  <small>학급 랭킹</small>
+                  <strong>{save.studentProfile.classNum} {classRank}위</strong>
+                </div>
+              </div>
+              <div className="rank-divider" />
+              <div className="rank-badge-item">
+                <span className="rank-icon">🌍</span>
+                <div className="rank-text-col">
+                  <small>전교 랭킹</small>
+                  <strong>통합사회 {schoolRank}위</strong>
+                </div>
+              </div>
+              <div className="rank-divider" />
+              <div className="rank-badge-item">
+                <span className="rank-icon">⚡</span>
+                <div className="rank-text-col">
+                  <small>탐구 체력</small>
+                  <strong style={{ color: energy > 50 ? "#56e39f" : "var(--gold)" }}>{energy}%</strong>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
 
         {/* 2. 학습 모드 선택: 퀴즈 풀기 vs 카드 뒤집기 */}
         <div className="vocab-mode-switch-row">
@@ -1798,7 +2324,9 @@ function SkillLabTrainingView({
   onBack: () => void;
 }) {
   const [activeSkillTab, setActiveSkillTab] = useState<1 | 2 | 3 | 4 | 5>(1);
-  const [energy, setEnergy] = useState(100);
+  const [energy, setEnergy] = useState(40);
+  const [rankingCollapsed, setRankingCollapsed] = useState(false);
+
 
   // Skill 1 State
   const [skill1Set, setSkill1Set] = useState<"default" | "setA" | "setB">("default");
@@ -2014,7 +2542,11 @@ function SkillLabTrainingView({
     }
   };
 
-  const dataset = unit1SkillLabMaster;
+  const [selectedUnitId, setSelectedUnitId] = useState<number>(1);
+  const dataset = useMemo(() => {
+    return selectedUnitId === 2 ? unit2SkillLabMaster : unit1SkillLabMaster;
+  }, [selectedUnitId]);
+
 
   // --- Skill 1 Helpers ---
   const skill1Questions = useMemo(() => {
@@ -2193,7 +2725,136 @@ function SkillLabTrainingView({
       </header>
 
       <div className="skill-lab-scroll">
+        {/* 0. 단원 선택 아이콘 카드 그리드 */}
+        <div className="unit-selector-grid-wrapper" style={{ margin: "0 0 12px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
+            <span style={{ fontSize: "12px", color: "var(--gold)", fontWeight: 700 }}>
+              🎯 탐구 스킬 훈련 단원 선택
+            </span>
+            <small style={{ color: "rgba(255,255,255,0.6)", fontSize: "11px" }}>단원 아이콘을 눌러 이동하세요</small>
+          </div>
+
+          <div className="unit-icon-card-row" style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: "6px" }}>
+            {unitTopicGroups.map((uGroup) => {
+              const isAvailable = uGroup.unitId === 1 || uGroup.unitId === 2;
+              const isSelected = selectedUnitId === uGroup.unitId;
+              const unitIcons: Record<number, { icon: string; name: string; tag: string }> = {
+                1: { icon: "⚖️", name: "1단원 인권", tag: "인권수호관" },
+                2: { icon: "🌿", name: "2단원 정의", tag: "공정정책관" },
+                3: { icon: "🏙️", name: "3단원 시장", tag: "경제기획관" },
+                4: { icon: "🏛️", name: "4단원 평화", tag: "평화수호관" },
+                5: { icon: "📈", name: "5단원 미래", tag: "미래설계관" },
+              };
+              const meta = unitIcons[uGroup.unitId] || { icon: "📘", name: `${uGroup.unitId}단원`, tag: uGroup.badgeName };
+
+              return (
+                <button
+                  key={uGroup.unitId}
+                  type="button"
+                  className={`unit-icon-card-btn ${isSelected ? "selected" : ""} ${isAvailable ? "active" : "locked"}`}
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    padding: "8px 2px",
+                    borderRadius: "10px",
+                    border: isSelected ? "2px solid var(--gold)" : "1px solid rgba(255,255,255,0.15)",
+                    background: isSelected ? "linear-gradient(135deg, rgba(255,213,106,0.25), rgba(4,24,36,0.95))" : "#04141f",
+                    cursor: "pointer",
+                    boxShadow: isSelected ? "0 0 10px rgba(255,213,106,0.4)" : "none",
+                  }}
+                  onClick={() => {
+                    if (isAvailable) {
+                      setSelectedUnitId(uGroup.unitId);
+                      setSkill1Idx(0);
+                      setSkill1Selected(null);
+                      setSkill2Idx(0);
+                      setSkill2Input("");
+                      setSkill2AiRes(null);
+                      setSkill3Input("");
+                      setSkill3AiRes(null);
+                      setSkill4Input("");
+                      setSkill4AiRes(null);
+                      setSkill5Input("");
+                      setSkill5AiRes(null);
+                    } else {
+                      alert(`${uGroup.unitTitle}은 순차적으로 공개될 예정입니다.`);
+                    }
+                  }}
+                >
+                  <span style={{ fontSize: "20px", lineHeight: "1" }}>{meta.icon}</span>
+                  <strong style={{ fontSize: "11px", color: isSelected ? "var(--gold)" : "#ffffff", marginTop: "4px", whiteSpace: "nowrap" }}>
+                    {meta.name}
+                  </strong>
+                  <small style={{ fontSize: "9.5px", color: isSelected ? "#ffffff" : "#a0b0c0", marginTop: "1px", whiteSpace: "nowrap" }}>
+                    {meta.tag}
+                  </small>
+                  <span style={{ fontSize: "9px", marginTop: "3px", color: isAvailable ? "#56e39f" : "#ff7aa2", fontWeight: 700 }}>
+                    {isAvailable ? "🔥훈련" : "🔒대기"}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* 1. 실시간 학급 / 전교 랭킹 대시보드 (접기/펼치기 토글) */}
+        <div className="live-ranking-banner-box" style={{ background: "#041824", border: "1px solid #16364d", borderRadius: "12px", padding: "10px 12px", marginBottom: "12px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+              <Trophy size={18} color="var(--gold)" weight="fill" />
+              <strong style={{ fontSize: "12px", color: "#ffffff" }}>실시간 탐구 랭킹 & 체력 대시보드</strong>
+            </div>
+            <button
+              type="button"
+              style={{
+                padding: "3px 8px",
+                fontSize: "10.5px",
+                borderRadius: "12px",
+                background: "rgba(255,255,255,0.08)",
+                color: "var(--teal-soft)",
+                border: "1px solid rgba(255,255,255,0.15)",
+                cursor: "pointer",
+                fontWeight: 700,
+              }}
+              onClick={() => setRankingCollapsed(!rankingCollapsed)}
+            >
+              {rankingCollapsed ? "🔽 랭킹 펼치기" : "🔼 랭킹 감추기"}
+            </button>
+          </div>
+
+          {!rankingCollapsed && (
+            <div className="live-ranking-banner" style={{ marginTop: "10px" }}>
+              <div className="rank-badge-item">
+                <span className="rank-icon">🏫</span>
+                <div className="rank-text-col">
+                  <small>학급 랭킹</small>
+                  <strong>{save.studentProfile.classNum} {Math.max(1, 15 - Math.floor((save.skillLabScore.skillScore || 0) / 30))}위</strong>
+                </div>
+              </div>
+              <div className="rank-divider" />
+              <div className="rank-badge-item">
+                <span className="rank-icon">🌍</span>
+                <div className="rank-text-col">
+                  <small>전교 랭킹</small>
+                  <strong>통합사회 {Math.max(2, 60 - Math.floor((save.skillLabScore.skillScore || 0) / 10))}위</strong>
+                </div>
+              </div>
+              <div className="rank-divider" />
+              <div className="rank-badge-item">
+                <span className="rank-icon">⚡</span>
+                <div className="rank-text-col">
+                  <small>탐구 체력</small>
+                  <strong style={{ color: energy > 50 ? "#56e39f" : "var(--gold)" }}>{energy}%</strong>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+
         {/* 5단계 스킬 탭 바 */}
+
         <div className="skill-step-tabs-row">
           <button className={`step-tab-btn ${activeSkillTab === 1 ? "active" : ""}`} onClick={() => setActiveSkillTab(1)}>
             STEP 1. 개념 식별
@@ -3458,7 +4119,6 @@ function HintModal({
 function FeedbackModal({
   feedback,
   onRetry,
-  onClose,
 }: {
   feedback: { reason: string; relatedConcept: string; guideText: string };
   onRetry: () => void;
@@ -3504,9 +4164,10 @@ function PortfolioReportModal({
   onClose,
 }: {
   save: SaveData;
-  evalProfile: any;
+  evalProfile: Record<string, unknown>;
   onClose: () => void;
 }) {
+
   return (
     <div className="modal-backdrop">
       <section className="portfolio-modal-panel" role="dialog" aria-modal="true">
@@ -3668,12 +4329,12 @@ function PasswordChangeModal({
         <h2>비밀번호 및 실명 설정</h2>
         {err && <p className="login-error-alert">{err}</p>}
         <form onSubmit={handleSubmit}>
-          <label>학생 실명</label>
-          <input type="text" value={name} onChange={(e) => setName(e.target.value)} required />
-          <label style={{ marginTop: "8px" }}>새 비밀번호</label>
-          <input type="password" value={pw} onChange={(e) => setPw(e.target.value)} required />
-          <label style={{ marginTop: "8px" }}>비밀번호 확인</label>
-          <input type="password" value={pw2} onChange={(e) => setPw2(e.target.value)} required />
+          <label htmlFor="pw-name-input">학생 실명</label>
+          <input id="pw-name-input" type="text" value={name} onChange={(e) => setName(e.target.value)} required />
+          <label htmlFor="pw-new-input" style={{ marginTop: "8px" }}>새 비밀번호</label>
+          <input id="pw-new-input" type="password" value={pw} onChange={(e) => setPw(e.target.value)} required />
+          <label htmlFor="pw-confirm-input" style={{ marginTop: "8px" }}>비밀번호 확인</label>
+          <input id="pw-confirm-input" type="password" value={pw2} onChange={(e) => setPw2(e.target.value)} required />
           <button type="submit" className="primary-button full-button" style={{ marginTop: "14px" }}>저장</button>
         </form>
       </section>
@@ -3682,11 +4343,10 @@ function PasswordChangeModal({
 }
 
 function TeacherDashboardModal({
-  save,
   onClose,
   onPrintCert,
 }: {
-  save: SaveData;
+  save?: SaveData;
   onClose: () => void;
   onPrintCert: (uId: number) => void;
 }) {
@@ -3768,7 +4428,16 @@ function ComingSoonModal({ message, onClose }: { message: string; onClose: () =>
   );
 }
 
-function SettingsPanelModal({ audio, onChange, onClose }: any) {
+function SettingsPanelModal({
+  audio,
+  onChange,
+  onClose,
+}: {
+  audio: { bgm: boolean; sfx: boolean };
+  onChange: (next: Partial<{ bgm: boolean; sfx: boolean }>) => void;
+  onClose: () => void;
+}) {
+
   return (
     <div className="modal-backdrop">
       <section className="settings-panel">

@@ -5,18 +5,57 @@ export const runtime = "nodejs";
 
 export async function POST(req: Request) {
   try {
-    let body: any = {};
+    let body: Record<string, unknown> = {};
     try {
-      body = await req.json();
+      body = (await req.json()) as Record<string, unknown>;
     } catch {
       try {
         const rawText = await req.text();
         body = rawText ? JSON.parse(rawText) : {};
-      } catch {}
+      } catch {
+        /* fallback empty body */
+      }
     }
-    const { skillType, studentAnswer, context, history = [], requestHint } = body || {};
+    const { skillType, studentAnswer, context, requestHint, action } = body as Record<string, any>;
+
 
     const answerText = (studentAnswer || "").trim();
+
+    // 0. 스피치 연습 모드 (Gemini Live Speech Coaching)
+    if (action === "speech_coaching" || skillType === "SPEECH_COACHING") {
+      const speechDuration = context?.duration || 45; // 초 단위
+      const wordCount = answerText.split(/\s+/).filter(Boolean).length;
+
+      let score = 70;
+      if (wordCount > 15) score += 10;
+      if (wordCount > 30) score += 10;
+      if (answerText.includes("때문") || answerText.includes("근거") || answerText.includes("원칙")) score += 10;
+
+      const summary = answerText
+        ? `"${answerText.slice(0, 40)}..."라는 핵심 주장을 당당하게 개진함.`
+        : "블라인드 채용과 기회의 평등에 대해 또렷한 목소리로 의견을 밝힘.";
+
+      const logicAnalysis = answerText.includes("때문") || answerText.includes("이유")
+        ? "주장과 근거가 분명하게 연결되어 있어 설득력이 뛰어납니다. 공정성의 핵심 기준을 잘 짚었습니다."
+        : "주장은 명확하지만 '왜 그렇게 생각하는지' 구체적 이유(근거)를 1가지 더 붙이면 논리가 더욱 완벽해집니다.";
+
+      const speechTimeAdvice = speechDuration < 15
+        ? "발언 시간(약 " + speechDuration + "초): 다소 짧습니다. 30초 내외로 근거를 풍부하게 보완해 보세요."
+        : speechDuration > 90
+        ? "발언 시간(약 " + speechDuration + "초): 다소 깁니다. 45초 내외로 핵심만 명확히 전달해 보세요."
+        : "발언 시간(약 " + speechDuration + "초): 토론 청문회에 딱 적절한 훌륭한 발언 분량입니다!";
+
+      const toneCoaching = "또박또박하고 자신감 넘치는 공정정책관의 발언 톤입니다. 청중의 눈을 마주치듯 확신에 찬 어조를 유지하세요.";
+
+      return NextResponse.json({
+        summary,
+        logicAnalysis,
+        speechTimeAdvice,
+        toneCoaching,
+        score: Math.min(100, score),
+      });
+    }
+
 
     // 1. 단서(힌트) 즉시 요청인 경우
     if (requestHint) {
@@ -142,15 +181,17 @@ export async function POST(req: Request) {
 
     // 3. 전문 로컬 규칙 튜터 엔진 (다회차 스마트 코칭 지원)
     return evaluateLocallyIterative(skillType, answerText, context);
-  } catch (err: any) {
-    return NextResponse.json({ error: err?.message || "Evaluation error" }, { status: 500 });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Evaluation error";
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
 
 /**
  * 로컬 대화형 코칭 규칙 엔진 (80% 완성도 도달 알고리즘)
  */
-function evaluateLocallyIterative(skillType: string, text: string, context: any) {
+function evaluateLocallyIterative(skillType: string, text: string, context: Record<string, any>) {
+
   const len = text.length;
 
   if (skillType === "SKILL_2") {

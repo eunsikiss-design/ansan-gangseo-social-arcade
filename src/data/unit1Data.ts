@@ -1,4 +1,5 @@
-import type { GameModeInfo, GameMissionData } from "@/src/game/types";
+import type { GameModeInfo } from "@/src/game/types";
+
 
 export const unit1GameModes: GameModeInfo[] = [
   // =========================================================================
