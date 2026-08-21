@@ -565,7 +565,7 @@ function ActivityDashboardModal({
 }) {
   const [tab, setTab] = useState<"personal" | "class">("personal");
   const student = save.studentProfile;
-  const comp = evaluateCompetencyProfile(save);
+  const comp = evaluateCompetencyProfile(save.missionScores, save.completedMissions);
 
   return (
     <div className="modal-backdrop-v2">
