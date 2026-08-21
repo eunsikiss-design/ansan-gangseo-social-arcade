@@ -13,6 +13,7 @@ export const unit1GameModes: GameModeInfo[] = [
     description: "교과서 판례 및 실제 헌법재판소 사례를 바탕으로, 침해된 기본권과 헌법 제10조·제37조 제2항의 판단 근거를 정확히 찾아내는 판례 분석 챌린지입니다.",
     iconEmoji: "⚖️",
     estimatedMinutes: 8,
+    textbookPages: "📖 미래엔 교과서 12~29쪽",
     missions: [
       {
         id: "u1-cc-lv1",
@@ -221,6 +222,7 @@ export const unit1GameModes: GameModeInfo[] = [
     description: "학교와 지역사회 일상에서 발생하는 기본권 침해 상황을 진단하고, 인권 보장·공익·실현 가능성을 균형 있게 고려하여 부작용 없는 조화로운 해결책을 설계합니다.",
     iconEmoji: "🛡️",
     estimatedMinutes: 8,
+    textbookPages: "📖 미래엔 교과서 20~35쪽",
     missions: [
       {
         id: "u1-rg-lv1",
