@@ -31,7 +31,7 @@ import type {
 
 
 
-const SAVE_KEY = "arca-social-save-v7";
+const SAVE_KEY = "arca-social-save-v8";
 
 const defaultStudent: StudentProfile = {
   studentId: "SC0101",
@@ -62,6 +62,9 @@ const blankSave = (): SaveData => ({
     skillLevel: 1,
     skillScore: 0,
   },
+  earnedVocabBadges: [],
+  earnedVocabItems: [],
+  loginCount: 1,
 });
 
 type ViewMode =
@@ -138,13 +141,21 @@ export default function HomePage() {
       const stored = localStorage.getItem(SAVE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
-        const currentLogins = (parsed.loginCount || 0) + 1;
-        setSave({ ...blankSave(), ...parsed, loginCount: currentLogins });
+        const currentLogins = (parsed?.loginCount || 0) + 1;
+        setSave({
+          ...blankSave(),
+          ...parsed,
+          completedMissions: Array.isArray(parsed?.completedMissions) ? parsed.completedMissions : [],
+          missionScores: parsed?.missionScores && typeof parsed.missionScores === "object" ? parsed.missionScores : {},
+          earnedCertificates: Array.isArray(parsed?.earnedCertificates) ? parsed.earnedCertificates : [],
+          portfolioDrafts: Array.isArray(parsed?.portfolioDrafts) ? parsed.portfolioDrafts : [],
+          loginCount: currentLogins,
+        });
 
-        if (parsed.activeSession?.view && parsed.activeSession.view !== "login") {
+        if (parsed?.activeSession?.view && parsed.activeSession.view !== "login" && parsed.studentProfile?.isLoggedIn) {
           setResumeSessionData(parsed.activeSession);
           setResumeModalOpen(true);
-        } else if (parsed.studentProfile?.isLoggedIn) {
+        } else if (parsed?.studentProfile?.isLoggedIn) {
           setView("hub");
         }
       }
