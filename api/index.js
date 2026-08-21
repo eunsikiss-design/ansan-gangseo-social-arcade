@@ -51,6 +51,16 @@ export default async function handler(req, res) {
     const host = req.headers.host || "localhost";
     const proto = req.headers["x-forwarded-proto"] || "https";
     const url = new URL(req.url, `${proto}://${host}`);
+
+    // Vercel rewrites every public path to this serverless function. Preserve
+    // the original path in vercel.json and restore it before passing the
+    // request to the Vinext worker; otherwise Vinext sees /api/index and 404s.
+    const originalPath = url.searchParams.get("__path");
+    if (originalPath) {
+      url.pathname = originalPath;
+      url.searchParams.delete("__path");
+    }
+
     const pathname = decodeURIComponent(url.pathname);
 
     // 1. Try serving static files from dist/client or public
