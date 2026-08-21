@@ -786,7 +786,7 @@ function ResumeSessionModal({
 }
 
 // =========================================================================
-// TOPIC CLEAR MODAL (주제 학습 완료 & 다음 주제 선택 모달)
+// TOPIC CLEAR MODAL (Mission Complete! (Topic X) & Fireworks & Haptic)
 // =========================================================================
 function TopicClearModal({
   topicId,
@@ -802,17 +802,48 @@ function TopicClearModal({
   const curTopic = masterVocabTopics.find((t) => t.id === topicId);
   const isLastInUnit = topicId === 6 || topicId === 11 || topicId === 16 || topicId === 21 || topicId === 25;
 
+  useEffect(() => {
+    void audioManager.playSfx("cert_fanfare");
+    if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+      try {
+        navigator.vibrate([100, 50, 100, 50, 150]);
+      } catch (_) {}
+    }
+  }, []);
+
   return (
-    <div className="modal-backdrop-v2">
-      <div className="modal-card-v2" style={{ maxWidth: "480px", textAlign: "center" }}>
-        <div style={{ fontSize: "44px", marginBottom: "8px" }}>🎉</div>
-        <h3 style={{ margin: "0 0 6px", color: "var(--gold)", fontSize: "20px" }}>주제 학습 완수!</h3>
-        <span style={{ fontSize: "12.5px", color: "var(--teal-soft)", fontWeight: 700, display: "block", marginBottom: "12px" }}>
+    <div className="modal-backdrop-v2" style={{ overflow: "hidden", position: "fixed", inset: 0, zIndex: 9999 }}>
+      {/* 🎆 Dynamic Fireworks Sparks Particles */}
+      <div style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
+        {[...Array(16)].map((_, i) => (
+          <span
+            key={i}
+            style={{
+              position: "absolute",
+              top: "45%",
+              left: "50%",
+              fontSize: `${18 + (i % 4) * 6}px`,
+              animation: `fireworkBurst 1.2s ease-out infinite alternate`,
+              animationDelay: `${(i * 0.08).toFixed(2)}s`,
+              transform: `translate(${(Math.cos((i * 22.5 * Math.PI) / 180) * 160).toFixed(0)}px, ${(Math.sin((i * 22.5 * Math.PI) / 180) * 160).toFixed(0)}px)`,
+            }}
+          >
+            {["🎆", "🎇", "✨", "🌟", "🎉", "💥"][i % 6]}
+          </span>
+        ))}
+      </div>
+
+      <div className="modal-card-v2" style={{ maxWidth: "480px", textAlign: "center", position: "relative", zIndex: 10000, border: "2px solid var(--gold)", boxShadow: "0 0 35px rgba(255,213,106,0.6)" }}>
+        <div style={{ fontSize: "52px", marginBottom: "4px" }}>🎆</div>
+        <h2 style={{ margin: "0 0 4px", color: "var(--gold)", fontSize: "24px", fontWeight: 900, textShadow: "0 0 12px rgba(255,213,106,0.6)" }}>
+          Mission Complete! (Topic {topicId})
+        </h2>
+        <span style={{ fontSize: "13px", color: "var(--teal-soft)", fontWeight: 700, display: "block", marginBottom: "16px" }}>
           {curTopic?.title} ({curTopic?.textbookPage})
         </span>
 
         <p style={{ fontSize: "14px", color: "#e2e8f0", lineHeight: "1.6", margin: "0 0 20px" }}>
-          해당 주제의 모든 핵심 개념 퀴즈 및 짝맞추기를 성공적으로 클리어하셨습니다.<br />
+          해당 주제의 모든 핵심 개념 퀴즈 및 짝맞추기를 성공적으로 완수하셨습니다!<br />
           {!isLastInUnit ? "다음 주제로 이동하여 학습을 이어나가시겠습니까?" : "해당 단원의 전 주제를 완료하셨습니다!"}
         </p>
 
