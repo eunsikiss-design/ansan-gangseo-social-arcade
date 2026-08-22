@@ -1,79 +1,77 @@
-import { env } from "cloudflare:workers";
 import { NextResponse } from "next/server";
+import { applySessionCookies, authenticateRequest, getProfile, getSupabaseAdmin } from "@/src/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
+type ActivityPayload = { score?: number; loginCount?: number; save?: unknown };
 
-type ActivityPayload = {
-  studentId: string;
-  displayName: string;
-  className: string;
-  score: number;
-  loginCount: number;
-  save: unknown;
-};
-
-async function ensureTable() {
-  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS activity_snapshots (
-    student_id TEXT PRIMARY KEY,
-    display_name TEXT NOT NULL,
-    class_name TEXT NOT NULL,
-    score INTEGER NOT NULL DEFAULT 0,
-    login_count INTEGER NOT NULL DEFAULT 0,
-    save_json TEXT NOT NULL,
-    updated_at INTEGER NOT NULL
-  )`).run();
-  await env.DB.prepare("CREATE INDEX IF NOT EXISTS activity_score_idx ON activity_snapshots(score DESC)").run();
-  await env.DB.prepare("CREATE INDEX IF NOT EXISTS activity_class_idx ON activity_snapshots(class_name, score DESC)").run();
+function safeSave(input: unknown) {
+  if (!input || typeof input !== "object") return {};
+  const save = structuredClone(input) as Record<string, unknown>;
+  if (save.studentProfile && typeof save.studentProfile === "object") delete (save.studentProfile as Record<string, unknown>).password;
+  return save;
+}
+function leaderboardRow(row: Record<string, unknown>) {
+  const profile = row.profiles as Record<string, unknown>;
+  return {
+    studentId: profile.student_id, displayName: profile.display_name, className: profile.class_name,
+    score: row.score, updatedAt: new Date(String(row.updated_at)).getTime(),
+  };
 }
 
 export async function GET(request: Request) {
   try {
-    await ensureTable();
-    const url = new URL(request.url);
-    const studentId = url.searchParams.get("studentId") || "";
-    const className = url.searchParams.get("className") || "";
-    const [school, classBoard, own] = await Promise.all([
-      env.DB.prepare("SELECT student_id AS studentId, display_name AS displayName, class_name AS className, score, updated_at AS updatedAt FROM activity_snapshots ORDER BY score DESC, updated_at ASC LIMIT 5").all(),
-      className
-        ? env.DB.prepare("SELECT student_id AS studentId, display_name AS displayName, class_name AS className, score, updated_at AS updatedAt FROM activity_snapshots WHERE class_name = ? ORDER BY score DESC, updated_at ASC LIMIT 3").bind(className).all()
-        : Promise.resolve({ results: [] }),
-      studentId
-        ? env.DB.prepare("SELECT student_id AS studentId, display_name AS displayName, class_name AS className, score, login_count AS loginCount, save_json AS saveJson, updated_at AS updatedAt FROM activity_snapshots WHERE student_id = ?").bind(studentId).first()
-        : Promise.resolve(null),
+    const auth = await authenticateRequest(request);
+    if (!auth.user) return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 });
+    const admin = getSupabaseAdmin();
+    const profile = await getProfile(auth.user.id);
+    if (!profile) return NextResponse.json({ error: "프로필을 찾을 수 없습니다." }, { status: 403 });
+    const [schoolResult, classProfilesResult, ownResult] = await Promise.all([
+      admin.from("activity_snapshots").select("score, updated_at, profiles!inner(student_id, display_name, class_name)").order("score", { ascending: false }).order("updated_at", { ascending: true }).limit(5),
+      admin.from("profiles").select("id").eq("class_name", profile.class_name),
+      admin.from("activity_snapshots").select("score, login_count, save_data, updated_at").eq("user_id", auth.user.id).maybeSingle(),
     ]);
-    const count = studentId
-      ? await env.DB.prepare("SELECT COUNT(*) + 1 AS rank FROM activity_snapshots WHERE score > COALESCE((SELECT score FROM activity_snapshots WHERE student_id = ?), -1)").bind(studentId).first<{ rank: number }>()
-      : null;
-    return NextResponse.json({
-      live: true,
-      schoolTop5: school.results,
-      classTop3: classBoard.results,
-      currentRank: count?.rank ?? null,
-      savedState: own ? { ...own, save: JSON.parse(String((own as Record<string, unknown>).saveJson || "{}")) } : null,
+    const classIds = (classProfilesResult.data || []).map((row) => row.id);
+    const classResult = classIds.length
+      ? await admin.from("activity_snapshots").select("score, updated_at, profiles!inner(student_id, display_name, class_name)").in("user_id", classIds).order("score", { ascending: false }).order("updated_at", { ascending: true }).limit(3)
+      : { data: [] };
+    const ownScore = ownResult.data?.score ?? -1;
+    const rankResult = ownScore >= 0
+      ? await admin.from("activity_snapshots").select("user_id", { count: "exact", head: true }).gt("score", ownScore)
+      : { count: null };
+    const own = ownResult.data;
+    const response = NextResponse.json({
+      live: !schoolResult.error,
+      schoolTop5: (schoolResult.data || []).map((row) => leaderboardRow(row as unknown as Record<string, unknown>)),
+      classTop3: (classResult.data || []).map((row) => leaderboardRow(row as unknown as Record<string, unknown>)),
+      currentRank: own ? (rankResult.count || 0) + 1 : null,
+      savedState: own ? {
+        studentId: profile.student_id, displayName: profile.display_name, className: profile.class_name,
+        score: own.score, loginCount: own.login_count, save: own.save_data, updatedAt: new Date(own.updated_at).getTime(),
+      } : null,
     });
+    if (auth.refreshedSession) applySessionCookies(response, auth.refreshedSession);
+    return response;
   } catch (error) {
-    return NextResponse.json({ live: false, schoolTop5: [], classTop3: [], currentRank: null, savedState: null, error: String(error) });
+    return NextResponse.json({ live: false, schoolTop5: [], classTop3: [], currentRank: null, savedState: null, error: String(error) }, { status: 500 });
   }
 }
 
 export async function POST(request: Request) {
   try {
-    await ensureTable();
+    const auth = await authenticateRequest(request);
+    if (!auth.user) return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 });
+    if (!await getProfile(auth.user.id)) return NextResponse.json({ error: "프로필을 찾을 수 없습니다." }, { status: 403 });
     const body = await request.json() as ActivityPayload;
-    if (!body.studentId || !body.className) return NextResponse.json({ error: "studentId and className are required" }, { status: 400 });
-    await env.DB.prepare(`INSERT INTO activity_snapshots
-      (student_id, display_name, class_name, score, login_count, save_json, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(student_id) DO UPDATE SET
-        display_name = excluded.display_name,
-        class_name = excluded.class_name,
-        score = excluded.score,
-        login_count = excluded.login_count,
-        save_json = excluded.save_json,
-        updated_at = excluded.updated_at`)
-      .bind(body.studentId, body.displayName, body.className, Math.max(0, Math.round(body.score || 0)), Math.max(0, Math.round(body.loginCount || 0)), JSON.stringify(body.save ?? {}), Date.now())
-      .run();
-    return NextResponse.json({ success: true });
+    const { error } = await getSupabaseAdmin().from("activity_snapshots").upsert({
+      user_id: auth.user.id,
+      score: Math.max(0, Math.round(Number(body.score) || 0)),
+      login_count: Math.max(0, Math.round(Number(body.loginCount) || 0)),
+      save_data: safeSave(body.save), updated_at: new Date().toISOString(),
+    }, { onConflict: "user_id" });
+    if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    const response = NextResponse.json({ success: true });
+    if (auth.refreshedSession) applySessionCookies(response, auth.refreshedSession);
+    return response;
   } catch (error) {
     return NextResponse.json({ success: false, error: String(error) }, { status: 500 });
   }

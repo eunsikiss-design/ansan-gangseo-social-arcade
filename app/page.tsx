@@ -19,9 +19,7 @@ import {
 } from "@/src/data/skillLabMasterData";
 
 import { unitCertificates } from "@/src/data/certificates";
-import {
-  authenticateUser, changeUserPassword, loadAccounts,
-} from "@/src/game/auth";
+import { authenticateUserServer, changeUserPasswordServer, logoutUserServer } from "@/src/game/auth-client";
 import { audioManager, defaultAudioSettings } from "@/src/game/audio/AudioManager";
 import { calculateMissionScore, evaluateCompetencyProfile, generatePortfolioDraft } from "@/src/game/evaluator";
 import type {
@@ -153,9 +151,11 @@ export default function HomePage() {
       const stored = localStorage.getItem(SAVE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
+        if (parsed.studentProfile && typeof parsed.studentProfile === "object") delete parsed.studentProfile.password;
         setSave({ ...blankSave(), ...parsed });
         if (parsed.studentProfile?.isLoggedIn) setView("login");
       }
+      localStorage.removeItem("social-arcade-accounts-v2");
     } catch { /* fallback to blank save */ }
     setHydrated(true);
   }, []);
@@ -175,7 +175,7 @@ export default function HomePage() {
   const refreshLeaderboard = async (profile = save.studentProfile) => {
     if (!profile.isLoggedIn || profile.role === "guest") return;
     try {
-      const response = await fetch(`/api/activity?studentId=${encodeURIComponent(profile.studentId)}&className=${encodeURIComponent(profile.classNum)}`, { cache: "no-store" });
+      const response = await fetch("/api/activity", { cache: "no-store" });
       const data = await response.json();
       setLeaderboard({ live: Boolean(data.live), schoolTop5: data.schoolTop5 || [], classTop3: data.classTop3 || [], currentRank: data.currentRank ?? null });
     } catch {
@@ -188,7 +188,7 @@ export default function HomePage() {
     const timer = window.setTimeout(async () => {
       const snapshot = { ...save, lastView: view, lastMissionId: view === "mission_player" ? activeMission.id : save.lastMissionId, lastActivityAt: new Date().toISOString() };
       try {
-        await fetch("/api/activity", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ studentId: save.studentProfile.studentId, displayName: save.studentProfile.name, className: save.studentProfile.classNum, score: totalActivityScore, loginCount: save.loginCount || 0, save: snapshot }) });
+        await fetch("/api/activity", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ score: totalActivityScore, loginCount: save.loginCount || 0, save: snapshot }) });
         await refreshLeaderboard(save.studentProfile);
       } catch { /* localStorage remains the offline safety copy */ }
     }, 900);
@@ -239,7 +239,7 @@ export default function HomePage() {
   const handleLoginSuccess = async (profile: StudentProfile, mustChangePw?: boolean) => {
     let remoteSave: SaveData | null = null;
     try {
-      const response = await fetch(`/api/activity?studentId=${encodeURIComponent(profile.studentId)}&className=${encodeURIComponent(profile.classNum)}`, { cache: "no-store" });
+      const response = await fetch("/api/activity", { cache: "no-store" });
       const data = await response.json();
       setLeaderboard({ live: Boolean(data.live), schoolTop5: data.schoolTop5 || [], classTop3: data.classTop3 || [], currentRank: data.currentRank ?? null });
       if (data.savedState?.save && (data.savedState.save.completedMissions?.length || data.savedState.save.lastActivityAt)) remoteSave = data.savedState.save as SaveData;
@@ -261,6 +261,7 @@ export default function HomePage() {
   };
 
   const handleLogout = () => {
+    void logoutUserServer();
     setSave((prev) => ({
       ...prev,
       studentProfile: { ...defaultStudent, isLoggedIn: false },
@@ -587,7 +588,9 @@ function LoginScreenView({
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!userId.trim()) {
       setError("학급 아이디를 입력해 주세요.");
@@ -598,7 +601,9 @@ function LoginScreenView({
       return;
     }
 
-    const res = authenticateUser(userId, password);
+    setSubmitting(true);
+    const res = await authenticateUserServer(userId, password);
+    setSubmitting(false);
     if (!res.success || !res.profile) {
       setError(res.error || "아이디 또는 비밀번호가 올바르지 않습니다.");
       return;
@@ -665,9 +670,9 @@ function LoginScreenView({
 
           {error && <div className="login-error-alert">{error}</div>}
 
-          <button type="submit" className="primary-button full-button login-submit-btn">
+          <button type="submit" className="primary-button full-button login-submit-btn" disabled={submitting}>
             <UserCheck size={20} weight="bold" />
-            탐구관 로그인 및 시작
+            {submitting ? "보안 로그인 확인 중…" : "탐구관 로그인 및 시작"}
           </button>
         </form>
       </div>
@@ -4589,9 +4594,12 @@ function LoginModal({
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
 
-  const handleLogin = (e: React.FormEvent) => {
+  const [submitting, setSubmitting] = useState(false);
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    const res = authenticateUser(userId, password);
+    setSubmitting(true);
+    const res = await authenticateUserServer(userId, password);
+    setSubmitting(false);
     if (!res.success || !res.profile) {
       setError(res.error || "로그인 실패");
       return;
@@ -4619,7 +4627,7 @@ function LoginModal({
             {error && <p className="login-error-alert">{error}</p>}
             <input type="text" placeholder="SC학급번호" value={userId} onChange={(e) => setUserId(e.target.value.toUpperCase())} required />
             <input type="password" placeholder="비밀번호" value={password} onChange={(e) => setPassword(e.target.value)} required style={{ marginTop: "8px" }} />
-            <button type="submit" className="primary-button full-button" style={{ marginTop: "12px" }}>로그인</button>
+            <button type="submit" className="primary-button full-button" style={{ marginTop: "12px" }} disabled={submitting}>{submitting ? "확인 중…" : "로그인"}</button>
           </form>
         )}
       </section>
@@ -4641,11 +4649,15 @@ function PasswordChangeModal({
   const [pw2, setPw2] = useState("");
   const [err, setErr] = useState("");
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const [submitting, setSubmitting] = useState(false);
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (pw !== pw2) { setErr("비밀번호 불일치"); return; }
-    const ok = changeUserPassword(profile.studentId, pw, name.trim());
-    if (ok) onSuccess({ ...profile, name: name.trim(), password: pw, mustChangePassword: false });
+    setSubmitting(true);
+    const result = await changeUserPasswordServer(pw, name.trim());
+    setSubmitting(false);
+    if (!result.success || !result.profile) { setErr(result.error || "변경 실패"); return; }
+    onSuccess(result.profile);
   };
 
   return (
@@ -4661,7 +4673,7 @@ function PasswordChangeModal({
           <input id="pw-new-input" type="password" value={pw} onChange={(e) => setPw(e.target.value)} required />
           <label htmlFor="pw-confirm-input" style={{ marginTop: "8px" }}>비밀번호 확인</label>
           <input id="pw-confirm-input" type="password" value={pw2} onChange={(e) => setPw2(e.target.value)} required />
-          <button type="submit" className="primary-button full-button" style={{ marginTop: "14px" }}>저장</button>
+          <button type="submit" className="primary-button full-button" style={{ marginTop: "14px" }} disabled={submitting}>{submitting ? "저장 중…" : "저장"}</button>
         </form>
       </section>
     </div>
@@ -4676,7 +4688,17 @@ function TeacherDashboardModal({
   onClose: () => void;
   onPrintCert: (uId: number) => void;
 }) {
-  const accounts = useMemo(() => loadAccounts(), []);
+  const [stats, setStats] = useState({ studentCount: 0, activeStudentCount: 0, classCount: 12 });
+  const [loadError, setLoadError] = useState("");
+  useEffect(() => {
+    void fetch("/api/teacher/dashboard", { cache: "no-store" })
+      .then(async (response) => {
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "교사 대시보드 조회 실패");
+        setStats(data);
+      })
+      .catch((error) => setLoadError(String(error)));
+  }, []);
   return (
     <div className="modal-backdrop">
       <section className="teacher-dash-panel">
@@ -4684,9 +4706,11 @@ function TeacherDashboardModal({
         <h2>교과 지도교사 전용 대시보드</h2>
         <p>안산강서고 1학년 학생 계정 관리 및 1단원 임명증 서식 인쇄</p>
         <div className="teacher-quick-stats">
-          <div className="t-stat-card"><strong>12개 반</strong><span>편성 학급</span></div>
-          <div className="t-stat-card"><strong>{Object.keys(accounts).length}개</strong><span>계정</span></div>
+          <div className="t-stat-card"><strong>{stats.classCount}개 반</strong><span>편성 학급</span></div>
+          <div className="t-stat-card"><strong>{stats.studentCount}명</strong><span>발급 학생</span></div>
+          <div className="t-stat-card"><strong>{stats.activeStudentCount}명</strong><span>활동 저장 학생</span></div>
         </div>
+        {loadError && <p className="login-error-alert">{loadError}</p>}
         <button className="primary-button full-button" onClick={() => onPrintCert(1)} style={{ marginTop: "14px" }}>
           1단원 정식 인권수호관 임명증 서식 인쇄
         </button>
