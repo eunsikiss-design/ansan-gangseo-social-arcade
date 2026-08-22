@@ -5,7 +5,7 @@
 - 다른 개발 도구로 인계할 때: [PROJECT_HANDOFF.md](./PROJECT_HANDOFF.md)
 - Google Antigravity 첫 대화: [ANTIGRAVITY_START.md](./ANTIGRAVITY_START.md)
 
-현재 구현 범위는 1단원 인권의 ACT 1(M01~M06)입니다. 사용자가 요청하기 전에는 ACT 2 또는 새로운 단원을 추가하지 않습니다.
+현재 구현 범위는 1단원 인권의 ACT 1(M01~M06)과 2단원 사회 정의와 불평등의 ACT 2(M07~M12)입니다. 사용자가 요청하기 전에는 ACT 3 또는 새로운 단원을 추가하지 않습니다.
 
 ## 기술 기반
 
