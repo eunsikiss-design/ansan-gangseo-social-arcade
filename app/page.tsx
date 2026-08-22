@@ -90,6 +90,15 @@ type ViewMode =
   | "portfolio_view"
   | "item_archive";
 
+const resumeViews: ViewMode[] = [
+  "unit1_dashboard", "unit2_dashboard", "webtoon_viewer", "mission_player",
+  "skill_lab_vocab", "skill_lab_skill",
+];
+
+function isResumeView(value: unknown): value is ViewMode {
+  return typeof value === "string" && resumeViews.includes(value as ViewMode);
+}
+
 
 export default function HomePage() {
   const [save, setSave] = useState<SaveData>(blankSave);
@@ -162,10 +171,15 @@ export default function HomePage() {
 
   // Save changes
   useEffect(() => {
-    if (hydrated) {
-      localStorage.setItem(SAVE_KEY, JSON.stringify({ ...save, lastView: view, lastMissionId: view === "mission_player" ? activeMission.id : save.lastMissionId, lastActivityAt: new Date().toISOString() }));
-    }
-  }, [hydrated, save, view, activeMission.id]);
+    if (!hydrated || resumeCandidate) return;
+    const tracksProgress = isResumeView(view);
+    localStorage.setItem(SAVE_KEY, JSON.stringify({
+      ...save,
+      lastView: tracksProgress ? view : save.lastView,
+      lastMissionId: view === "mission_player" ? activeMission.id : save.lastMissionId,
+      lastActivityAt: tracksProgress ? new Date().toISOString() : save.lastActivityAt,
+    }));
+  }, [hydrated, save, view, activeMission.id, resumeCandidate]);
 
   const totalActivityScore = useMemo(() => {
     const missionTotal = Object.values(save.missionScores).reduce((sum, item) => sum + (item?.totalScore || 0), 0);
@@ -184,27 +198,32 @@ export default function HomePage() {
   };
 
   useEffect(() => {
-    if (!hydrated || !save.studentProfile.isLoggedIn || save.studentProfile.role === "guest") return;
+    if (!hydrated || resumeCandidate || !save.studentProfile.isLoggedIn || save.studentProfile.role === "guest") return;
     const timer = window.setTimeout(async () => {
-      const snapshot = { ...save, lastView: view, lastMissionId: view === "mission_player" ? activeMission.id : save.lastMissionId, lastActivityAt: new Date().toISOString() };
+      const tracksProgress = isResumeView(view);
+      const snapshot = {
+        ...save,
+        lastView: tracksProgress ? view : save.lastView,
+        lastMissionId: view === "mission_player" ? activeMission.id : save.lastMissionId,
+        lastActivityAt: tracksProgress ? new Date().toISOString() : save.lastActivityAt,
+      };
       try {
         await fetch("/api/activity", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ score: totalActivityScore, loginCount: save.loginCount || 0, save: snapshot }) });
         await refreshLeaderboard(save.studentProfile);
       } catch { /* localStorage remains the offline safety copy */ }
     }, 900);
     return () => window.clearTimeout(timer);
-  }, [hydrated, save, view, activeMission.id, totalActivityScore]);
+  }, [hydrated, save, view, activeMission.id, totalActivityScore, resumeCandidate]);
 
   // Scroll to top on view changes
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
   }, [view, activeMission]);
 
-  // Unit 1 Completion Check (모든 5개 모드의 레벨 5 완료 확인)
+  // Unit 1 Completion Check (모든 모드의 전체 미션 완료 확인)
   const unit1Cleared = useMemo(() => {
-    const totalUnit1Missions = unit1GameModes.flatMap((m) => m.missions).length;
-    const completedCount = save.completedMissions.filter((id) => id.startsWith("u1-")).length;
-    return completedCount >= 5; // 5대 모드 클리어 기준
+    const missionIds = unit1GameModes.flatMap((mode) => mode.missions).map((mission) => mission.id);
+    return missionIds.length > 0 && missionIds.every((id) => save.completedMissions.includes(id));
   }, [save.completedMissions]);
 
   // Update earned certificate when unit1 is cleared
@@ -277,6 +296,15 @@ export default function HomePage() {
     setActiveHintLevel(0);
     setScoreResult(null);
     setShowFeedbackModal(false);
+    setSave((prev) => ({
+      ...prev,
+      currentUnit: missionData.unitId,
+      currentGameMode: missionData.gameModeId,
+      currentLevel: missionData.level,
+      lastView: "mission_player",
+      lastMissionId: missionData.id,
+      lastActivityAt: new Date().toISOString(),
+    }));
     setView("mission_player");
     void audioManager.playSfx("case_open");
   };
@@ -350,6 +378,7 @@ export default function HomePage() {
         {view === "hub" && (
           <MainHubScreenView
             save={save}
+            leaderboard={leaderboard}
             unit1Cleared={unit1Cleared}
             evalProfile={evalProfile}
             onOpenUnit1={() => setView("unit1_dashboard")}
@@ -562,13 +591,22 @@ export default function HomePage() {
             saved={resumeCandidate}
             onResume={() => {
               const restored = resumeCandidate;
-              setSave(restored);
               const mission = [...unit1GameModes, ...unit2GameModes].flatMap((mode) => mode.missions).find((item) => item.id === restored.lastMissionId);
               if (mission) { setActiveMission(mission); setActiveModeId(mission.gameModeId); }
-              setView((restored.lastView as ViewMode) || "hub");
+              const targetView = isResumeView(restored.lastView)
+                ? restored.lastView
+                : mission
+                  ? "mission_player"
+                  : restored.currentUnit === 2 ? "unit2_dashboard" : "unit1_dashboard";
+              setSave({ ...restored, lastView: targetView, lastMissionId: mission?.id || restored.lastMissionId });
+              setView(targetView);
               setResumeCandidate(null);
             }}
-            onStartFresh={() => { setResumeCandidate(null); setView("hub"); }}
+            onStartFresh={() => {
+              setSave({ ...resumeCandidate, lastView: resumeCandidate.lastView, studentProfile: save.studentProfile });
+              setResumeCandidate(null);
+              setView("hub");
+            }}
           />
         )}
       </div>
@@ -685,6 +723,7 @@ function LoginScreenView({
 // =========================================================================
 function MainHubScreenView({
   save,
+  leaderboard,
   unit1Cleared,
   evalProfile,
   onOpenUnit1,
@@ -702,6 +741,7 @@ function MainHubScreenView({
   onComingSoon,
 }: {
   save: SaveData;
+  leaderboard: LeaderboardData;
   unit1Cleared: boolean;
   evalProfile: any;
   onOpenUnit1: () => void;
@@ -720,6 +760,19 @@ function MainHubScreenView({
 }) {
   const student = save.studentProfile;
   const isTeacher = student.role === "teacher";
+  const allMissions = [...unit1GameModes, ...unit2GameModes].flatMap((mode) => mode.missions);
+  const recentMission = allMissions.find((mission) => mission.id === save.lastMissionId);
+  const recentUnitId = recentMission?.unitId
+    || (save.lastView === "unit2_dashboard" || save.lastView === "webtoon_viewer" ? 2 : save.lastView === "unit1_dashboard" ? 1 : null);
+  const unit2MissionIds = unit2GameModes.flatMap((mode) => mode.missions).map((mission) => mission.id);
+  const unit2Cleared = unit2MissionIds.length > 0 && unit2MissionIds.every((id) => save.completedMissions.includes(id));
+  const availableTopicIds = unitTopicGroups.filter((group) => group.unitId <= 2).flatMap((group) => group.topicIds);
+  const vocabComplete = availableTopicIds.every((id) => save.completedVocabTopics?.includes(id));
+  const skillComplete = availableTopicIds.every((id) => save.completedSkillTopics?.includes(id));
+  const recentActivity = recentMission?.title
+    || (save.lastView === "skill_lab_vocab" ? "개념-용어 학습실"
+      : save.lastView === "skill_lab_skill" ? "탐구기능 연습실"
+        : recentUnitId ? `${recentUnitId}단원 실전 탐구` : "아직 기록된 활동이 없습니다");
 
   const units = [
     {
@@ -729,6 +782,8 @@ function MainHubScreenView({
       status: unit1Cleared ? "★ 100% 이수 완수" : "🔥 지금 탐구 도전 가능",
       active: true,
       badge: "⚖️ 인권수호관",
+      completed: unit1Cleared,
+      recent: recentUnitId === 1,
     },
     {
       id: 2,
@@ -737,6 +792,8 @@ function MainHubScreenView({
       status: "🔥 강서국 불평등 탐구 가능 (ACT 2)",
       active: true,
       badge: "🌿 공정정책관",
+      completed: unit2Cleared,
+      recent: recentUnitId === 2,
     },
 
     {
@@ -746,6 +803,8 @@ function MainHubScreenView({
       status: "순차 오픈 예정",
       active: false,
       badge: "🏙️ 경제기획관",
+      completed: false,
+      recent: false,
     },
     {
       id: 4,
@@ -754,6 +813,8 @@ function MainHubScreenView({
       status: "순차 오픈 예정",
       active: false,
       badge: "🏛️ 평화수호관",
+      completed: false,
+      recent: false,
     },
     {
       id: 5,
@@ -762,6 +823,8 @@ function MainHubScreenView({
       status: "순차 오픈 예정",
       active: false,
       badge: "📈 미래설계관",
+      completed: false,
+      recent: false,
     },
   ];
 
@@ -796,6 +859,15 @@ function MainHubScreenView({
           <button className="icon-button" onClick={onOpenSettings} title="설정"><Gear size={20} /></button>
         </div>
       </header>
+
+      <button className="hub-live-dashboard" type="button" onClick={onOpenActivity}>
+        <div className="hub-live-title"><Trophy size={18} weight="fill" /><strong>실시간 탐구 랭킹 · 체력 대시보드</strong><ArrowRight size={17} /></div>
+        <div className="hub-live-stats">
+          <span><small>전교 랭킹</small><b>{leaderboard.currentRank ? `${leaderboard.currentRank}위` : "집계 중"}</b></span>
+          <span><small>탐구 체력</small><b>{save.skillLabScore.vocabScore + save.skillLabScore.skillScore}점</b></span>
+          <span className="hub-recent-stat"><small>가장 최근 활동</small><b><Sparkle size={13} weight="fill" /> {recentActivity}</b></span>
+        </div>
+      </button>
 
       {/* Hero Brand Title */}
       <div className="hub-hero-brand">
@@ -851,22 +923,24 @@ function MainHubScreenView({
         </div>
 
         <div className="skill-lab-grid">
-          <div className="lab-card" onClick={onOpenSkillLabVocab}>
+          <div className={`lab-card ${save.lastView === "skill_lab_vocab" ? "recent-activity" : ""}`} onClick={onOpenSkillLabVocab}>
             <div className="lab-icon-box">📚</div>
             <div className="lab-card-body">
               <strong>개념-용어 학습실</strong>
               <p>25개 전 주제 핵심 용어 OX · 4지선다 · 짝맞추기 마스터</p>
               <span className="lab-score-pill">누적 체력 점수: {save.skillLabScore.vocabScore}점 (Lv.{save.skillLabScore.vocabLevel})</span>
+              <div className="activity-marker-row">{vocabComplete && <span className="complete-marker"><CheckCircle size={13} weight="fill" /> 완료</span>}{save.lastView === "skill_lab_vocab" && <span className="recent-marker"><Sparkle size={13} weight="fill" /> 최근 활동</span>}</div>
             </div>
             <ArrowRight size={20} className="lab-arrow" />
           </div>
 
-          <div className="lab-card" onClick={onOpenSkillLabSkill}>
+          <div className={`lab-card ${save.lastView === "skill_lab_skill" ? "recent-activity" : ""}`} onClick={onOpenSkillLabSkill}>
             <div className="lab-icon-box">🔍</div>
             <div className="lab-card-body">
               <strong>탐구기능 연습실 (AI 코칭 튜터)</strong>
               <p>5단계 탐구 스킬 훈련 · AI 대화형 피드백을 통한 서술형 정답 완성</p>
               <span className="lab-score-pill">누적 체력 점수: {save.skillLabScore.skillScore}점 (Lv.{save.skillLabScore.skillLevel})</span>
+              <div className="activity-marker-row">{skillComplete && <span className="complete-marker"><CheckCircle size={13} weight="fill" /> 완료</span>}{save.lastView === "skill_lab_skill" && <span className="recent-marker"><Sparkle size={13} weight="fill" /> 최근 활동</span>}</div>
             </div>
             <ArrowRight size={20} className="lab-arrow" />
           </div>
@@ -887,7 +961,7 @@ function MainHubScreenView({
           {units.map((u) => (
             <div
               key={u.id}
-              className={`unit-action-card ${u.active ? "active" : "locked"}`}
+              className={`unit-action-card ${u.active ? "active" : "locked"} ${u.recent ? "recent-activity" : ""}`}
               onClick={() => {
                 if (u.id === 1) onOpenUnit1();
                 else if (u.id === 2) onOpenUnit2();
@@ -906,6 +980,7 @@ function MainHubScreenView({
                 <p>{u.sub}</p>
                 <div className="unit-badge-row">
                   <span className="badge-preview">{u.badge}</span>
+                  <div className="activity-marker-row">{u.completed && <span className="complete-marker"><CheckCircle size={13} weight="fill" /> 완료</span>}{u.recent && <span className="recent-marker"><Sparkle size={13} weight="fill" /> 최근 활동</span>}</div>
                 </div>
               </div>
               <ArrowRight size={22} className="unit-card-arrow" />
@@ -972,7 +1047,8 @@ function Unit1DashboardView({
   onOpenPortfolio: () => void;
 }) {
   const completedMissions = save.completedMissions;
-  const isUnitComplete = completedMissions.filter((id) => id.startsWith("u1-")).length >= 5;
+  const unitMissionIds = unit1GameModes.flatMap((mode) => mode.missions).map((mission) => mission.id);
+  const isUnitComplete = unitMissionIds.length > 0 && unitMissionIds.every((id) => completedMissions.includes(id));
 
   return (
     <div className="unit1-dash-container">
@@ -1032,17 +1108,18 @@ function Unit1DashboardView({
                 <div className="mode-levels-grid">
                   {modeMissions.map((mission) => {
                     const isDone = completedMissions.includes(mission.id);
+                    const isRecent = save.lastMissionId === mission.id;
                     const missionScore = save.missionScores[mission.id]?.totalScore;
 
                     return (
                       <button
                         key={mission.id}
-                        className={`level-step-btn ${isDone ? "done" : "ready"}`}
+                        className={`level-step-btn ${isDone ? "done" : "ready"} ${isRecent ? "recent-activity" : ""}`}
                         onClick={() => onStartMission(mission)}
                       >
                         <div className="level-btn-top">
                           <span className="level-tag">{mission.levelName}</span>
-                          {isDone && <CheckCircle size={14} weight="fill" color="#56e39f" />}
+                          <span className="mission-state-icons">{isRecent && <span className="recent-marker compact"><Sparkle size={11} weight="fill" /> 최근</span>}{isDone && <CheckCircle size={14} weight="fill" color="#56e39f" />}</span>
                         </div>
                         <strong>{mission.title}</strong>
                         <span className="mission-page-label">📖 {mission.textbookPage}</span>
@@ -1079,7 +1156,8 @@ function Unit2DashboardView({
   onOpenPortfolio: () => void;
 }) {
   const completedMissions = save.completedMissions;
-  const isUnitComplete = completedMissions.filter((id) => id.startsWith("u2-")).length >= 5;
+  const unitMissionIds = unit2GameModes.flatMap((mode) => mode.missions).map((mission) => mission.id);
+  const isUnitComplete = unitMissionIds.length > 0 && unitMissionIds.every((id) => completedMissions.includes(id));
 
   return (
     <div className="unit1-dash-container">
@@ -1152,17 +1230,18 @@ function Unit2DashboardView({
                 <div className="mode-levels-grid">
                   {modeMissions.map((mission) => {
                     const isDone = completedMissions.includes(mission.id);
+                    const isRecent = save.lastMissionId === mission.id;
                     const missionScore = save.missionScores[mission.id]?.totalScore;
 
                     return (
                       <button
                         key={mission.id}
-                        className={`level-step-btn ${isDone ? "done" : "ready"}`}
+                        className={`level-step-btn ${isDone ? "done" : "ready"} ${isRecent ? "recent-activity" : ""}`}
                         onClick={() => onStartMission(mission)}
                       >
                         <div className="level-btn-top">
                           <span className="level-tag">{mission.levelName}</span>
-                          {isDone && <CheckCircle size={14} weight="fill" color="#56e39f" />}
+                          <span className="mission-state-icons">{isRecent && <span className="recent-marker compact"><Sparkle size={11} weight="fill" /> 최근</span>}{isDone && <CheckCircle size={14} weight="fill" color="#56e39f" />}</span>
                         </div>
                         <strong>{mission.title}</strong>
                         <span className="mission-page-label">📖 {mission.textbookPage}</span>
