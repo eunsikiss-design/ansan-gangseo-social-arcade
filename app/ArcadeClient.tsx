@@ -1091,7 +1091,7 @@ function MainHubScreenView({
             type="button"
             className="secondary-button"
             style={{ fontSize: "12px", padding: "6px 12px", borderRadius: "16px", borderColor: "var(--gold)", color: "var(--gold)", fontWeight: 700 }}
-            onClick={onOpenActivityDash}
+            onClick={() => setActivityDashOpen(true)}
             title="개인 & 학급 활동 대시보드"
           >
             📊 활동 대시보드
