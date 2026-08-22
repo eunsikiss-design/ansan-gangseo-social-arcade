@@ -98,7 +98,6 @@ export interface GameModeInfo {
   description: string;
   iconEmoji: string;
   estimatedMinutes: number;
-  textbookPages?: string;
   missions: GameMissionData[];
 }
 
@@ -163,15 +162,6 @@ export interface SaveData {
   };
   earnedVocabBadges?: number[]; // [1, 2, ...] 단원별 개념 마스터 뱃지
   earnedVocabItems?: string[];  // 획득한 개념 카드 아이템 ID 리스트
-  loginCount?: number;
-  activeSession?: {
-    view: string;
-    selectedUnitId: number;
-    selectedTopicId?: number;
-    currentQIdx?: number;
-    activeSkillTab?: number;
-    savedAt: string;
-  };
 }
 
 export interface Scene {

@@ -152,7 +152,6 @@ export const unit2GameModes: GameModeInfo[] = [
     description: "블라인드 채용, 롤스의 무지의 베일, 공간 불평등 버스 노선, 약자 우대 정책 쟁점을 탐구하고 ZERO의 승자독식 논리를 반박하는 공정 챌린지입니다.",
     iconEmoji: "⚖️",
     estimatedMinutes: 10,
-    textbookPages: "📖 미래엔 교과서 54~85쪽",
     missions: [
       {
         id: "u2-cc-m07",

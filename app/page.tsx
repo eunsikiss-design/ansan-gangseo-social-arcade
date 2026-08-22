@@ -100,10 +100,7 @@ export default function HomePage() {
   const [certUnitId, setCertUnitId] = useState<number | null>(null);
   const [comingSoonMsg, setComingSoonMsg] = useState<string | null>(null);
   const [portfolioOpen, setPortfolioOpen] = useState(false);
-  const [activityDashOpen, setActivityDashOpen] = useState(false);
-  const [resumeModalOpen, setResumeModalOpen] = useState(false);
-  const [resumeSessionData, setResumeSessionData] = useState<any>(null);
-  const [topicClearModalData, setTopicClearModalData] = useState<{ topicId: number; unitId: number } | null>(null);
+  const [speechModalOpen, setSpeechModalOpen] = useState(false);
 
   const handleSpeechSubmit = async (text: string, duration: number): Promise<SpeechFeedbackResult | null> => {
     try {
@@ -132,19 +129,14 @@ export default function HomePage() {
   };
 
 
-  // Initialize & Login count increment
+  // Initialize
   useEffect(() => {
     try {
       const stored = localStorage.getItem(SAVE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
-        const currentLogins = (parsed.loginCount || 0) + 1;
-        setSave({ ...blankSave(), ...parsed, loginCount: currentLogins });
-
-        if (parsed.activeSession?.view && parsed.activeSession.view !== "login") {
-          setResumeSessionData(parsed.activeSession);
-          setResumeModalOpen(true);
-        } else if (parsed.studentProfile?.isLoggedIn) {
+        setSave({ ...blankSave(), ...parsed });
+        if (parsed.studentProfile?.isLoggedIn) {
           setView("hub");
         }
       }
@@ -158,20 +150,6 @@ export default function HomePage() {
       localStorage.setItem(SAVE_KEY, JSON.stringify(save));
     }
   }, [hydrated, save]);
-
-  // Save active session for auto-resume
-  useEffect(() => {
-    if (hydrated && view !== "login") {
-      setSave((prev) => ({
-        ...prev,
-        activeSession: {
-          view,
-          selectedUnitId: prev.currentUnit || 1,
-          savedAt: new Date().toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" }),
-        },
-      }));
-    }
-  }, [view, hydrated]);
 
   // Scroll to top on view changes
   useEffect(() => {
@@ -325,7 +303,6 @@ export default function HomePage() {
             onOpenSettings={() => setSettingsOpen(true)}
             onOpenIntro={() => setIntroOpen(true)}
             onOpenTeacherDash={() => setTeacherDashOpen(true)}
-            onOpenActivityDash={() => setActivityDashOpen(true)}
             onComingSoon={(msg) => setComingSoonMsg(msg)}
           />
         )}
@@ -499,41 +476,6 @@ export default function HomePage() {
           />
         )}
 
-        {activityDashOpen && (
-          <ActivityDashboardModal
-            save={save}
-            onClose={() => setActivityDashOpen(false)}
-          />
-        )}
-
-        {resumeModalOpen && resumeSessionData && (
-          <ResumeSessionModal
-            sessionInfo={resumeSessionData}
-            onResume={() => {
-              setResumeModalOpen(false);
-              if (resumeSessionData.view) setView(resumeSessionData.view as ViewMode);
-            }}
-            onNewStart={() => {
-              setResumeModalOpen(false);
-              setSave((prev) => ({ ...prev, activeSession: undefined }));
-              setView("hub");
-            }}
-          />
-        )}
-
-        {topicClearModalData && (
-          <TopicClearModal
-            topicId={topicClearModalData.topicId}
-            unitId={topicClearModalData.unitId}
-            onNextTopic={() => {
-              setTopicClearModalData(null);
-            }}
-            onChooseTopicList={() => {
-              setTopicClearModalData(null);
-            }}
-          />
-        )}
-
         {settingsOpen && (
           <SettingsPanelModal
             audio={save.audio}
@@ -550,292 +492,6 @@ export default function HomePage() {
         )}
       </div>
     </main>
-  );
-}
-
-// =========================================================================
-// ACTIVITY DASHBOARD MODAL (개인 & 학급 활동 대시보드)
-// =========================================================================
-function ActivityDashboardModal({
-  save,
-  onClose,
-}: {
-  save: SaveData;
-  onClose: () => void;
-}) {
-  const [tab, setTab] = useState<"personal" | "class">("personal");
-  const student = save.studentProfile;
-  const comp = evaluateCompetencyProfile(save);
-
-  return (
-    <div className="modal-backdrop-v2">
-      <div className="modal-card-v2" style={{ maxWidth: "640px" }}>
-        <div className="modal-header-v2">
-          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <ChartBar size={22} color="var(--gold)" />
-            <strong>{tab === "personal" ? "👤 개인 활동 대시보드" : "🏫 학급별 활동 대시보드"}</strong>
-          </div>
-          <button className="icon-button" onClick={onClose}><X size={18} /></button>
-        </div>
-
-        {/* Tab Switch Buttons */}
-        <div style={{ display: "flex", gap: "8px", padding: "8px 16px", background: "rgba(0,0,0,0.2)" }}>
-          <button
-            type="button"
-            style={{
-              flex: 1,
-              padding: "10px",
-              borderRadius: "8px",
-              border: tab === "personal" ? "2px solid var(--gold)" : "1px solid rgba(255,255,255,0.1)",
-              background: tab === "personal" ? "rgba(255,213,106,0.2)" : "rgba(255,255,255,0.05)",
-              color: tab === "personal" ? "var(--gold)" : "#fff",
-              fontWeight: 700,
-              cursor: "pointer",
-            }}
-            onClick={() => setTab("personal")}
-          >
-            👤 개인 활동 현황
-          </button>
-          <button
-            type="button"
-            style={{
-              flex: 1,
-              padding: "10px",
-              borderRadius: "8px",
-              border: tab === "class" ? "2px solid var(--teal-soft)" : "1px solid rgba(255,255,255,0.1)",
-              background: tab === "class" ? "rgba(86,227,159,0.2)" : "rgba(255,255,255,0.05)",
-              color: tab === "class" ? "#56e39f" : "#fff",
-              fontWeight: 700,
-              cursor: "pointer",
-            }}
-            onClick={() => setTab("class")}
-          >
-            🏫 소속 학급 현황 (TOP 3)
-          </button>
-        </div>
-
-        <div className="modal-body-v2" style={{ padding: "16px", maxHeight: "70vh", overflowY: "auto" }}>
-          {tab === "personal" ? (
-            <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-              {/* Profile Card */}
-              <div style={{ background: "rgba(255,255,255,0.05)", padding: "14px", borderRadius: "12px", border: "1px solid rgba(255,255,255,0.1)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div>
-                  <span style={{ fontSize: "12px", color: "var(--teal-soft)" }}>{student.schoolName}</span>
-                  <h3 style={{ margin: "2px 0 4px", fontSize: "18px", color: "#fff" }}>{student.name} ({student.grade} {student.classNum} {student.studentNum})</h3>
-                  <small style={{ color: "rgba(255,255,255,0.6)" }}>ID: {student.studentId} · 역량 등급: <strong style={{ color: "var(--gold)" }}>{comp.overallLevel}등급</strong></small>
-                </div>
-                <div style={{ textAlign: "right" }}>
-                  <small style={{ color: "#a0aec0" }}>총 누적 점수</small>
-                  <div style={{ fontSize: "22px", fontWeight: 800, color: "var(--gold)" }}>{save.exp}점</div>
-                </div>
-              </div>
-
-              {/* Stats Grid */}
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "10px" }}>
-                <div style={{ background: "#041824", padding: "12px", borderRadius: "10px", textAlign: "center", border: "1px solid #16364d" }}>
-                  <span style={{ fontSize: "20px" }}>🔑</span>
-                  <div style={{ fontSize: "11px", color: "#a0b0c0", marginTop: "2px" }}>로그인/접속 횟수</div>
-                  <strong style={{ fontSize: "16px", color: "#fff" }}>{save.loginCount || 1}회</strong>
-                </div>
-                <div style={{ background: "#041824", padding: "12px", borderRadius: "10px", textAlign: "center", border: "1px solid #16364d" }}>
-                  <span style={{ fontSize: "20px" }}>🎖️</span>
-                  <div style={{ fontSize: "11px", color: "#a0b0c0", marginTop: "2px" }}>수여받은 임명증</div>
-                  <strong style={{ fontSize: "16px", color: "var(--gold)" }}>{save.earnedCertificates.length} / 5개</strong>
-                </div>
-                <div style={{ background: "#041824", padding: "12px", borderRadius: "10px", textAlign: "center", border: "1px solid #16364d" }}>
-                  <span style={{ fontSize: "20px" }}>🃏</span>
-                  <div style={{ fontSize: "11px", color: "#a0b0c0", marginTop: "2px" }}>개념 카드 보관</div>
-                  <strong style={{ fontSize: "16px", color: "#56e39f" }}>{save.earnedVocabItems?.length || 4}장</strong>
-                </div>
-              </div>
-
-              {/* Competency Diagnosis */}
-              <div style={{ background: "rgba(0,0,0,0.3)", padding: "14px", borderRadius: "12px", border: "1px solid rgba(255,255,255,0.08)" }}>
-                <strong style={{ fontSize: "14px", color: "var(--gold)", display: "block", marginBottom: "8px" }}>📊 학습 역량 진단 & 강점·약점 분석</strong>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "8px", marginBottom: "12px" }}>
-                  <div style={{ background: "rgba(255,255,255,0.04)", padding: "8px", borderRadius: "6px" }}>
-                    <small style={{ color: "#a0aec0" }}>통합적 사고</small>
-                    <div style={{ fontWeight: 700, color: "#fff" }}>{comp.competencyScores.integratedThinking}점</div>
-                  </div>
-                  <div style={{ background: "rgba(255,255,255,0.04)", padding: "8px", borderRadius: "6px" }}>
-                    <small style={{ color: "#a0aec0" }}>자료 활용 역량</small>
-                    <div style={{ fontWeight: 700, color: "#fff" }}>{comp.competencyScores.dataAnalysis}점</div>
-                  </div>
-                  <div style={{ background: "rgba(255,255,255,0.04)", padding: "8px", borderRadius: "6px" }}>
-                    <small style={{ color: "#a0aec0" }}>의사 결정 역량</small>
-                    <div style={{ fontWeight: 700, color: "#fff" }}>{comp.competencyScores.decisionMaking}점</div>
-                  </div>
-                  <div style={{ background: "rgba(255,255,255,0.04)", padding: "8px", borderRadius: "6px" }}>
-                    <small style={{ color: "#a0aec0" }}>공동체 참여 역량</small>
-                    <div style={{ fontWeight: 700, color: "#fff" }}>{comp.competencyScores.communityAction}점</div>
-                  </div>
-                </div>
-
-                <div style={{ background: "rgba(86,227,159,0.1)", borderLeft: "3px solid #56e39f", padding: "8px 12px", borderRadius: "4px", fontSize: "12.5px", color: "#e2e8f0" }}>
-                  💡 <strong>강점:</strong> {comp.strengths.join(", ") || "기본권 조항 인지 및 판례 근거 추론이 매우 정밀함"}
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-              {/* Class Summary Banner */}
-              <div style={{ background: "linear-gradient(135deg, rgba(86,227,159,0.2), rgba(4,20,31,0.95))", padding: "14px", borderRadius: "12px", border: "1px solid #56e39f" }}>
-                <span style={{ fontSize: "12px", color: "#56e39f", fontWeight: 700 }}>🏫 학급 종합 아케이드 리포트</span>
-                <h3 style={{ margin: "2px 0 6px", color: "#fff" }}>{student.schoolName} {student.grade} {student.classNum}</h3>
-                <div style={{ display: "flex", gap: "16px", fontSize: "13px", color: "#e2e8f0" }}>
-                  <span>학급 참여율: <strong style={{ color: "#56e39f" }}>96% (25명 중 24명)</strong></span>
-                  <span>학급 평균: <strong style={{ color: "var(--gold)" }}>88.4점 (전교 1위!)</strong></span>
-                </div>
-              </div>
-
-              {/* Class TOP 3 Students Leaderboard */}
-              <div>
-                <strong style={{ fontSize: "14px", color: "var(--gold)", display: "block", marginBottom: "8px" }}>🏆 우리 학급 상위 TOP 3 명예의 전당</strong>
-                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                  {[
-                    { rank: "🥇 1위", name: "이*우 (20101)", score: "480점", badges: ["⚖️ 인권수호관", "🌿 공정정책관"] },
-                    { rank: "🥈 2위", name: "김*서 (20104)", score: "440점", badges: ["⚖️ 인권수호관"] },
-                    { rank: "🥉 3위", name: `${student.name} (나)`, score: `${save.exp || 410}점`, badges: ["⚖️ 인권수호관", "🌿 공정정책관"] },
-                  ].map((topItem, idx) => (
-                    <div
-                      key={idx}
-                      style={{
-                        display: "flex",
-                        justify: "space-between",
-                        alignItems: "center",
-                        background: idx === 2 ? "rgba(255,213,106,0.15)" : "rgba(255,255,255,0.05)",
-                        border: idx === 2 ? "1px solid var(--gold)" : "1px solid rgba(255,255,255,0.08)",
-                        padding: "10px 14px",
-                        borderRadius: "10px",
-                      }}
-                    >
-                      <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                        <span style={{ fontSize: "16px", fontWeight: 800, color: "var(--gold)" }}>{topItem.rank}</span>
-                        <div>
-                          <strong style={{ color: "#fff", fontSize: "14px" }}>{topItem.name}</strong>
-                          <div style={{ display: "flex", gap: "4px", marginTop: "2px" }}>
-                            {topItem.badges.map((b, bIdx) => (
-                              <span key={bIdx} style={{ fontSize: "10px", background: "rgba(255,255,255,0.1)", padding: "1px 6px", borderRadius: "8px", color: "var(--teal-soft)" }}>
-                                {b}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                      <strong style={{ fontSize: "16px", color: "#56e39f" }}>{topItem.score}</strong>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// =========================================================================
-// RESUME SESSION MODAL (자동 중간 저장 및 이전 이어서 학습하기)
-// =========================================================================
-function ResumeSessionModal({
-  sessionInfo,
-  onResume,
-  onNewStart,
-}: {
-  sessionInfo: { view: string; selectedUnitId: number; selectedTopicId?: number; savedAt: string };
-  onResume: () => void;
-  onNewStart: () => void;
-}) {
-  const topicTitle = sessionInfo.selectedTopicId
-    ? masterVocabTopics.find((t) => t.id === sessionInfo.selectedTopicId)?.title
-    : null;
-
-  return (
-    <div className="modal-backdrop-v2">
-      <div className="modal-card-v2" style={{ maxWidth: "460px", textAlign: "center" }}>
-        <div style={{ fontSize: "40px", marginBottom: "8px" }}>🔄</div>
-        <h3 style={{ margin: "0 0 8px", color: "var(--gold)", fontSize: "18px" }}>지난 학습 이어하기 안내</h3>
-        <p style={{ fontSize: "13.5px", color: "#e2e8f0", lineHeight: "1.5", margin: "0 0 16px" }}>
-          이전 세션에서 학습하던 진행 기록이 발견되었습니다.<br />
-          <strong style={{ color: "var(--teal-soft)", display: "block", margin: "6px 0" }}>
-            [{sessionInfo.selectedUnitId}단원 {topicTitle ? `· ${topicTitle}` : ""}]
-          </strong>
-          <small style={{ color: "rgba(255,255,255,0.5)" }}>저장 시각: {sessionInfo.savedAt}</small>
-        </p>
-
-        <div style={{ display: "flex", gap: "10px" }}>
-          <button
-            className="secondary-button"
-            style={{ flex: 1, padding: "12px" }}
-            onClick={onNewStart}
-          >
-            🆕 처음부터 시작
-          </button>
-          <button
-            className="primary-button"
-            style={{ flex: 1.2, padding: "12px" }}
-            onClick={onResume}
-          >
-            🔄 이어서 진행하기 ➔
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// =========================================================================
-// TOPIC CLEAR MODAL (주제 학습 완료 & 다음 주제 선택 모달)
-// =========================================================================
-function TopicClearModal({
-  topicId,
-  unitId,
-  onNextTopic,
-  onChooseTopicList,
-}: {
-  topicId: number;
-  unitId: number;
-  onNextTopic: () => void;
-  onChooseTopicList: () => void;
-}) {
-  const curTopic = masterVocabTopics.find((t) => t.id === topicId);
-  const isLastInUnit = topicId === 6 || topicId === 11 || topicId === 16 || topicId === 21 || topicId === 25;
-
-  return (
-    <div className="modal-backdrop-v2">
-      <div className="modal-card-v2" style={{ maxWidth: "480px", textAlign: "center" }}>
-        <div style={{ fontSize: "44px", marginBottom: "8px" }}>🎉</div>
-        <h3 style={{ margin: "0 0 6px", color: "var(--gold)", fontSize: "20px" }}>주제 학습 완수!</h3>
-        <span style={{ fontSize: "12.5px", color: "var(--teal-soft)", fontWeight: 700, display: "block", marginBottom: "12px" }}>
-          {curTopic?.title} ({curTopic?.textbookPage})
-        </span>
-
-        <p style={{ fontSize: "14px", color: "#e2e8f0", lineHeight: "1.6", margin: "0 0 20px" }}>
-          해당 주제의 모든 핵심 개념 퀴즈 및 짝맞추기를 성공적으로 클리어하셨습니다.<br />
-          {!isLastInUnit ? "다음 주제로 이동하여 학습을 이어나가시겠습니까?" : "해당 단원의 전 주제를 완료하셨습니다!"}
-        </p>
-
-        <div style={{ display: "flex", gap: "10px" }}>
-          <button
-            className="secondary-button"
-            style={{ flex: 1, padding: "12px" }}
-            onClick={onChooseTopicList}
-          >
-            📋 주제 목록 보기
-          </button>
-          {!isLastInUnit && (
-            <button
-              className="primary-button"
-              style={{ flex: 1.2, padding: "12px" }}
-              onClick={onNextTopic}
-            >
-              ➡️ 다음 주제 도전 ➔
-            </button>
-          )}
-        </div>
-      </div>
-    </div>
   );
 }
 
@@ -973,7 +629,6 @@ function MainHubScreenView({
   onOpenSettings: () => void;
   onOpenIntro: () => void;
   onOpenTeacherDash: () => void;
-  onOpenActivityDash: () => void;
   onComingSoon: (msg: string) => void;
 }) {
   const student = save.studentProfile;
@@ -1044,15 +699,6 @@ function MainHubScreenView({
         </div>
 
         <div className="hub-top-buttons">
-          <button
-            type="button"
-            className="secondary-button"
-            style={{ fontSize: "12px", padding: "6px 12px", borderRadius: "16px", borderColor: "var(--gold)", color: "var(--gold)", fontWeight: 700 }}
-            onClick={onOpenActivityDash}
-            title="개인 & 학급 활동 대시보드"
-          >
-            📊 활동 대시보드
-          </button>
           {isTeacher && (
             <button className="icon-button" onClick={onOpenTeacherDash} title="교사용 대시보드"><ChalkboardTeacher size={20} color="#ffd36a" weight="fill" /></button>
           )}
@@ -1292,11 +938,6 @@ function Unit1DashboardView({
                 </div>
 
                 <p className="mode-desc">{mode.description}</p>
-                {mode.textbookPages && (
-                  <span style={{ fontSize: "11px", color: "var(--gold)", background: "rgba(255,213,106,0.15)", padding: "2px 8px", borderRadius: "10px", fontWeight: 700, display: "inline-block", marginBottom: "10px" }}>
-                    {mode.textbookPages}
-                  </span>
-                )}
 
                 {/* Level Missions Row (Lv1 ~ Lv5) */}
                 <div className="mode-levels-grid">
@@ -1315,11 +956,6 @@ function Unit1DashboardView({
                           {isDone && <CheckCircle size={14} weight="fill" color="#56e39f" />}
                         </div>
                         <strong>{mission.title}</strong>
-                        {mission.textbookPage && (
-                          <small style={{ color: "var(--teal-soft)", fontSize: "10px", display: "block", margin: "2px 0" }}>
-                            📖 {mission.textbookPage}
-                          </small>
-                        )}
                         <small>{isDone ? `점수: ${missionScore}점` : "도전하기 >"}</small>
                       </button>
                     );
@@ -1420,11 +1056,6 @@ function Unit2DashboardView({
                 </div>
 
                 <p className="mode-desc">{mode.description}</p>
-                {mode.textbookPages && (
-                  <span style={{ fontSize: "11px", color: "var(--gold)", background: "rgba(255,213,106,0.15)", padding: "2px 8px", borderRadius: "10px", fontWeight: 700, display: "inline-block", marginBottom: "10px" }}>
-                    {mode.textbookPages}
-                  </span>
-                )}
 
                 {/* Level Missions Grid */}
                 <div className="mode-levels-grid">
@@ -1443,11 +1074,6 @@ function Unit2DashboardView({
                           {isDone && <CheckCircle size={14} weight="fill" color="#56e39f" />}
                         </div>
                         <strong>{mission.title}</strong>
-                        {mission.textbookPage && (
-                          <small style={{ color: "var(--teal-soft)", fontSize: "10px", display: "block", margin: "2px 0" }}>
-                            📖 {mission.textbookPage}
-                          </small>
-                        )}
                         <small>{isDone ? `점수: ${missionScore}점` : "도전하기 >"}</small>
                       </button>
                     );
