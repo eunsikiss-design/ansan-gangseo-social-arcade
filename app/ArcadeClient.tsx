@@ -201,7 +201,7 @@ export default function HomePage() {
     if (unit1Cleared && !save.earnedCertificates.includes(1)) {
       setSave((prev) => ({
         ...prev,
-        earnedCertificates: [...new Set([...prev.earnedCertificates, 1])],
+        earnedCertificates: prev.earnedCertificates.includes(1) ? prev.earnedCertificates : [...prev.earnedCertificates, 1 as UnitId],
       }));
     }
   }, [unit1Cleared, save.earnedCertificates]);
