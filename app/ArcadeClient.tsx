@@ -713,7 +713,7 @@ function ActivityDashboardModal({
                       key={idx}
                       style={{
                         display: "flex",
-                        justify: "space-between",
+                        justifyContent: "space-between",
                         alignItems: "center",
                         background: idx === 2 ? "rgba(255,213,106,0.15)" : "rgba(255,255,255,0.05)",
                         border: idx === 2 ? "1px solid var(--gold)" : "1px solid rgba(255,255,255,0.08)",
