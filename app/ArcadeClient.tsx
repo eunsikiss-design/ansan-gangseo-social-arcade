@@ -26,7 +26,7 @@ import { audioManager, defaultAudioSettings } from "@/src/game/audio/AudioManage
 import { calculateMissionScore, evaluateCompetencyProfile, generatePortfolioDraft } from "@/src/game/evaluator";
 import type {
   GameMissionData, GameModeId, HintItem, SaveData, ScoreBreakdown, StudentProfile,
-  WebtoonCutscene, SpeechFeedbackResult,
+  WebtoonCutscene, SpeechFeedbackResult, UnitId,
 } from "@/src/game/types";
 
 
