@@ -24,7 +24,7 @@ import { audioManager, defaultAudioSettings } from "@/src/game/audio/AudioManage
 import { calculateMissionScore, evaluateCompetencyProfile, generatePortfolioDraft } from "@/src/game/evaluator";
 import type {
   GameMissionData, GameModeId, HintItem, SaveData, ScoreBreakdown, StudentProfile,
-  WebtoonCutscene, SpeechFeedbackResult,
+  WebtoonCutscene, SpeechFeedbackResult, SkillLabAnswerArchiveEntry,
 } from "@/src/game/types";
 
 
@@ -67,6 +67,7 @@ const blankSave = (): SaveData => ({
   lastMissionId: null,
   completedVocabTopics: [],
   completedSkillTopics: [],
+  skillAnswerArchive: {},
 });
 
 type LeaderboardEntry = { studentId: string; displayName: string; className: string; score: number; updatedAt?: number };
@@ -265,7 +266,11 @@ export default function HomePage() {
     } catch { /* continue with device save */ }
     const loginMeta = { loginCount: Math.max(save.loginCount || 0, remoteSave?.loginCount || 0) + 1, lastLoginAt: new Date().toISOString() };
     const localSave = save.studentProfile.studentId === profile.studentId && (save.completedMissions.length || save.lastActivityAt) ? save : null;
-    const candidate = remoteSave || localSave;
+    const remoteUpdatedAt = remoteSave?.lastActivityAt ? new Date(remoteSave.lastActivityAt).getTime() : 0;
+    const localUpdatedAt = localSave?.lastActivityAt ? new Date(localSave.lastActivityAt).getTime() : 0;
+    const candidate = remoteSave && localSave
+      ? (localUpdatedAt > remoteUpdatedAt ? localSave : remoteSave)
+      : remoteSave || localSave;
     if (candidate) {
       setResumeCandidate({ ...blankSave(), ...candidate, studentProfile: profile, ...loginMeta });
       setSave((prev) => ({ ...prev, studentProfile: profile, ...loginMeta }));
@@ -279,8 +284,24 @@ export default function HomePage() {
     setView("hub");
   };
 
-  const handleLogout = () => {
-    void logoutUserServer();
+  const handleLogout = async () => {
+    if (save.studentProfile.isLoggedIn && save.studentProfile.role !== "guest") {
+      const tracksProgress = isResumeView(view);
+      const snapshot = {
+        ...save,
+        lastView: tracksProgress ? view : save.lastView,
+        lastMissionId: view === "mission_player" ? activeMission.id : save.lastMissionId,
+        lastActivityAt: tracksProgress ? new Date().toISOString() : save.lastActivityAt,
+      };
+      try {
+        await fetch("/api/activity", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ score: totalActivityScore, loginCount: save.loginCount || 0, save: snapshot }),
+        });
+      } catch { /* localStorage remains the offline safety copy */ }
+    }
+    await logoutUserServer();
     setSave((prev) => ({
       ...prev,
       studentProfile: { ...defaultStudent, isLoggedIn: false },
@@ -2695,7 +2716,7 @@ function SkillLabTrainingView({
   leaderboard: LeaderboardData;
   onBack: () => void;
 }) {
-  const [activeSkillTab, setActiveSkillTab] = useState<1 | 2 | 3 | 4 | 5>(1);
+  const [activeSkillTab, setActiveSkillTab] = useState<1 | 2 | 3 | 4 | 5>(save.currentSkillLab?.activeSkillTab || 1);
   const [energy, setEnergy] = useState(40);
   const [rankingCollapsed, setRankingCollapsed] = useState(false);
 
@@ -2714,7 +2735,7 @@ function SkillLabTrainingView({
   const [s1MatchCorrect, setS1MatchCorrect] = useState(false);
 
   // Skill 2 State
-  const [skill2Idx, setSkill2Idx] = useState(0);
+  const [skill2Idx, setSkill2Idx] = useState(save.currentSkillLab?.skill2Idx || 0);
   const [skill2Input, setSkill2Input] = useState("");
   const [skill2GuideModal, setSkill2GuideModal] = useState(false);
   const [skill2AiRes, setSkill2AiRes] = useState<any>(null);
@@ -2765,10 +2786,10 @@ function SkillLabTrainingView({
   // ✍️ 문장 자동완성 주입 함수
   const handleApplyAutocomplete = (sentence: string) => {
     if (!sentence) return;
-    if (activeSkillTab === 2) setSkill2Input(sentence);
-    else if (activeSkillTab === 3) setSkill3Input(sentence);
-    else if (activeSkillTab === 4) setSkill4Input(sentence);
-    else if (activeSkillTab === 5) setSkill5Input(sentence);
+    if (activeSkillTab === 2) { setSkill2Input(sentence); persistWrittenAnswer(2, sentence); }
+    else if (activeSkillTab === 3) { setSkill3Input(sentence); persistWrittenAnswer(3, sentence); }
+    else if (activeSkillTab === 4) { setSkill4Input(sentence); persistWrittenAnswer(4, sentence); }
+    else if (activeSkillTab === 5) { setSkill5Input(sentence); persistWrittenAnswer(5, sentence); }
 
     void audioManager.playSfx("success");
     setChatToast("✓ 추천 문장이 내 답안창에 자동완성으로 적용되었습니다!");
@@ -2785,6 +2806,10 @@ function SkillLabTrainingView({
       setSave((prev) => ({ ...prev, completedSkillTopics: [...new Set([...(prev.completedSkillTopics || []), selectedTrainingTopicId])] }));
       setSkillTopicComplete(true);
     }
+
+    const answer = stepNumber === 2 ? skill2Input : stepNumber === 3 ? skill3Input : stepNumber === 4 ? skill4Input : skill5Input;
+    const feedback = stepNumber === 2 ? skill2AiRes?.feedback : stepNumber === 3 ? skill3AiRes?.feedback : stepNumber === 4 ? skill4AiRes?.feedback : skill5AiRes?.feedback;
+    persistWrittenAnswer(stepNumber as 2 | 3 | 4 | 5, answer, feedback, true);
 
     void audioManager.playSfx("success");
 
@@ -2919,16 +2944,93 @@ function SkillLabTrainingView({
     }
   };
 
-  const [selectedUnitId, setSelectedUnitId] = useState<number>(1);
-  const [selectedTrainingTopicId, setSelectedTrainingTopicId] = useState<number>(1);
+  const [selectedUnitId, setSelectedUnitId] = useState<number>(save.currentSkillLab?.selectedUnitId || 1);
+  const [selectedTrainingTopicId, setSelectedTrainingTopicId] = useState<number>(save.currentSkillLab?.selectedTrainingTopicId || 1);
   const dataset = useMemo(() => {
     return selectedUnitId === 2 ? unit2SkillLabMaster : unit1SkillLabMaster;
   }, [selectedUnitId]);
   const trainingTopics = useMemo(() => masterVocabTopics.filter((topic) => topic.unitId === selectedUnitId), [selectedUnitId]);
 
+  const selectedTrainingTopic = masterVocabTopics.find((topic) => topic.id === selectedTrainingTopicId);
+  const topicArchiveKey = String(selectedTrainingTopicId);
+  const persistWrittenAnswer = (
+    step: 2 | 3 | 4 | 5,
+    answer: string,
+    feedback?: string,
+    confirmed?: boolean,
+  ) => {
+    const now = new Date().toISOString();
+    setSave((prev) => {
+      const previous = prev.skillAnswerArchive?.[topicArchiveKey];
+      const base: SkillLabAnswerArchiveEntry = previous || {
+        topicId: selectedTrainingTopicId,
+        unitId: selectedUnitId,
+        topicTitle: selectedTrainingTopic?.title || `주제 ${selectedTrainingTopicId}`,
+        textbookPage: selectedTrainingTopic?.textbookPage,
+        step2Answers: {},
+        updatedAt: now,
+      };
+      const common = { question: "", answer, feedback, confirmed };
+      const nextEntry: SkillLabAnswerArchiveEntry = {
+        ...base,
+        topicTitle: selectedTrainingTopic?.title || base.topicTitle,
+        textbookPage: selectedTrainingTopic?.textbookPage || base.textbookPage,
+        updatedAt: now,
+      };
+      if (step === 2) {
+        const question = dataset.skill2[skill2Idx]?.question || "자료 해석 답안";
+        nextEntry.step2Answers = {
+          ...base.step2Answers,
+          [String(skill2Idx)]: { ...common, question },
+        };
+      } else if (step === 3) {
+        nextEntry.step3 = {
+          ...common,
+          question: `${dataset.skill3[0]?.topic || "쟁점"}에 대한 관점 평가`,
+          stance: skill3Stance,
+        };
+      } else if (step === 4) {
+        nextEntry.step4 = { ...common, question: `${dataset.skill4[0]?.title || "사례"}의 원인과 법·제도적 대안` };
+      } else {
+        nextEntry.step5 = { ...common, question: `${dataset.skill5[0]?.title || "주제"}의 헌법 가치 기반 실천 방안` };
+      }
+      return {
+        ...prev,
+        skillAnswerArchive: { ...(prev.skillAnswerArchive || {}), [topicArchiveKey]: nextEntry },
+        currentSkillLab: { selectedUnitId, selectedTrainingTopicId, activeSkillTab, skill2Idx },
+        lastActivityAt: now,
+      };
+    });
+  };
+
   useEffect(() => {
     if (trainingTopics.length && !trainingTopics.some((topic) => topic.id === selectedTrainingTopicId)) setSelectedTrainingTopicId(trainingTopics[0].id);
   }, [trainingTopics, selectedTrainingTopicId]);
+
+  useEffect(() => {
+    const archived = save.skillAnswerArchive?.[String(selectedTrainingTopicId)];
+    const step2 = archived?.step2Answers?.[String(skill2Idx)];
+    setSkill2Input(step2?.answer || "");
+    setSkill2Confirmed(Boolean(step2?.confirmed));
+    setSkill2AiRes(step2?.feedback ? { feedback: step2.feedback, isMastered: Boolean(step2.confirmed) } : null);
+    setSkill3Input(archived?.step3?.answer || "");
+    setSkill3Stance(archived?.step3?.stance || "A");
+    setSkill3Confirmed(Boolean(archived?.step3?.confirmed));
+    setSkill3AiRes(archived?.step3?.feedback ? { feedback: archived.step3.feedback, isMastered: Boolean(archived.step3.confirmed) } : null);
+    setSkill4Input(archived?.step4?.answer || "");
+    setSkill4Confirmed(Boolean(archived?.step4?.confirmed));
+    setSkill4AiRes(archived?.step4?.feedback ? { feedback: archived.step4.feedback, isMastered: Boolean(archived.step4.confirmed) } : null);
+    setSkill5Input(archived?.step5?.answer || "");
+    setSkill5Confirmed(Boolean(archived?.step5?.confirmed));
+    setSkill5AiRes(archived?.step5?.feedback ? { feedback: archived.step5.feedback, isMastered: Boolean(archived.step5.confirmed) } : null);
+  }, [selectedTrainingTopicId, skill2Idx]);
+
+  const archivedAnswerEntries = useMemo(
+    () => Object.values(save.skillAnswerArchive || {})
+      .filter((entry) => Object.values(entry.step2Answers || {}).some((item) => item.answer.trim()) || entry.step3?.answer.trim() || entry.step4?.answer.trim() || entry.step5?.answer.trim())
+      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()),
+    [save.skillAnswerArchive],
+  );
 
 
   // --- Skill 1 Helpers ---
@@ -3183,7 +3285,17 @@ function SkillLabTrainingView({
 
         <section className="training-topic-selector" aria-label="탐구기능 연습 주제 선택">
           <div><strong>주제별 탐구기능 연습</strong><small>한 주제의 5단계를 마친 뒤 종료하거나 다음 주제를 선택할 수 있습니다.</small></div>
-          <select value={selectedTrainingTopicId} onChange={(event) => { setSelectedTrainingTopicId(Number(event.target.value)); setActiveSkillTab(1); setSkillTopicComplete(false); }}>
+          <select value={selectedTrainingTopicId} onChange={(event) => {
+            const topicId = Number(event.target.value);
+            setSelectedTrainingTopicId(topicId);
+            setSkill2Idx(0);
+            setActiveSkillTab(1);
+            setSkillTopicComplete(false);
+            setSave((prev) => ({
+              ...prev,
+              currentSkillLab: { selectedUnitId, selectedTrainingTopicId: topicId, activeSkillTab: 1, skill2Idx: 0 },
+            }));
+          }}>
             {trainingTopics.map((topic) => <option key={topic.id} value={topic.id}>{topic.title} · {topic.textbookPage}</option>)}
           </select>
           <span>📖 {trainingTopics.find((topic) => topic.id === selectedTrainingTopicId)?.textbookPage}</span>
@@ -3571,7 +3683,7 @@ function SkillLabTrainingView({
                 placeholder="예: 기본권은 반드시 국회가 제정한 법률에 근거하여 제한해야 하며, 본질적인 내용을 침해할 수 없다."
                 value={skill2Input}
                 disabled={skill2Confirmed}
-                onChange={(e) => setSkill2Input(e.target.value)}
+                onChange={(e) => { setSkill2Input(e.target.value); persistWrittenAnswer(2, e.target.value); }}
               />
 
               {!skill2Confirmed ? (
@@ -3770,7 +3882,7 @@ function SkillLabTrainingView({
                 placeholder="예: 본인은 학생의 행복추구권과 통신의 자유를 보장하기 위해 일괄 수거 대신 자율 보관제를 지지한다."
                 value={skill3Input}
                 disabled={skill3Confirmed}
-                onChange={(e) => setSkill3Input(e.target.value)}
+                onChange={(e) => { setSkill3Input(e.target.value); persistWrittenAnswer(3, e.target.value); }}
               />
 
               {!skill3Confirmed ? (
@@ -3948,7 +4060,7 @@ function SkillLabTrainingView({
                 placeholder="[원인] ... [대안] 근로기준법상 ..."
                 value={skill4Input}
                 disabled={skill4Confirmed}
-                onChange={(e) => setSkill4Input(e.target.value)}
+                onChange={(e) => { setSkill4Input(e.target.value); persistWrittenAnswer(4, e.target.value); }}
               />
 
               {!skill4Confirmed ? (
@@ -4123,7 +4235,7 @@ function SkillLabTrainingView({
                 placeholder="1. 헌법 제10조 인격권 침해 현황... 2. 구조적 원인... 3. 잊힐 권리 법제화 실천 방안..."
                 value={skill5Input}
                 disabled={skill5Confirmed}
-                onChange={(e) => setSkill5Input(e.target.value)}
+                onChange={(e) => { setSkill5Input(e.target.value); persistWrittenAnswer(5, e.target.value); }}
               />
 
               {!skill5Confirmed ? (
@@ -4428,45 +4540,37 @@ function SkillLabTrainingView({
               </div>
 
               <div className="history-items-scroll">
-                <div className="history-card-item">
-                  <span className="step-tag">STEP 2. 자료 해석</span>
-                  <h4>Q. {curS2.question}</h4>
-                  <div className="student-written-box">
-                    <small>내가 작성한 답안:</small>
-                    <p>{skill2Input || "(아직 작성하지 않음)"}</p>
+                {archivedAnswerEntries.length === 0 && (
+                  <div className="history-card-item">
+                    <p>아직 저장된 답안이 없습니다. STEP 2~5에서 글을 쓰기 시작하면 자동으로 보관됩니다.</p>
                   </div>
-                  {skill2AiRes && <p className="tutor-mini-eval">⚡ AI 코칭: {skill2AiRes.feedback}</p>}
-                </div>
-
-                <div className="history-card-item">
-                  <span className="step-tag">STEP 3. 관점 평가</span>
-                  <h4>Q. 선택한 관점에서 자신의 주장을 1문장으로 제시하세요 ({skill3Stance === "A" ? "자유권" : "학습권"})</h4>
-                  <div className="student-written-box">
-                    <small>내가 작성한 답안:</small>
-                    <p>{skill3Input || "(아직 작성하지 않음)"}</p>
-                  </div>
-                  {skill3AiRes && <p className="tutor-mini-eval">⚡ AI 코칭: {skill3AiRes.feedback}</p>}
-                </div>
-
-                <div className="history-card-item">
-                  <span className="step-tag">STEP 4. 원인·대안</span>
-                  <h4>Q. 문제 원인(개인적 vs 구조적)과 법·제도적 해결 방안 서술</h4>
-                  <div className="student-written-box">
-                    <small>내가 작성한 답안:</small>
-                    <p>{skill4Input || "(아직 작성하지 않음)"}</p>
-                  </div>
-                  {skill4AiRes && <p className="tutor-mini-eval">⚡ AI 코칭: {skill4AiRes.feedback}</p>}
-                </div>
-
-                <div className="history-card-item">
-                  <span className="step-tag">STEP 5. 실천 설계</span>
-                  <h4>Q. [현황 ➔ 구조 원인 ➔ 헌법 기반 실천 방안] 3단 논증</h4>
-                  <div className="student-written-box">
-                    <small>내가 작성한 답안:</small>
-                    <p>{skill5Input || "(아직 작성하지 않음)"}</p>
-                  </div>
-                  {skill5AiRes && <p className="tutor-mini-eval">⚡ AI 코칭: {skill5AiRes.feedback}</p>}
-                </div>
+                )}
+                {archivedAnswerEntries.map((entry) => (
+                  <section className="history-card-item" key={entry.topicId}>
+                    <span className="step-tag">{entry.topicTitle}</span>
+                    <p className="tutor-mini-eval">📖 {entry.textbookPage || "교과서 연계"} · 마지막 저장 {new Date(entry.updatedAt).toLocaleString("ko-KR")}</p>
+                    {Object.entries(entry.step2Answers || {}).map(([answerId, item]) => item.answer.trim() && (
+                      <div className="student-written-box" key={`step2-${answerId}`}>
+                        <small>STEP 2. 자료 해석 {item.confirmed ? "· ✓ 확정" : "· 작성 중"}</small>
+                        <h4>Q. {item.question}</h4>
+                        <p>{item.answer}</p>
+                        {item.feedback && <p className="tutor-mini-eval">⚡ AI 코칭: {item.feedback}</p>}
+                      </div>
+                    ))}
+                    {([3, 4, 5] as const).map((step) => {
+                      const item = step === 3 ? entry.step3 : step === 4 ? entry.step4 : entry.step5;
+                      if (!item?.answer.trim()) return null;
+                      return (
+                        <div className="student-written-box" key={`step-${step}`}>
+                          <small>STEP {step}. {step === 3 ? "관점 평가" : step === 4 ? "원인·대안" : "실천 설계"} {item.confirmed ? "· ✓ 확정" : "· 작성 중"}</small>
+                          <h4>Q. {item.question}</h4>
+                          <p>{item.answer}</p>
+                          {item.feedback && <p className="tutor-mini-eval">⚡ AI 코칭: {item.feedback}</p>}
+                        </div>
+                      );
+                    })}
+                  </section>
+                ))}
               </div>
 
               <button className="primary-button full-button" onClick={() => setHistoryModalOpen(false)}>

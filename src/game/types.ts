@@ -113,6 +113,25 @@ export interface PortfolioEntry {
   savedAt: string;
 }
 
+export interface SkillLabWrittenAnswer {
+  question: string;
+  answer: string;
+  feedback?: string;
+  confirmed?: boolean;
+}
+
+export interface SkillLabAnswerArchiveEntry {
+  topicId: number;
+  unitId: number;
+  topicTitle: string;
+  textbookPage?: string;
+  step2Answers: Record<string, SkillLabWrittenAnswer>;
+  step3?: SkillLabWrittenAnswer & { stance?: string };
+  step4?: SkillLabWrittenAnswer;
+  step5?: SkillLabWrittenAnswer;
+  updatedAt: string;
+}
+
 export type AchievementLevel = "A" | "B" | "C" | "D" | "E";
 
 export interface CompetencyEvaluation {
@@ -169,6 +188,13 @@ export interface SaveData {
   lastMissionId?: string | null;
   completedVocabTopics?: number[];
   completedSkillTopics?: number[];
+  skillAnswerArchive?: Record<string, SkillLabAnswerArchiveEntry>;
+  currentSkillLab?: {
+    selectedUnitId: number;
+    selectedTrainingTopicId: number;
+    activeSkillTab: 1 | 2 | 3 | 4 | 5;
+    skill2Idx: number;
+  };
 }
 
 export interface Scene {
