@@ -5,6 +5,7 @@ async function prepareVercelOutput() {
   const root = process.cwd();
   const vercelOutputDir = path.join(root, ".vercel", "output");
   const vercelStaticDir = path.join(vercelOutputDir, "static");
+  const outDir = path.join(root, "out");
   const distClientDir = path.join(root, "dist", "client");
   const publicDir = path.join(root, "public");
 
@@ -14,16 +15,24 @@ async function prepareVercelOutput() {
   }
   fs.mkdirSync(vercelStaticDir, { recursive: true });
 
-  // 1. Copy dist/client files to .vercel/output/static
+  // Reset out directory
+  if (fs.existsSync(outDir)) {
+    fs.rmSync(outDir, { recursive: true, force: true });
+  }
+  fs.mkdirSync(outDir, { recursive: true });
+
+  // 1. Copy dist/client files to .vercel/output/static and out
   if (fs.existsSync(distClientDir)) {
     fs.cpSync(distClientDir, vercelStaticDir, { recursive: true });
-    console.log("[VERCEL BUILD] Copied dist/client to .vercel/output/static");
+    fs.cpSync(distClientDir, outDir, { recursive: true });
+    console.log("[VERCEL BUILD] Copied dist/client to .vercel/output/static and out");
   }
 
-  // 2. Copy public files to .vercel/output/static
+  // 2. Copy public files to .vercel/output/static and out
   if (fs.existsSync(publicDir)) {
     fs.cpSync(publicDir, vercelStaticDir, { recursive: true });
-    console.log("[VERCEL BUILD] Copied public to .vercel/output/static");
+    fs.cpSync(publicDir, outDir, { recursive: true });
+    console.log("[VERCEL BUILD] Copied public to .vercel/output/static and out");
   }
 
   // 3. Create .vercel/output/config.json
@@ -31,8 +40,7 @@ async function prepareVercelOutput() {
     version: 3,
     routes: [
       { handle: "filesystem" },
-      { src: "/api/(.*)", dest: "/api/index.js" },
-      { src: "/(.*)", dest: "/index.html" }
+      { src: "/((?!api/).*)", dest: "/index.html" }
     ]
   };
 
