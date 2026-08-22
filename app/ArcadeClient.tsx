@@ -107,6 +107,7 @@ export default function HomePage() {
   const [resumeModalOpen, setResumeModalOpen] = useState(false);
   const [resumeSessionData, setResumeSessionData] = useState<any>(null);
   const [topicClearModalData, setTopicClearModalData] = useState<{ topicId: number; unitId: number } | null>(null);
+  const [speechModalOpen, setSpeechModalOpen] = useState(false);
 
   const handleSpeechSubmit = async (text: string, duration: number): Promise<SpeechFeedbackResult | null> => {
     try {
