@@ -4784,7 +4784,7 @@ function PortfolioReportModal({
   onClose,
 }: {
   save: SaveData;
-  evalProfile: Record<string, unknown>;
+  evalProfile: any;
   onClose: () => void;
 }) {
 
