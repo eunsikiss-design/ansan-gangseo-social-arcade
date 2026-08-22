@@ -90,12 +90,11 @@ export function generatePortfolioDraft(
  * A~E 종합 성취수준 및 역량 리포트 판정기
  */
 export function evaluateCompetencyProfile(
-  scores: Record<string, ScoreBreakdown> = {},
-  completedMissionIds: string[] = []
+  scores: Record<string, ScoreBreakdown>,
+  completedMissionIds: string[]
 ): CompetencyEvaluation {
-  const safeScores = scores && typeof scores === "object" ? scores : {};
-  const scoreList = Object.values(safeScores).filter((s) => s && typeof s === "object");
-  const total = scoreList.reduce((acc, cur) => acc + (cur?.totalScore || 0), 0);
+  const scoreList = Object.values(scores);
+  const total = scoreList.reduce((acc, cur) => acc + cur.totalScore, 0);
   const count = scoreList.length || 1;
   const avg = Math.round(total / count);
 
@@ -109,25 +108,25 @@ export function evaluateCompetencyProfile(
   const integratedThinking = Math.min(
     100,
     Math.round(
-      (scoreList.reduce((a, c) => a + (c?.conceptAccuracy || 0), 0) / (count * 30)) * 100
+      (scoreList.reduce((a, c) => a + c.conceptAccuracy, 0) / (count * 30)) * 100
     ) || 50
   );
   const dataAnalysis = Math.min(
     100,
     Math.round(
-      (scoreList.reduce((a, c) => a + (c?.dataUsage || 0), 0) / (count * 25)) * 100
+      (scoreList.reduce((a, c) => a + c.dataUsage, 0) / (count * 25)) * 100
     ) || 50
   );
   const decisionMaking = Math.min(
     100,
     Math.round(
-      (scoreList.reduce((a, c) => a + (c?.logicValidity || 0), 0) / (count * 25)) * 100
+      (scoreList.reduce((a, c) => a + c.logicValidity, 0) / (count * 25)) * 100
     ) || 50
   );
   const communityAction = Math.min(
     100,
     Math.round(
-      (scoreList.reduce((a, c) => a + (c?.solutionQuality || 0), 0) / (count * 20)) * 100
+      (scoreList.reduce((a, c) => a + c.solutionQuality, 0) / (count * 20)) * 100
     ) || 50
   );
 
