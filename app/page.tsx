@@ -62,7 +62,22 @@ const blankSave = (): SaveData => ({
     skillLevel: 1,
     skillScore: 0,
   },
+  loginCount: 0,
+  lastLoginAt: undefined,
+  lastActivityAt: undefined,
+  lastView: "hub",
+  lastMissionId: null,
+  completedVocabTopics: [],
+  completedSkillTopics: [],
 });
+
+type LeaderboardEntry = { studentId: string; displayName: string; className: string; score: number; updatedAt?: number };
+type LeaderboardData = {
+  live: boolean;
+  schoolTop5: LeaderboardEntry[];
+  classTop3: LeaderboardEntry[];
+  currentRank: number | null;
+};
 
 type ViewMode =
   | "login"
@@ -73,6 +88,7 @@ type ViewMode =
   | "mission_player"
   | "skill_lab_vocab"
   | "skill_lab_skill"
+  | "activity_dashboard"
   | "portfolio_view"
   | "item_archive";
 
@@ -81,6 +97,8 @@ export default function HomePage() {
   const [save, setSave] = useState<SaveData>(blankSave);
   const [view, setView] = useState<ViewMode>("login");
   const [hydrated, setHydrated] = useState(false);
+  const [leaderboard, setLeaderboard] = useState<LeaderboardData>({ live: false, schoolTop5: [], classTop3: [], currentRank: null });
+  const [resumeCandidate, setResumeCandidate] = useState<SaveData | null>(null);
 
   // Selected Active Mission State
   const [activeModeId, setActiveModeId] = useState<GameModeId>("case_challenge");
@@ -136,9 +154,7 @@ export default function HomePage() {
       if (stored) {
         const parsed = JSON.parse(stored);
         setSave({ ...blankSave(), ...parsed });
-        if (parsed.studentProfile?.isLoggedIn) {
-          setView("hub");
-        }
+        if (parsed.studentProfile?.isLoggedIn) setView("login");
       }
     } catch { /* fallback to blank save */ }
     setHydrated(true);
@@ -147,9 +163,37 @@ export default function HomePage() {
   // Save changes
   useEffect(() => {
     if (hydrated) {
-      localStorage.setItem(SAVE_KEY, JSON.stringify(save));
+      localStorage.setItem(SAVE_KEY, JSON.stringify({ ...save, lastView: view, lastMissionId: view === "mission_player" ? activeMission.id : save.lastMissionId, lastActivityAt: new Date().toISOString() }));
     }
-  }, [hydrated, save]);
+  }, [hydrated, save, view, activeMission.id]);
+
+  const totalActivityScore = useMemo(() => {
+    const missionTotal = Object.values(save.missionScores).reduce((sum, item) => sum + (item?.totalScore || 0), 0);
+    return missionTotal + save.skillLabScore.vocabScore + save.skillLabScore.skillScore + save.exp;
+  }, [save]);
+
+  const refreshLeaderboard = async (profile = save.studentProfile) => {
+    if (!profile.isLoggedIn || profile.role === "guest") return;
+    try {
+      const response = await fetch(`/api/activity?studentId=${encodeURIComponent(profile.studentId)}&className=${encodeURIComponent(profile.classNum)}`, { cache: "no-store" });
+      const data = await response.json();
+      setLeaderboard({ live: Boolean(data.live), schoolTop5: data.schoolTop5 || [], classTop3: data.classTop3 || [], currentRank: data.currentRank ?? null });
+    } catch {
+      setLeaderboard((prev) => ({ ...prev, live: false }));
+    }
+  };
+
+  useEffect(() => {
+    if (!hydrated || !save.studentProfile.isLoggedIn || save.studentProfile.role === "guest") return;
+    const timer = window.setTimeout(async () => {
+      const snapshot = { ...save, lastView: view, lastMissionId: view === "mission_player" ? activeMission.id : save.lastMissionId, lastActivityAt: new Date().toISOString() };
+      try {
+        await fetch("/api/activity", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ studentId: save.studentProfile.studentId, displayName: save.studentProfile.name, className: save.studentProfile.classNum, score: totalActivityScore, loginCount: save.loginCount || 0, save: snapshot }) });
+        await refreshLeaderboard(save.studentProfile);
+      } catch { /* localStorage remains the offline safety copy */ }
+    }, 900);
+    return () => window.clearTimeout(timer);
+  }, [hydrated, save, view, activeMission.id, totalActivityScore]);
 
   // Scroll to top on view changes
   useEffect(() => {
@@ -192,8 +236,23 @@ export default function HomePage() {
     }
   }, [view, certUnitId, hydrated]);
 
-  const handleLoginSuccess = (profile: StudentProfile, mustChangePw?: boolean) => {
-    setSave((prev) => ({ ...prev, studentProfile: profile }));
+  const handleLoginSuccess = async (profile: StudentProfile, mustChangePw?: boolean) => {
+    let remoteSave: SaveData | null = null;
+    try {
+      const response = await fetch(`/api/activity?studentId=${encodeURIComponent(profile.studentId)}&className=${encodeURIComponent(profile.classNum)}`, { cache: "no-store" });
+      const data = await response.json();
+      setLeaderboard({ live: Boolean(data.live), schoolTop5: data.schoolTop5 || [], classTop3: data.classTop3 || [], currentRank: data.currentRank ?? null });
+      if (data.savedState?.save && (data.savedState.save.completedMissions?.length || data.savedState.save.lastActivityAt)) remoteSave = data.savedState.save as SaveData;
+    } catch { /* continue with device save */ }
+    const loginMeta = { loginCount: Math.max(save.loginCount || 0, remoteSave?.loginCount || 0) + 1, lastLoginAt: new Date().toISOString() };
+    const localSave = save.studentProfile.studentId === profile.studentId && (save.completedMissions.length || save.lastActivityAt) ? save : null;
+    const candidate = remoteSave || localSave;
+    if (candidate) {
+      setResumeCandidate({ ...blankSave(), ...candidate, studentProfile: profile, ...loginMeta });
+      setSave((prev) => ({ ...prev, studentProfile: profile, ...loginMeta }));
+    } else {
+      setSave((prev) => ({ ...prev, studentProfile: profile, ...loginMeta }));
+    }
     void audioManager.playSfx("success");
     if (mustChangePw) {
       setPasswordModalOpen(true);
@@ -297,6 +356,7 @@ export default function HomePage() {
             onOpenSkillLabVocab={() => setView("skill_lab_vocab")}
             onOpenSkillLabSkill={() => setView("skill_lab_skill")}
             onOpenPortfolio={() => setPortfolioOpen(true)}
+            onOpenActivity={() => { void refreshLeaderboard(); setView("activity_dashboard"); }}
             onOpenItemArchive={() => setView("item_archive")}
             onOpenCert={(uId) => setCertUnitId(uId)}
             onOpenLogin={() => setLoginModalOpen(true)}
@@ -360,6 +420,7 @@ export default function HomePage() {
           <SkillLabVocabView
             save={save}
             setSave={setSave}
+            leaderboard={leaderboard}
             onBack={() => setView("hub")}
           />
         )}
@@ -368,8 +429,13 @@ export default function HomePage() {
           <SkillLabTrainingView
             save={save}
             setSave={setSave}
+            leaderboard={leaderboard}
             onBack={() => setView("hub")}
           />
+        )}
+
+        {view === "activity_dashboard" && (
+          <ActivityDashboardView save={save} leaderboard={leaderboard} evalProfile={evalProfile} onRefresh={() => void refreshLeaderboard()} onBack={() => setView("hub")} />
         )}
 
         {view === "item_archive" && (
@@ -490,6 +556,20 @@ export default function HomePage() {
         {introOpen && (
           <GameIntroductionModal onClose={() => setIntroOpen(false)} />
         )}
+        {resumeCandidate && (
+          <ResumeChoiceModal
+            saved={resumeCandidate}
+            onResume={() => {
+              const restored = resumeCandidate;
+              setSave(restored);
+              const mission = [...unit1GameModes, ...unit2GameModes].flatMap((mode) => mode.missions).find((item) => item.id === restored.lastMissionId);
+              if (mission) { setActiveMission(mission); setActiveModeId(mission.gameModeId); }
+              setView((restored.lastView as ViewMode) || "hub");
+              setResumeCandidate(null);
+            }}
+            onStartFresh={() => { setResumeCandidate(null); setView("hub"); }}
+          />
+        )}
       </div>
     </main>
   );
@@ -607,6 +687,7 @@ function MainHubScreenView({
   onOpenSkillLabVocab,
   onOpenSkillLabSkill,
   onOpenPortfolio,
+  onOpenActivity,
   onOpenItemArchive,
   onOpenCert,
   onOpenLogin,
@@ -623,6 +704,7 @@ function MainHubScreenView({
   onOpenSkillLabVocab: () => void;
   onOpenSkillLabSkill: () => void;
   onOpenPortfolio: () => void;
+  onOpenActivity: () => void;
   onOpenItemArchive: () => void;
   onOpenCert: (unitId: number) => void;
   onOpenLogin: () => void;
@@ -703,6 +785,7 @@ function MainHubScreenView({
             <button className="icon-button" onClick={onOpenTeacherDash} title="교사용 대시보드"><ChalkboardTeacher size={20} color="#ffd36a" weight="fill" /></button>
           )}
           <button className="icon-button" onClick={onOpenItemArchive} title="아이템 보관소 (개념 카드 & 뱃지 서고)"><Medal size={20} color="var(--gold)" weight="fill" /></button>
+          <button className="icon-button" onClick={onOpenActivity} title="나의 활동과 학급 랭킹"><Trophy size={20} color="var(--gold)" /></button>
           <button className="icon-button" onClick={onOpenPortfolio} title="수행평가 역량 리포트"><ChartBar size={20} color="var(--teal-soft)" /></button>
           <button className="icon-button" onClick={onOpenIntro} title="게임 가이드"><BookOpen size={20} /></button>
           <button className="icon-button" onClick={onOpenSettings} title="설정"><Gear size={20} /></button>
@@ -938,6 +1021,7 @@ function Unit1DashboardView({
                 </div>
 
                 <p className="mode-desc">{mode.description}</p>
+                <div className="mode-textbook-pages"><BookOpen size={15} /> 관련 교과서: {modeMissions.map((mission) => mission.textbookPage.replace(/^교과서\s*/, "")).join(" · ")}</div>
 
                 {/* Level Missions Row (Lv1 ~ Lv5) */}
                 <div className="mode-levels-grid">
@@ -956,6 +1040,7 @@ function Unit1DashboardView({
                           {isDone && <CheckCircle size={14} weight="fill" color="#56e39f" />}
                         </div>
                         <strong>{mission.title}</strong>
+                        <span className="mission-page-label">📖 {mission.textbookPage}</span>
                         <small>{isDone ? `점수: ${missionScore}점` : "도전하기 >"}</small>
                       </button>
                     );
@@ -1056,6 +1141,7 @@ function Unit2DashboardView({
                 </div>
 
                 <p className="mode-desc">{mode.description}</p>
+                <div className="mode-textbook-pages"><BookOpen size={15} /> 관련 교과서: {modeMissions.map((mission) => mission.textbookPage.replace(/^교과서\s*/, "")).join(" · ")}</div>
 
                 {/* Level Missions Grid */}
                 <div className="mode-levels-grid">
@@ -1074,6 +1160,7 @@ function Unit2DashboardView({
                           {isDone && <CheckCircle size={14} weight="fill" color="#56e39f" />}
                         </div>
                         <strong>{mission.title}</strong>
+                        <span className="mission-page-label">📖 {mission.textbookPage}</span>
                         <small>{isDone ? `점수: ${missionScore}점` : "도전하기 >"}</small>
                       </button>
                     );
@@ -1755,10 +1842,12 @@ function MissionPlayerView({
 function SkillLabVocabView({
   save,
   setSave,
+  leaderboard,
   onBack,
 }: {
   save: SaveData;
   setSave: React.Dispatch<React.SetStateAction<SaveData>>;
+  leaderboard: LeaderboardData;
   onBack: () => void;
 }) {
   const [selectedUnitId, setSelectedUnitId] = useState<number>(1);
@@ -1773,6 +1862,7 @@ function SkillLabVocabView({
   const [isWrongState, setIsWrongState] = useState<boolean>(false);
   const [lockModalMsg, setLockModalMsg] = useState<string | null>(null);
   const [rankingCollapsed, setRankingCollapsed] = useState<boolean>(false);
+  const [topicComplete, setTopicComplete] = useState(false);
 
   // MATCH question state (랜덤 셔플 및 엄격 검증)
   const [matchSelectedLeft, setMatchSelectedLeft] = useState<number | null>(null);
@@ -1787,30 +1877,6 @@ function SkillLabVocabView({
   const [cardDeck, setCardDeck] = useState<
     { id: string; pairId: string; type: "TERM" | "DEF"; text: string }[]
   >([]);
-
-  // 실시간 랭킹 지수 계산 (개념 점수 + 실시간 체력 + 경험치 실시간 반영)
-  const totalSkillExp = useMemo(() => {
-    return (save.skillLabScore.vocabScore || 0) * 3 + Math.floor(energy * 2) + (save.exp || 0);
-  }, [save.skillLabScore.vocabScore, energy, save.exp]);
-
-  const classRank = useMemo(() => {
-    if (totalSkillExp >= 350) return 1;
-    if (totalSkillExp >= 280) return 2;
-    if (totalSkillExp >= 200) return 3;
-    if (totalSkillExp >= 140) return 5;
-    if (totalSkillExp >= 90) return 8;
-    return 14;
-  }, [totalSkillExp]);
-
-  const schoolRank = useMemo(() => {
-    if (totalSkillExp >= 350) return 2;
-    if (totalSkillExp >= 280) return 6;
-    if (totalSkillExp >= 200) return 14;
-    if (totalSkillExp >= 140) return 28;
-    if (totalSkillExp >= 90) return 48;
-    return 79;
-  }, [totalSkillExp]);
-
 
   // 현재 단원에 속한 주제 목록
   const unitTopics = useMemo(() => {
@@ -2013,14 +2079,17 @@ function SkillLabVocabView({
     if (currentQIdx < topicQuestions.length - 1) {
       setCurrentQIdx(currentQIdx + 1);
     } else {
-      const curIdxInUnit = unitTopics.findIndex((t) => t.id === selectedTopicId);
-      if (curIdxInUnit < unitTopics.length - 1) {
-        setSelectedTopicId(unitTopics[curIdxInUnit + 1].id);
-        setCurrentQIdx(0);
-      } else {
-        setActiveMode("CARD_FLIP");
-      }
+      setSave((prev) => ({ ...prev, completedVocabTopics: [...new Set([...(prev.completedVocabTopics || []), selectedTopicId])] }));
+      setTopicComplete(true);
     }
+  };
+
+  const continueNextTopic = () => {
+    const curIdxInUnit = unitTopics.findIndex((t) => t.id === selectedTopicId);
+    if (curIdxInUnit < unitTopics.length - 1) setSelectedTopicId(unitTopics[curIdxInUnit + 1].id);
+    else setActiveMode("CARD_FLIP");
+    setCurrentQIdx(0);
+    setTopicComplete(false);
   };
 
   return (
@@ -2133,12 +2202,12 @@ function SkillLabVocabView({
           </div>
 
           {!rankingCollapsed && (
-            <div className="live-ranking-banner" style={{ marginTop: "10px" }}>
+            <><div className="live-ranking-banner" style={{ marginTop: "10px" }}>
               <div className="rank-badge-item">
                 <span className="rank-icon">🏫</span>
                 <div className="rank-text-col">
                   <small>학급 랭킹</small>
-                  <strong>{save.studentProfile.classNum} {classRank}위</strong>
+                  <strong>{save.studentProfile.classNum} TOP 3</strong>
                 </div>
               </div>
               <div className="rank-divider" />
@@ -2146,7 +2215,7 @@ function SkillLabVocabView({
                 <span className="rank-icon">🌍</span>
                 <div className="rank-text-col">
                   <small>전교 랭킹</small>
-                  <strong>통합사회 {schoolRank}위</strong>
+                  <strong>{leaderboard.currentRank ? `통합사회 ${leaderboard.currentRank}위` : "집계 중"}</strong>
                 </div>
               </div>
               <div className="rank-divider" />
@@ -2158,6 +2227,8 @@ function SkillLabVocabView({
                 </div>
               </div>
             </div>
+            <LeaderboardList entries={leaderboard.schoolTop5} empty="활동 데이터가 저장되면 1~5위 학생이 표시됩니다." />
+            </>
           )}
         </div>
 
@@ -2201,9 +2272,10 @@ function SkillLabVocabView({
                   }}
                 >
                   {unitTopics.map((t) => (
-                    <option key={t.id} value={t.id}>{t.title}</option>
+                    <option key={t.id} value={t.id}>{t.title} · {t.textbookPage}</option>
                   ))}
                 </select>
+                <small className="topic-page-guide">📖 {unitTopics.find((t) => t.id === selectedTopicId)?.textbookPage} · 총 {topicQuestions.length}문항</small>
               </div>
 
               {/* 단서 요청 버튼 (최대 2회, -2%) */}
@@ -2511,6 +2583,17 @@ function SkillLabVocabView({
             </div>
           </div>
         )}
+        {topicComplete && (
+          <div className="modal-backdrop">
+            <section className="topic-complete-panel">
+              <CheckCircle size={40} color="#56e39f" weight="fill" />
+              <h3>{currentQ.topicTitle} 학습 완료</h3>
+              <p>{unitTopics.find((t) => t.id === selectedTopicId)?.textbookPage} 관련 문제를 모두 해결했습니다. 다음 주제 진행 여부를 직접 선택하세요.</p>
+              <button className="primary-button full-button" onClick={continueNextTopic}>{unitTopics.findIndex((t) => t.id === selectedTopicId) < unitTopics.length - 1 ? "다음 주제로 이어가기" : "개념 카드 게임으로 이어가기"}</button>
+              <button className="secondary-button full-button" onClick={onBack}>여기서 종료하고 홈으로</button>
+            </section>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -2520,10 +2603,12 @@ function SkillLabVocabView({
 function SkillLabTrainingView({
   save,
   setSave,
+  leaderboard,
   onBack,
 }: {
   save: SaveData;
   setSave: React.Dispatch<React.SetStateAction<SaveData>>;
+  leaderboard: LeaderboardData;
   onBack: () => void;
 }) {
   const [activeSkillTab, setActiveSkillTab] = useState<1 | 2 | 3 | 4 | 5>(1);
@@ -2570,6 +2655,7 @@ function SkillLabTrainingView({
   const [skill5AiRes, setSkill5AiRes] = useState<any>(null);
   const [skill5Loading, setSkill5Loading] = useState(false);
   const [skill5Confirmed, setSkill5Confirmed] = useState(false);
+  const [skillTopicComplete, setSkillTopicComplete] = useState(false);
 
   // 내가 쓴 글 서고 토글 모달
   const [historyModalOpen, setHistoryModalOpen] = useState(false);
@@ -2610,7 +2696,11 @@ function SkillLabTrainingView({
     if (stepNumber === 2) setSkill2Confirmed(true);
     else if (stepNumber === 3) setSkill3Confirmed(true);
     else if (stepNumber === 4) setSkill4Confirmed(true);
-    else if (stepNumber === 5) setSkill5Confirmed(true);
+    else if (stepNumber === 5) {
+      setSkill5Confirmed(true);
+      setSave((prev) => ({ ...prev, completedSkillTopics: [...new Set([...(prev.completedSkillTopics || []), selectedTrainingTopicId])] }));
+      setSkillTopicComplete(true);
+    }
 
     void audioManager.playSfx("success");
 
@@ -2746,9 +2836,15 @@ function SkillLabTrainingView({
   };
 
   const [selectedUnitId, setSelectedUnitId] = useState<number>(1);
+  const [selectedTrainingTopicId, setSelectedTrainingTopicId] = useState<number>(1);
   const dataset = useMemo(() => {
     return selectedUnitId === 2 ? unit2SkillLabMaster : unit1SkillLabMaster;
   }, [selectedUnitId]);
+  const trainingTopics = useMemo(() => masterVocabTopics.filter((topic) => topic.unitId === selectedUnitId), [selectedUnitId]);
+
+  useEffect(() => {
+    if (trainingTopics.length && !trainingTopics.some((topic) => topic.id === selectedTrainingTopicId)) setSelectedTrainingTopicId(trainingTopics[0].id);
+  }, [trainingTopics, selectedTrainingTopicId]);
 
 
   // --- Skill 1 Helpers ---
@@ -2904,7 +3000,7 @@ function SkillLabTrainingView({
           <button className="icon-button" onClick={onBack}><ArrowLeft size={20} /></button>
           <div>
             <span>탐구력 향상 랩 · 5단계 탐구 스킬 훈련</span>
-            <strong>1단원 인권 보장과 헌법 스킬 랩</strong>
+            <strong>{unitTopicGroups.find((group) => group.unitId === selectedUnitId)?.unitTitle} 스킬 랩</strong>
           </div>
           <div className="hud-right-actions">
             {activeSkillTab >= 2 && (
@@ -3001,6 +3097,14 @@ function SkillLabTrainingView({
           </div>
         </div>
 
+        <section className="training-topic-selector" aria-label="탐구기능 연습 주제 선택">
+          <div><strong>주제별 탐구기능 연습</strong><small>한 주제의 5단계를 마친 뒤 종료하거나 다음 주제를 선택할 수 있습니다.</small></div>
+          <select value={selectedTrainingTopicId} onChange={(event) => { setSelectedTrainingTopicId(Number(event.target.value)); setActiveSkillTab(1); setSkillTopicComplete(false); }}>
+            {trainingTopics.map((topic) => <option key={topic.id} value={topic.id}>{topic.title} · {topic.textbookPage}</option>)}
+          </select>
+          <span>📖 {trainingTopics.find((topic) => topic.id === selectedTrainingTopicId)?.textbookPage}</span>
+        </section>
+
         {/* 1. 실시간 학급 / 전교 랭킹 대시보드 (접기/펼치기 토글) */}
         <div className="live-ranking-banner-box" style={{ background: "#041824", border: "1px solid #16364d", borderRadius: "12px", padding: "10px 12px", marginBottom: "12px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -3027,12 +3131,12 @@ function SkillLabTrainingView({
           </div>
 
           {!rankingCollapsed && (
-            <div className="live-ranking-banner" style={{ marginTop: "10px" }}>
+            <><div className="live-ranking-banner" style={{ marginTop: "10px" }}>
               <div className="rank-badge-item">
                 <span className="rank-icon">🏫</span>
                 <div className="rank-text-col">
                   <small>학급 랭킹</small>
-                  <strong>{save.studentProfile.classNum} {Math.max(1, 15 - Math.floor((save.skillLabScore.skillScore || 0) / 30))}위</strong>
+                  <strong>{save.studentProfile.classNum} TOP 3</strong>
                 </div>
               </div>
               <div className="rank-divider" />
@@ -3040,7 +3144,7 @@ function SkillLabTrainingView({
                 <span className="rank-icon">🌍</span>
                 <div className="rank-text-col">
                   <small>전교 랭킹</small>
-                  <strong>통합사회 {Math.max(2, 60 - Math.floor((save.skillLabScore.skillScore || 0) / 10))}위</strong>
+                  <strong>{leaderboard.currentRank ? `통합사회 ${leaderboard.currentRank}위` : "집계 중"}</strong>
                 </div>
               </div>
               <div className="rank-divider" />
@@ -3052,6 +3156,8 @@ function SkillLabTrainingView({
                 </div>
               </div>
             </div>
+            <LeaderboardList entries={leaderboard.schoolTop5} empty="활동 데이터가 저장되면 1~5위 학생이 표시됩니다." />
+            </>
           )}
         </div>
 
@@ -4055,6 +4161,23 @@ function SkillLabTrainingView({
         )}
 
         {/* 💬 1:1 보조교사 AI 튜터 ZERO 실시간 채팅창 모달 (전면 재설계) */}
+        {skillTopicComplete && (
+          <div className="modal-backdrop">
+            <section className="topic-complete-panel">
+              <CheckCircle size={40} color="#56e39f" weight="fill" />
+              <h3>{trainingTopics.find((topic) => topic.id === selectedTrainingTopicId)?.title} 훈련 완료</h3>
+              <p>{trainingTopics.find((topic) => topic.id === selectedTrainingTopicId)?.textbookPage} 탐구기능 5단계를 완료했습니다.</p>
+              <button className="primary-button full-button" onClick={() => {
+                const index = trainingTopics.findIndex((topic) => topic.id === selectedTrainingTopicId);
+                if (index < trainingTopics.length - 1) setSelectedTrainingTopicId(trainingTopics[index + 1].id);
+                else if (trainingTopics[0]) setSelectedTrainingTopicId(trainingTopics[0].id);
+                setActiveSkillTab(1); setSkillTopicComplete(false); setSkill5Confirmed(false); setSkill5AiRes(null); setSkill5Input("");
+              }}>{trainingTopics.findIndex((topic) => topic.id === selectedTrainingTopicId) < trainingTopics.length - 1 ? "다음 주제로 이어가기" : "현재 단원 처음 주제 복습하기"}</button>
+              <button className="secondary-button full-button" onClick={onBack}>여기서 종료하고 홈으로</button>
+            </section>
+          </div>
+        )}
+
         {tutorChatOpen && (
           <div className="modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget) setTutorChatOpen(false); }}>
             <div className="tutor-chat-drawer-panel">
@@ -4570,6 +4693,41 @@ function TeacherDashboardModal({
       </section>
     </div>
   );
+}
+
+function ActivityDashboardView({ save, leaderboard, evalProfile, onRefresh, onBack }: { save: SaveData; leaderboard: LeaderboardData; evalProfile: any; onRefresh: () => void; onBack: () => void }) {
+  const missionScore = Object.values(save.missionScores).reduce((sum, item) => sum + (item?.totalScore || 0), 0);
+  const totalScore = missionScore + save.skillLabScore.vocabScore + save.skillLabScore.skillScore + save.exp;
+  const strengths = evalProfile.strengths?.length ? evalProfile.strengths : ["아직 분석할 활동이 부족합니다."];
+  const weaknesses = evalProfile.improvements?.length ? evalProfile.improvements : ["미션을 더 수행하면 보완 영역을 알려드립니다."];
+  return (
+    <div className="activity-dashboard-view">
+      <header className="game-hud"><div className="hud-top"><button className="icon-button" onClick={onBack} aria-label="홈으로"><ArrowLeft size={20} /></button><div><span>MY ACTIVITY</span><strong>나의 활동 · 학급 대시보드</strong></div><button className="icon-button" onClick={onRefresh} title="새로고침">↻</button></div></header>
+      <div className="activity-dashboard-scroll">
+        <section className="activity-profile-card"><div><strong>{save.studentProfile.name}</strong><span>{save.studentProfile.grade} {save.studentProfile.classNum} {save.studentProfile.studentNum}</span></div><b>{leaderboard.currentRank ? `전교 ${leaderboard.currentRank}위` : "순위 집계 중"}</b></section>
+        <div className="activity-stat-grid">
+          <article><span>통합 점수</span><strong>{totalScore.toLocaleString()}</strong></article>
+          <article><span>완료 미션</span><strong>{save.completedMissions.length}</strong></article>
+          <article><span>로그인 횟수</span><strong>{save.loginCount || 0}회</strong></article>
+          <article><span>저장 상태</span><strong>{save.studentProfile.isLoggedIn ? "자동 저장" : "기기 저장"}</strong></article>
+        </div>
+        <section className="activity-panel"><h3>보상 현황</h3><div className="reward-summary"><span>🏅 뱃지 {save.earnedVocabBadges?.length || 0}개</span><span>📜 임명증 {save.earnedCertificates.length}개</span><span>🃏 개념 카드 {save.earnedVocabItems?.length || 0}개</span></div></section>
+        <section className="activity-panel split"><div><h3>학습 강점</h3>{strengths.map((item: string) => <p key={item}>✓ {item}</p>)}</div><div><h3>보완할 점</h3>{weaknesses.map((item: string) => <p key={item}>→ {item}</p>)}</div></section>
+        <section className="activity-panel"><div className="panel-title-row"><h3>{save.studentProfile.classNum} 활동 대시보드 · TOP 3</h3><span className={leaderboard.live ? "live-dot" : "offline-dot"}>{leaderboard.live ? "실시간" : "연결 대기"}</span></div><LeaderboardList entries={leaderboard.classTop3} empty="아직 이 학급에 집계된 학생이 없습니다." /></section>
+        <section className="activity-panel"><h3>전교 통합사회 랭킹 · 1~5위</h3><LeaderboardList entries={leaderboard.schoolTop5} empty="학생 활동이 저장되면 1~5위가 표시됩니다." /></section>
+        <small className="privacy-note">랭킹은 이름·학급·통합 점수만 표시하며 답안 내용은 공개하지 않습니다.</small>
+      </div>
+    </div>
+  );
+}
+
+function LeaderboardList({ entries, empty }: { entries: LeaderboardEntry[]; empty: string }) {
+  if (!entries.length) return <p className="leaderboard-empty">{empty}</p>;
+  return <ol className="named-leaderboard">{entries.map((entry, index) => <li key={entry.studentId}><b>{index + 1}</b><span>{entry.displayName}<small>{entry.className}</small></span><strong>{entry.score.toLocaleString()}점</strong></li>)}</ol>;
+}
+
+function ResumeChoiceModal({ saved, onResume, onStartFresh }: { saved: SaveData; onResume: () => void; onStartFresh: () => void }) {
+  return <div className="modal-backdrop"><section className="resume-choice-panel"><FileText size={38} color="var(--gold)" weight="fill" /><h2>이전 활동을 이어서 할까요?</h2><p>{saved.lastActivityAt ? new Date(saved.lastActivityAt).toLocaleString("ko-KR") : "이전 접속"}에 저장된 학습 기록이 있습니다.</p><div className="resume-summary"><span>완료 미션 {saved.completedMissions.length}개</span><span>EXP {saved.exp}</span><span>마지막 위치 {saved.lastView || "홈"}</span></div><button className="primary-button full-button" onClick={onResume}>이전 활동 이어하기</button><button className="secondary-button full-button" onClick={onStartFresh}>홈에서 새 활동 시작</button><small>새 활동을 선택해도 기존 성취 기록과 보상은 삭제되지 않습니다.</small></section></div>;
 }
 
 function CertificateModal({

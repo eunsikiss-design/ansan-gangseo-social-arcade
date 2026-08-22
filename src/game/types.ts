@@ -162,6 +162,13 @@ export interface SaveData {
   };
   earnedVocabBadges?: number[]; // [1, 2, ...] 단원별 개념 마스터 뱃지
   earnedVocabItems?: string[];  // 획득한 개념 카드 아이템 ID 리스트
+  loginCount?: number;
+  lastLoginAt?: string;
+  lastActivityAt?: string;
+  lastView?: string;
+  lastMissionId?: string | null;
+  completedVocabTopics?: number[];
+  completedSkillTopics?: number[];
 }
 
 export interface Scene {

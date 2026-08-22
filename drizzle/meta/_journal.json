@@ -8,6 +8,13 @@
       "when": 1786790068342,
       "tag": "0000_ancient_thor_girl",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1787409360634,
+      "tag": "0001_happy_warpath",
+      "breakpoints": true
     }
   ]
 }

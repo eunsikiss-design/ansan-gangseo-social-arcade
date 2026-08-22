@@ -31,3 +31,13 @@ export const assignments = sqliteTable("assignments", {
   dueAt: integer("due_at", { mode: "timestamp_ms" }),
   createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
 });
+
+export const activitySnapshots = sqliteTable("activity_snapshots", {
+  studentId: text("student_id").primaryKey(),
+  displayName: text("display_name").notNull(),
+  className: text("class_name").notNull(),
+  score: integer("score").notNull().default(0),
+  loginCount: integer("login_count").notNull().default(0),
+  saveJson: text("save_json").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+});
