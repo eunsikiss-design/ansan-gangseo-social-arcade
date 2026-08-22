@@ -108,7 +108,9 @@ export default async function handler(req, res) {
 
     const request = new Request(url.href, requestInit);
 
-    const response = await worker.fetch(
+    const fetchHandler = typeof worker === "function" ? worker : (worker?.default || worker?.fetch);
+
+    const response = await fetchHandler(
       request,
       {
         ASSETS: {
